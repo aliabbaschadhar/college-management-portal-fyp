@@ -20,6 +20,7 @@ import {
   Star,
 } from "lucide-react";
 import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 
 const features = [
   {
@@ -433,34 +434,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ─────────────────────────────────────────────── */}
-      {/* FOOTER                                         */}
-      {/* ─────────────────────────────────────────────── */}
-      <footer className="border-t border-white/[0.06] bg-[#080C14] py-10 px-4">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
-          {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, #3D5EE1, #6FCCD8)" }}>
-              <GraduationCap className="h-5 w-5 text-white" />
-            </div>
-            <span className="text-base font-black tracking-tight text-white">
-              College Management Portal
-            </span>
-          </div>
-
-          {/* Links */}
-          <div className="flex items-center gap-6 text-sm font-medium text-white/40">
-            <Link href="/" className="hover:text-white/80 transition-colors">Home</Link>
-            <Link href="/sign-in" className="hover:text-white/80 transition-colors">Sign In</Link>
-            <Link href="/sign-up" className="hover:text-white/80 transition-colors">Sign Up</Link>
-          </div>
-
-          <p className="text-xs text-white/25">
-            © {new Date().getFullYear()} Govt. Graduate College, Hafizabad
-          </p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
