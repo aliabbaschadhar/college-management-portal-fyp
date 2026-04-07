@@ -1,0 +1,313 @@
+"use client";
+
+import {
+  BookOpen,
+  Users,
+  Star,
+  FileText,
+  ArrowRight,
+  ClipboardCheck,
+  CalendarDays,
+  Bell,
+  TrendingUp,
+} from "lucide-react";
+import { StatsCard } from "@/components/dashboard/StatsCard";
+import { PageHeader } from "@/components/dashboard/PageHeader";
+import {
+  getFacultyDashboardStats,
+  getFacultyClasses,
+  getFacultyTimetable,
+  getFacultyFeedback,
+  getCourseStudents,
+  mockAnnouncements,
+  mockQuizzes,
+} from "@/lib/mock-data";
+import Link from "next/link";
+import { motion } from "framer-motion";
+import { Badge } from "@/components/ui/badge";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Pie, PieChart, Cell } from "recharts";
+
+const FACULTY_ID = "f1";
+
+const container = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.08 } },
+};
+const item = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0 },
+};
+
+const CHART_COLORS = ["#3D5EE1", "#6FCCD8", "#A78BFA", "#F59E0B", "#1ABE17", "#E82646"];
+
+export function FacultyDashboardHome() {
+  const stats = getFacultyDashboardStats(FACULTY_ID);
+  const courses = getFacultyClasses(FACULTY_ID);
+  const timetable = getFacultyTimetable(FACULTY_ID);
+  const feedback = getFacultyFeedback(FACULTY_ID);
+
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const today = days[new Date().getDay()];
+  const todayClasses = timetable.filter((t) => t.day === today);
+
+  const facultyAnnouncements = mockAnnouncements.filter(
+    (a) => a.audience === "All" || a.audience === "Faculty"
+  );
+
+  const myQuizzes = mockQuizzes.filter((q) => q.createdBy === FACULTY_ID);
+
+  // Course enrollment chart
+  const enrollmentData = courses.map((c, i) => ({
+    course: c.courseCode,
+    students: getCourseStudents(c.id).length,
+    fill: CHART_COLORS[i % CHART_COLORS.length],
+  }));
+
+  const enrollmentConfig: ChartConfig = Object.fromEntries(
+    courses.map((c, i) => [
+      c.courseCode,
+      { label: c.name, color: CHART_COLORS[i % CHART_COLORS.length] },
+    ])
+  );
+
+  // Attendance pie chart data
+  const attendancePieData = [
+    { name: "Present", value: 78, fill: "#1ABE17" },
+    { name: "Late", value: 12, fill: "#EAB300" },
+    { name: "Absent", value: 10, fill: "#E82646" },
+  ];
+
+  const attendancePieConfig: ChartConfig = {
+    present: { label: "Present", color: "#1ABE17" },
+    late: { label: "Late", color: "#EAB300" },
+    absent: { label: "Absent", color: "#E82646" },
+  };
+
+  const quickActions = [
+    { title: "Mark Attendance", href: "/dashboard/mark-attendance", icon: ClipboardCheck, color: "#1ABE17" },
+    { title: "Enter Grades", href: "/dashboard/grades", icon: TrendingUp, color: "#3D5EE1" },
+    { title: "Create Quiz", href: "/dashboard/quizzes", icon: FileText, color: "#A78BFA" },
+    { title: "Question Bank", href: "/dashboard/question-bank", icon: BookOpen, color: "#F59E0B" },
+  ];
+
+  return (
+    <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
+      <PageHeader
+        title="Faculty Dashboard 🎓"
+        subtitle="Manage your courses, students, and academic activities."
+      />
+
+      {/* Stats */}
+      <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <StatsCard
+          title="My Courses"
+          value={stats.totalCourses}
+          trend="Active"
+          trendDirection="up"
+          icon={BookOpen}
+          iconColor="#3D5EE1"
+          iconBg="rgba(61,94,225,0.1)"
+        />
+        <StatsCard
+          title="Total Students"
+          value={stats.totalStudents}
+          trend="Across courses"
+          trendDirection="up"
+          icon={Users}
+          iconColor="#6FCCD8"
+          iconBg="rgba(111,204,216,0.1)"
+        />
+        <StatsCard
+          title="Avg Feedback"
+          value={`${stats.avgRating}/5`}
+          trend={stats.avgRating >= 4 ? "Excellent" : "Good"}
+          trendDirection="up"
+          icon={Star}
+          iconColor="#F59E0B"
+          iconBg="rgba(245,158,11,0.1)"
+        />
+        <StatsCard
+          title="Active Quizzes"
+          value={stats.pendingQuizReviews}
+          trend="Published"
+          trendDirection="up"
+          icon={FileText}
+          iconColor="#A78BFA"
+          iconBg="rgba(167,139,250,0.1)"
+        />
+      </motion.div>
+
+      {/* Charts */}
+      <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Student Distribution */}
+        <div className="rounded-xl border border-border bg-card p-5">
+          <h3 className="text-sm font-semibold text-foreground mb-4">Students per Course</h3>
+          <ChartContainer config={enrollmentConfig} className="min-h-[280px] w-full">
+            <BarChart accessibilityLayer data={enrollmentData}>
+              <CartesianGrid vertical={false} />
+              <XAxis dataKey="course" tickLine={false} tickMargin={10} axisLine={false} />
+              <YAxis tickLine={false} axisLine={false} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar dataKey="students" radius={[8, 8, 0, 0]}>
+                {enrollmentData.map((entry, idx) => (
+                  <Cell key={idx} fill={entry.fill} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ChartContainer>
+        </div>
+
+        {/* Attendance Pie */}
+        <div className="rounded-xl border border-border bg-card p-5">
+          <h3 className="text-sm font-semibold text-foreground mb-4">Today&apos;s Attendance Overview</h3>
+          <ChartContainer config={attendancePieConfig} className="min-h-[280px] w-full">
+            <PieChart>
+              <ChartTooltip content={<ChartTooltipContent nameKey="name" />} />
+              <Pie
+                data={attendancePieData}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={100}
+                paddingAngle={4}
+              >
+                {attendancePieData.map((entry, idx) => (
+                  <Cell key={idx} fill={entry.fill} />
+                ))}
+              </Pie>
+            </PieChart>
+          </ChartContainer>
+        </div>
+      </motion.div>
+
+      {/* Bottom section */}
+      <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Today's Schedule */}
+        <div className="rounded-xl border border-border bg-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-foreground">Today&apos;s Schedule</h3>
+            <CalendarDays className="h-4 w-4 text-muted-foreground" />
+          </div>
+          {todayClasses.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No classes today. 🎉</p>
+          ) : (
+            <div className="space-y-3">
+              {todayClasses.map((cls, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-3 rounded-lg p-3 bg-accent/30 hover:bg-accent/50 transition-colors"
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-primary/10">
+                    <BookOpen className="h-4 w-4 text-brand-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground">{cls.courseCode}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {cls.startTime} - {cls.endTime} • {cls.room}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* My Quizzes */}
+        <div className="rounded-xl border border-border bg-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-foreground">My Quizzes</h3>
+            <Link href="/dashboard/quizzes" className="text-xs text-brand-primary hover:underline">
+              Manage
+            </Link>
+          </div>
+          {myQuizzes.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No quizzes created yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {myQuizzes.slice(0, 4).map((quiz) => {
+                const statusColors: Record<string, string> = {
+                  Draft: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
+                  Published: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+                  Closed: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
+                };
+                return (
+                  <div
+                    key={quiz.id}
+                    className="flex items-center gap-3 rounded-lg p-3 hover:bg-accent/50 transition-colors"
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-purple-500/10">
+                      <FileText className="h-4 w-4 text-purple-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground">{quiz.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {quiz.questions.length} questions • {quiz.duration} mins
+                      </p>
+                    </div>
+                    <Badge variant="secondary" className={statusColors[quiz.status]}>
+                      {quiz.status}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Quick Actions + Announcements */}
+        <div className="space-y-4">
+          <div className="rounded-xl border border-border bg-card p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Quick Actions</h3>
+            <div className="space-y-2">
+              {quickActions.map((qa) => (
+                <Link
+                  key={qa.title}
+                  href={qa.href}
+                  className="group flex items-center gap-3 rounded-lg p-2.5 hover:bg-accent/50 transition-colors"
+                >
+                  <div
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                    style={{ backgroundColor: `${qa.color}15` }}
+                  >
+                    <qa.icon className="h-3.5 w-3.5" style={{ color: qa.color }} />
+                  </div>
+                  <span className="text-sm font-medium text-foreground flex-1">{qa.title}</span>
+                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          {/* Announcements */}
+          <div className="rounded-xl border border-border bg-card p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-foreground">Announcements</h3>
+              <Bell className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div className="space-y-2">
+              {facultyAnnouncements.slice(0, 3).map((ann) => (
+                <div key={ann.id} className="rounded-lg p-2.5 bg-accent/20">
+                  <p className="text-sm font-medium text-foreground">{ann.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {new Date(ann.date).toLocaleDateString()} •{" "}
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                      {ann.priority}
+                    </Badge>
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}

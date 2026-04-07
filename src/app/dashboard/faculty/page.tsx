@@ -65,30 +65,38 @@ export default function ManageFacultyPage() {
   };
 
   const columns: Column<Faculty>[] = [
-    { key: "name", header: "Name", sortable: true, render: (row) => (
-      <div className="flex items-center gap-3">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-secondary/10 text-xs font-bold text-brand-secondary">
-          {row.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+    {
+      key: "name", header: "Name", sortable: true, render: (row) => (
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-secondary/10 text-xs font-bold text-brand-secondary">
+            {row.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+          </div>
+          <div>
+            <p className="font-medium text-foreground">{row.name}</p>
+            <p className="text-xs text-muted-foreground">{row.email}</p>
+          </div>
         </div>
-        <div>
-          <p className="font-medium text-foreground">{row.name}</p>
-          <p className="text-xs text-muted-foreground">{row.email}</p>
-        </div>
-      </div>
-    )},
-    { key: "department", header: "Department", sortable: true, render: (row) => (
-      <Badge variant="secondary" className={deptColors[row.department] || ""}>{row.department}</Badge>
-    )},
+      )
+    },
+    {
+      key: "department", header: "Department", sortable: true, render: (row) => (
+        <Badge variant="secondary" className={deptColors[row.department] || ""}>{row.department}</Badge>
+      )
+    },
     { key: "specialization", header: "Specialization", sortable: true },
-    { key: "joinDate", header: "Joined", sortable: true, render: (row) => (
-      <span className="text-muted-foreground">{new Date(row.joinDate).toLocaleDateString("en-PK", { year: "numeric", month: "short" })}</span>
-    )},
-    { key: "actions", header: "Actions", render: (row) => (
-      <div className="flex items-center gap-1">
-        <button onClick={() => openEdit(row)} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"><Pencil className="h-4 w-4 text-muted-foreground" /></button>
-        <button onClick={() => { setDeletingFaculty(row); setDeleteDialogOpen(true); }} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-destructive/10 transition-colors"><Trash2 className="h-4 w-4 text-destructive" /></button>
-      </div>
-    )},
+    {
+      key: "joinDate", header: "Joined", sortable: true, render: (row) => (
+        <span className="text-muted-foreground">{new Date(row.joinDate).toLocaleDateString("en-PK", { year: "numeric", month: "short" })}</span>
+      )
+    },
+    {
+      key: "actions", header: "Actions", render: (row) => (
+        <div className="flex items-center gap-1">
+          <button onClick={() => openEdit(row)} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"><Pencil className="h-4 w-4 text-muted-foreground" /></button>
+          <button onClick={() => { setDeletingFaculty(row); setDeleteDialogOpen(true); }} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-destructive/10 transition-colors"><Trash2 className="h-4 w-4 text-destructive" /></button>
+        </div>
+      )
+    },
   ];
 
   return (

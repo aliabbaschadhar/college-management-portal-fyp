@@ -1,141 +1,158 @@
 "use client";
 
-import { useState } from "react";
-import { Star, MessageSquare, User, BookOpen, Trash2, Search, Filter } from "lucide-react";
+import { Star, MessageSquare, TrendingUp } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { DataTable, Column } from "@/components/dashboard/DataTable";
-import { mockFeedback, mockFaculty, mockCourses } from "@/lib/mock-data";
-import type { Feedback } from "@/types";
-import { Button } from "@/components/ui/button";
+import { StatsCard } from "@/components/dashboard/StatsCard";
+import { getFacultyFeedback, mockStudents } from "@/lib/mock-data";
+import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { motion, AnimatePresence } from "framer-motion";
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from "recharts";
 
-export default function FeedbackPage() {
-  const [feedbacks, setFeedbacks] = useState<Feedback[]>(mockFeedback);
-  const [filterRating, setFilterRating] = useState<string>("all");
+const FACULTY_ID = "f1";
 
-  const filtered = filterRating === "all" 
-    ? feedbacks 
-    : feedbacks.filter((f) => f.rating === Number(filterRating));
+const STAR_COLORS = ["#E82646", "#F97316", "#EAB300", "#84CC16", "#1ABE17"];
 
-  const handleDelete = (id: string) => {
-    setFeedbacks((prev) => prev.filter((f) => f.id !== id));
-  };
+export default function FacultyFeedbackPage() {
+  const feedback = getFacultyFeedback(FACULTY_ID);
 
-  const columns: Column<Feedback>[] = [
-    { key: "studentId", header: "Student", sortable: true, render: (row) => (
-      <span className="text-xs font-mono text-muted-foreground uppercase">{row.studentId}</span>
-    )},
-    { key: "type", header: "Feedback on", sortable: true, render: (row) => {
-      const isFaculty = row.type === "Faculty";
-      const targetName = isFaculty 
-        ? mockFaculty.find(f => f.id === row.targetId)?.name 
-        : mockCourses.find(c => c.id === row.targetId)?.courseName;
-      
-      return (
-        <div className="flex flex-col gap-0.5">
-          <Badge variant="secondary" className="w-fit text-[10px] h-4 mb-1">
-             {row.type}
-          </Badge>
-          <span className="text-sm font-medium">{targetName || row.targetId}</span>
-        </div>
-      );
-    }},
-    { key: "rating", header: "Rating", sortable: true, render: (row) => (
-      <div className="flex items-center gap-1">
-        <span className="text-sm font-bold text-brand-primary">{row.rating}</span>
-        <div className="flex">
-          {[1,2,3,4,5].map((s) => (
-            <Star key={s} className={`h-3 w-3 ${s <= row.rating ? "fill-brand-secondary text-brand-secondary" : "text-muted-foreground/30"}`} />
-          ))}
-        </div>
-      </div>
-    )},
-    { key: "comment", header: "Message", render: (row) => (
-      <p className="text-xs text-muted-foreground max-w-[300px] line-clamp-2 italic leading-relaxed">
-        "{row.comment}"
-      </p>
-    )},
-    { key: "date", header: "Date", sortable: true, render: (row) => (
-      <span className="text-[10px] font-mono text-muted-foreground">
-        {new Date(row.date).toLocaleDateString()}
-      </span>
-    )},
-    { key: "actions", header: "Actions", render: (row) => (
-      <button 
-        onClick={() => handleDelete(row.id)}
-        className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
-        title="Delete feedback"
-      >
-        <Trash2 className="h-4 w-4" />
-      </button>
-    )},
-  ];
+  const avgRating = feedback.length > 0
+    ? +(feedback.reduce((sum, f) => sum + f.rating, 0) / feedback.length).toFixed(1)
+    : 0;
+
+  const totalReviews = feedback.length;
+  const fiveStarCount = feedback.filter((f) => f.rating === 5).length;
+
+  // Distribution chart
+  const distributionData = [1, 2, 3, 4, 5].map((star) => ({
+    star: `${star} ★`,
+    count: feedback.filter((f) => f.rating === star).length,
+    fill: STAR_COLORS[star - 1],
+  }));
+
+  const distributionConfig: ChartConfig = Object.fromEntries(
+    [1, 2, 3, 4, 5].map((s) => [
+      `${s} ★`,
+      { label: `${s} Star`, color: STAR_COLORS[s - 1] },
+    ])
+  );
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-6">
       <PageHeader
-        title="Student Feedback"
-        subtitle="Review community sentiment for courses and faculty"
+        title="My Feedback"
+        subtitle="View student feedback and ratings"
         breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Feedback" }]}
-        action={
-          <div className="flex items-center gap-3">
-             <Select value={filterRating} onValueChange={setFilterRating}>
-               <SelectTrigger className="w-[160px] h-9">
-                 <SelectValue placeholder="All Ratings" />
-               </SelectTrigger>
-               <SelectContent>
-                  <SelectItem value="all">All Ratings</SelectItem>
-                  <SelectItem value="5">5 Stars</SelectItem>
-                  <SelectItem value="4">4 Stars</SelectItem>
-                  <SelectItem value="3">3 Stars</SelectItem>
-                  <SelectItem value="2">2 Stars</SelectItem>
-                  <SelectItem value="1">1 Star</SelectItem>
-               </SelectContent>
-             </Select>
-          </div>
-        }
       />
 
-      <div className="bg-card/50 backdrop-blur-md border rounded-3xl overflow-hidden shadow-xl ring-1 ring-brand-primary/5">
-        <DataTable
-          data={filtered as unknown as Record<string, unknown>[]}
-          columns={columns as unknown as Column<Record<string, unknown>>[]}
-          searchPlaceholder="Search by student or comment..."
-          searchKeys={["studentId", "comment"]}
+      {/* Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatsCard
+          title="Average Rating"
+          value={`${avgRating}/5`}
+          trend={avgRating >= 4 ? "Excellent" : "Good"}
+          trendDirection="up"
+          icon={Star}
+          iconColor="#F59E0B"
+          iconBg="rgba(245,158,11,0.1)"
+        />
+        <StatsCard
+          title="Total Reviews"
+          value={totalReviews}
+          trend="All time"
+          trendDirection="up"
+          icon={MessageSquare}
+          iconColor="#3D5EE1"
+          iconBg="rgba(61,94,225,0.1)"
+        />
+        <StatsCard
+          title="5-Star Reviews"
+          value={fiveStarCount}
+          trend={`${totalReviews > 0 ? Math.round((fiveStarCount / totalReviews) * 100) : 0}%`}
+          trendDirection="up"
+          icon={TrendingUp}
+          iconColor="#1ABE17"
+          iconBg="rgba(26,190,23,0.1)"
         />
       </div>
-      
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-        {[
-          { label: "Avg Rating", value: (feedbacks.reduce((a,b) => a+b.rating, 0)/feedbacks.length).toFixed(1), icon: Star, color: "text-brand-secondary" },
-          { label: "Total Reviews", value: feedbacks.length, icon: MessageSquare, color: "text-brand-primary" },
-          { label: "Course Satisfaction", value: "88%", icon: BookOpen, color: "text-emerald-500" },
-        ].map((stat, i) => (
-          <motion.div 
-            key={stat.label}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.5 + i * 0.1 }}
-            className="p-6 bg-card border rounded-2xl flex items-center gap-4 shadow-sm"
-          >
-            <div className={`p-3 rounded-xl bg-muted/40 ${stat.color}`}>
-              <stat.icon className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{stat.label}</p>
-              <h4 className="text-2xl font-black">{stat.value}</h4>
-            </div>
-          </motion.div>
-        ))}
+
+      {/* Rating Distribution Chart */}
+      <div className="rounded-xl border border-border bg-card p-5">
+        <h3 className="text-sm font-semibold text-foreground mb-4">Rating Distribution</h3>
+        <ChartContainer config={distributionConfig} className="min-h-[240px] w-full">
+          <BarChart accessibilityLayer data={distributionData}>
+            <CartesianGrid vertical={false} />
+            <XAxis dataKey="star" tickLine={false} axisLine={false} />
+            <YAxis tickLine={false} axisLine={false} allowDecimals={false} />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+              {distributionData.map((entry, idx) => (
+                <Cell key={idx} fill={entry.fill} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ChartContainer>
+      </div>
+
+      {/* Big Rating Card */}
+      <div className="rounded-xl border border-border bg-card p-8 text-center">
+        <div className="flex items-center justify-center gap-1 mb-2">
+          {[1, 2, 3, 4, 5].map((s) => (
+            <Star
+              key={s}
+              className={`h-8 w-8 ${s <= Math.round(avgRating) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/20"}`}
+            />
+          ))}
+        </div>
+        <p className="text-4xl font-bold text-foreground">{avgRating}</p>
+        <p className="text-sm text-muted-foreground mt-1">Based on {totalReviews} reviews</p>
+      </div>
+
+      {/* Feedback List */}
+      <div className="rounded-xl border border-border bg-card p-5">
+        <h3 className="text-sm font-semibold text-foreground mb-4">Recent Feedback</h3>
+        <div className="space-y-3">
+          {feedback.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">No feedback received yet.</p>
+          ) : (
+            feedback.map((f) => {
+              const student = mockStudents.find((s) => s.id === f.submittedBy);
+              return (
+                <div
+                  key={f.id}
+                  className="flex items-start gap-4 rounded-lg p-4 bg-accent/20 hover:bg-accent/40 transition-colors"
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-primary/10 text-sm font-bold text-brand-primary">
+                    {student?.name?.charAt(0) || "?"}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-foreground">{student?.name || "Anonymous"}</span>
+                      <div className="flex items-center gap-0.5">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <Star
+                            key={s}
+                            className={`h-3.5 w-3.5 ${s <= f.rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground/20"}`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">{f.comment}</p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {new Date(f.date).toLocaleDateString()} •{" "}
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">{f.type}</Badge>
+                    </p>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
     </motion.div>
   );

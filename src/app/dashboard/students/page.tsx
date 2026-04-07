@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, Pencil, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
-import { mockStudents, DEPARTMENTS } from "@/lib/mock-data";
-import type { Student } from "@/types";
+import { mockStudents, DEPARTMENTS, mockFaculty, mockTeaches, mockEnrollments } from "@/lib/mock-data";
+import type { Student, UserRole } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +45,53 @@ const emptyStudent: Omit<Student, "id"> = {
 };
 
 export default function ManageStudentsPage() {
+  const { isLoaded, user } = useUser();
+  const router = useRouter();
+
+  const role = useMemo<UserRole>(() => {
+    const rawRole = user?.publicMetadata?.role;
+    if (rawRole === "admin" || rawRole === "faculty" || rawRole === "student") {
+      return rawRole;
+    }
+    return "student";
+  }, [user?.publicMetadata?.role]);
+
+  const isAdmin = role === "admin";
+  const isFaculty = role === "faculty";
+
+  const baseStudents = useMemo<Student[]>(() => {
+    if (isAdmin) {
+      return mockStudents;
+    }
+
+    if (!isFaculty) {
+      return [];
+    }
+
+    const facultyEmail = user?.primaryEmailAddress?.emailAddress?.toLowerCase();
+    const facultyRecord = mockFaculty.find(
+      (faculty) => faculty.email.toLowerCase() === facultyEmail,
+    );
+
+    if (!facultyRecord) {
+      return [];
+    }
+
+    const taughtCourseIds = new Set(
+      mockTeaches
+        .filter((teach) => teach.facultyId === facultyRecord.id)
+        .map((teach) => teach.courseId),
+    );
+
+    const enrolledStudentIds = new Set(
+      mockEnrollments
+        .filter((enrollment) => taughtCourseIds.has(enrollment.courseId))
+        .map((enrollment) => enrollment.studentId),
+    );
+
+    return mockStudents.filter((student) => enrolledStudentIds.has(student.id));
+  }, [isAdmin, isFaculty, user?.primaryEmailAddress?.emailAddress]);
+
   const [students, setStudents] = useState<Student[]>(mockStudents);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -50,6 +99,20 @@ export default function ManageStudentsPage() {
   const [deletingStudent, setDeletingStudent] = useState<Student | null>(null);
   const [form, setForm] = useState(emptyStudent);
   const [filterDept, setFilterDept] = useState<string>("all");
+
+  useEffect(() => {
+    setStudents(baseStudents);
+  }, [baseStudents]);
+
+  useEffect(() => {
+    if (!isLoaded) {
+      return;
+    }
+
+    if (role === "student") {
+      router.replace("/dashboard");
+    }
+  }, [isLoaded, role, router]);
 
   const filteredStudents = filterDept === "all" ? students : students.filter((s) => s.department === filterDept);
 
@@ -105,25 +168,37 @@ export default function ManageStudentsPage() {
     { key: "semester", header: "Semester", sortable: true, render: (row) => (
       <span className="font-medium">{row.semester}</span>
     )},
-    { key: "actions", header: "Actions", render: (row) => (
-      <div className="flex items-center gap-1">
-        <button onClick={() => openEdit(row)} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors" title="Edit">
-          <Pencil className="h-4 w-4 text-muted-foreground" />
-        </button>
-        <button onClick={() => { setDeletingStudent(row); setDeleteDialogOpen(true); }} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-destructive/10 transition-colors" title="Delete">
-          <Trash2 className="h-4 w-4 text-destructive" />
-        </button>
-      </div>
-    )},
+    ...(isAdmin
+      ? [{
+          key: "actions",
+          header: "Actions",
+          render: (row: Student) => (
+            <div className="flex items-center gap-1">
+              <button onClick={() => openEdit(row)} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors" title="Edit">
+                <Pencil className="h-4 w-4 text-muted-foreground" />
+              </button>
+              <button onClick={() => { setDeletingStudent(row); setDeleteDialogOpen(true); }} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-destructive/10 transition-colors" title="Delete">
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </button>
+            </div>
+          ),
+        }]
+      : []),
   ];
+
+  if (!isLoaded) {
+    return null;
+  }
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
       <PageHeader
         title="Manage Students"
-        subtitle={`${students.length} students enrolled across all departments`}
+        subtitle={isAdmin
+          ? `${students.length} students enrolled across all departments`
+          : `${students.length} students enrolled in your classes`}
         breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Manage Students" }]}
-        action={
+        action={isAdmin ? (
           <div className="flex items-center gap-3">
             <Select value={filterDept} onValueChange={setFilterDept}>
               <SelectTrigger className="w-[180px] h-9">
@@ -138,7 +213,19 @@ export default function ManageStudentsPage() {
               <Plus className="h-4 w-4 mr-2" /> Add Student
             </Button>
           </div>
-        }
+        ) : (
+          <div className="flex items-center gap-3">
+            <Select value={filterDept} onValueChange={setFilterDept}>
+              <SelectTrigger className="w-[180px] h-9">
+                <SelectValue placeholder="All Departments" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Departments</SelectItem>
+                {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       />
 
       <DataTable
@@ -148,81 +235,85 @@ export default function ManageStudentsPage() {
         searchKeys={["name", "rollNo", "email"]}
       />
 
-      {/* Add/Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>{editingStudent ? "Edit Student" : "Add New Student"}</DialogTitle>
-            <DialogDescription>{editingStudent ? "Update the student information below." : "Fill in the details for the new student."}</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ali Abbas" />
+      {isAdmin && (
+        <>
+          {/* Add/Edit Dialog */}
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>{editingStudent ? "Edit Student" : "Add New Student"}</DialogTitle>
+                <DialogDescription>{editingStudent ? "Update the student information below." : "Fill in the details for the new student."}</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Full Name</Label>
+                    <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ali Abbas" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="rollNo">Roll Number</Label>
+                    <Input id="rollNo" value={form.rollNo} onChange={(e) => setForm({ ...form, rollNo: e.target.value })} placeholder="CS-2022-001" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input id="email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@gc.edu.pk" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input id="phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="0300-1234567" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Department</Label>
+                    <Select value={form.department} onValueChange={(v) => setForm({ ...form, department: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
+                      <SelectContent>
+                        {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Semester</Label>
+                    <Select value={String(form.semester)} onValueChange={(v) => setForm({ ...form, semester: Number(v) })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {[1,2,3,4,5,6,7,8].map((s) => <SelectItem key={s} value={String(s)}>Semester {s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="rollNo">Roll Number</Label>
-                <Input id="rollNo" value={form.rollNo} onChange={(e) => setForm({ ...form, rollNo: e.target.value })} placeholder="CS-2022-001" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@gc.edu.pk" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
-                <Input id="phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="0300-1234567" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Department</Label>
-                <Select value={form.department} onValueChange={(v) => setForm({ ...form, department: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
-                  <SelectContent>
-                    {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Semester</Label>
-                <Select value={String(form.semester)} onValueChange={(v) => setForm({ ...form, semester: Number(v) })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {[1,2,3,4,5,6,7,8].map((s) => <SelectItem key={s} value={String(s)}>Semester {s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} className="bg-brand-primary hover:bg-brand-primary/90 text-white">
-              {editingStudent ? "Update Student" : "Add Student"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleSave} className="bg-brand-primary hover:bg-brand-primary/90 text-white">
+                  {editingStudent ? "Update Student" : "Add Student"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
-      {/* Delete Confirmation */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Delete Student</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete <strong>{deletingStudent?.name}</strong> ({deletingStudent?.rollNo})? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleDelete}>
-              <Trash2 className="h-4 w-4 mr-2" /> Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          {/* Delete Confirmation */}
+          <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+            <DialogContent className="sm:max-w-[400px]">
+              <DialogHeader>
+                <DialogTitle>Delete Student</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to delete <strong>{deletingStudent?.name}</strong> ({deletingStudent?.rollNo})? This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+                <Button variant="destructive" onClick={handleDelete}>
+                  <Trash2 className="h-4 w-4 mr-2" /> Delete
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
     </motion.div>
   );
 }

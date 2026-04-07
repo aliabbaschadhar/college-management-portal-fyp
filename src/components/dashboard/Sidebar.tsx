@@ -21,7 +21,7 @@ export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose }: Si
   // Close mobile sidebar on route change
   useEffect(() => {
     onMobileClose();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   const isActive = (href: string) => {
@@ -43,13 +43,13 @@ export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose }: Si
       <aside
         className={cn(
           "fixed lg:sticky top-0 left-0 z-50 flex h-screen flex-col border-r border-border bg-card transition-all duration-300 ease-in-out",
-          collapsed ? "w-[72px]" : "w-64",
+          collapsed ? "w-18" : "w-64",
           isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
         {/* Logo */}
         <div className="flex h-16 items-center gap-3 border-b border-border px-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand-primary to-brand-secondary">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-brand-primary to-brand-secondary">
             <GraduationCap className="h-5 w-5 text-white" />
           </div>
           {!collapsed && (
@@ -77,7 +77,7 @@ export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose }: Si
                 )}
                 title={collapsed ? item.title : undefined}
               >
-                <item.icon className={cn("h-[18px] w-[18px] shrink-0", active && "text-brand-primary")} />
+                <item.icon className={cn("h-4.5 w-4.5 shrink-0", active && "text-brand-primary")} />
                 {!collapsed && (
                   <>
                     <span className="truncate">{item.title}</span>

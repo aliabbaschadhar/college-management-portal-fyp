@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { GraduationCap, Facebook, Twitter, Instagram, Github, Mail, MapPin, Phone } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { GraduationCap, Mail, MapPin, Phone, Facebook, Twitter, Linkedin, ArrowRight, Heart } from 'lucide-react'
+
 
 const Footer = () => {
   const currentYear = new Date().getFullYear()
@@ -84,17 +84,20 @@ const Footer = () => {
             </p>
             <div className="flex items-center gap-4">
               {[
-                { icon: Facebook, href: '#' },
-                { icon: Twitter, href: '#' },
-                { icon: Instagram, href: '#' },
-                { icon: Github, href: '#' },
+                { label: 'Facebook', path: 'M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z', href: '#' },
+                { label: 'Twitter', path: 'M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z', href: '#' },
+                { label: 'Instagram', path: 'M7.8 2h8.4C19.4 2 22 4.6 22 7.8v8.4a5.8 5.8 0 01-5.8 5.8H7.8C4.6 22 2 19.4 2 16.2V7.8A5.8 5.8 0 017.8 2m-.2 2A3.6 3.6 0 004 7.6v8.8C4 18.39 5.61 20 7.6 20h8.8a3.6 3.6 0 003.6-3.6V7.6C20 5.61 18.39 4 16.4 4H7.6m9.65 1.5a1.25 1.25 0 110 2.5 1.25 1.25 0 010-2.5M12 7a5 5 0 110 10 5 5 0 010-10m0 2a3 3 0 100 6 3 3 0 000-6z', href: '#' },
+                { label: 'GitHub', path: 'M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22', href: '#' },
               ].map((social, i) => (
                 <Link
                   key={i}
                   href={social.href}
+                  aria-label={social.label}
                   className="h-10 w-10 rounded-lg border border-white/8 bg-white/5 flex items-center justify-center text-white/50 hover:text-white hover:border-white/20 transition-all active:scale-95"
                 >
-                  <social.icon className="h-5 w-5" />
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d={social.path} />
+                  </svg>
                 </Link>
               ))}
             </div>

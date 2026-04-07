@@ -68,7 +68,7 @@ We strictly follow an 8-point grid system using standard Tailwind spacing units.
 When generating UI components, adhere to these standard practices based on the color palette. Note: There is NO mobile app component logic needed, this applies exclusively to web browser rendering.
 
 ### Data Visualization
-* **Chart.js:** All analytic dashboards, attendance graphs, and KPI metric visualisers must utilize `Chart.js` (or `react-chartjs-2`). Use the defined brand semantics (Primary and Secondary colors) inside the chart configurations.
+* **ShadCN Charts:** All analytic dashboards, attendance graphs, and KPI metric visualisers must utilize `ShadCN Charts` (which wraps Recharts). Do not use Chart.js. Use the defined brand semantics (Primary and Secondary colors) inside the chart configurations.
 
 ### Buttons
 * **Primary Button:** Background `bg-brand-primary`, text `text-brand-white`. Hover state should reduce opacity slightly (`hover:opacity-90`).

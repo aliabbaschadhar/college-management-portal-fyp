@@ -34,7 +34,7 @@ const audienceColors: Record<Announcement["audience"], string> = {
 };
 
 const emptyAnnouncement: Omit<Announcement, "id"> = {
-  title: "", content: "", date: new Date().toISOString(), audience: "All", author: "Admin",
+  title: "", content: "", date: new Date().toISOString(), audience: "All", author: "Admin", priority: "Medium",
 };
 
 export default function AnnouncementsPage() {
@@ -132,7 +132,7 @@ export default function AnnouncementsPage() {
             </div>
             <h3 className="text-lg font-medium">No announcements yet</h3>
             <p className="text-sm text-muted-foreground max-w-xs mt-1">
-              Click the "New Announcement" button to broadcast important updates.
+              Click the &quot;New Announcement&quot; button to broadcast important updates.
             </p>
           </div>
         )}
@@ -141,7 +141,7 @@ export default function AnnouncementsPage() {
       {/* New Announcement Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[600px] border-none shadow-2xl overflow-hidden rounded-3xl">
-          <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-brand-primary via-brand-secondary to-brand-primary" />
+          <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-r from-brand-primary via-brand-secondary to-brand-primary" />
           <DialogHeader className="pt-6">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2">
               <Bell className="h-6 w-6 text-brand-primary" />
@@ -167,7 +167,7 @@ export default function AnnouncementsPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Target Audience</Label>
-                <Select value={form.audience} onValueChange={(v) => setForm({ ...form, audience: v as any })}>
+                <Select value={form.audience} onValueChange={(v) => setForm({ ...form, audience: v as Announcement["audience"] })}>
                   <SelectTrigger className="h-12 rounded-xl">
                     <SelectValue placeholder="Who is this for?" />
                   </SelectTrigger>

@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Calendar, Clock, BookOpen, User, MapPin, Sparkles, RefreshCw, Download, Printer } from "lucide-react";
+import { Clock, User, MapPin, Sparkles, RefreshCw, Download } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { mockTimetable, mockCourses, mockFaculty, DEPARTMENTS } from "@/lib/mock-data";
+import { mockTimetable, mockCourses, DEPARTMENTS } from "@/lib/mock-data";
 import type { Timetable } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,19 +14,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
 import { motion, AnimatePresence } from "framer-motion";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const TIMES = ["08:00 AM", "09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM"];
 
 export default function TimetablePage() {
-  const [timetable, setTimetable] = useState<Timetable[]>(mockTimetable);
+  const [timetable] = useState<Timetable[]>(mockTimetable);
   const [filterDept, setFilterDept] = useState<string>("Computer Science");
   const [filterSemester, setFilterSemester] = useState<string>("1");
   const [isGenerating, setIsGenerating] = useState(false);

@@ -1,20 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { User, Bell, Shield, Globe, Palette, Save, LogOut, Moon, Sun, Smartphone, Mail, Lock } from "lucide-react";
+import { User, Bell, Shield, Globe, Palette, Moon, Sun, Smartphone, Mail, Lock } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
 import { motion } from "framer-motion";
 import { useTheme } from "next-themes";
 

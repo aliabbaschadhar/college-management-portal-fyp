@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 
 const emptyCourse: Omit<Course, "id"> = {
-  courseCode: "", courseName: "", creditHours: 3, department: "", assignedFaculty: null, enrolledCount: 0, semester: 1,
+  courseCode: "", courseName: "", name: "", creditHours: 3, department: "", assignedFaculty: null, enrolledCount: 0, semester: 1,
 };
 
 export default function ManageCoursesPage() {
@@ -35,7 +35,7 @@ export default function ManageCoursesPage() {
   const openAdd = () => { setEditingCourse(null); setForm(emptyCourse); setDialogOpen(true); };
   const openEdit = (c: Course) => {
     setEditingCourse(c);
-    setForm({ courseCode: c.courseCode, courseName: c.courseName, creditHours: c.creditHours, department: c.department, assignedFaculty: c.assignedFaculty, enrolledCount: c.enrolledCount, semester: c.semester });
+    setForm({ courseCode: c.courseCode, courseName: c.courseName, name: c.courseName, creditHours: c.creditHours, department: c.department, assignedFaculty: c.assignedFaculty, enrolledCount: c.enrolledCount, semester: c.semester });
     setDialogOpen(true);
   };
 

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { DollarSign, CheckCircle2, AlertCircle, Clock, Search, Filter } from "lucide-react";
+import { DollarSign, CheckCircle2, AlertCircle, Clock } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
 import { mockFees, mockStudents } from "@/lib/mock-data";
@@ -31,7 +32,7 @@ const statusColors: Record<Fee["status"], string> = {
   Overdue: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
 };
 
-const statusIcons: Record<Fee["status"], any> = {
+const statusIcons: Record<Fee["status"], LucideIcon> = {
   Paid: CheckCircle2,
   Unpaid: Clock,
   Overdue: AlertCircle,

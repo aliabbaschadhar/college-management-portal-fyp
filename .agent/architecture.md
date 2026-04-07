@@ -4,7 +4,7 @@ This document outlines the technical architecture, data models, and core busines
 
 ## 1. Technology Stack
 
-* **Frontend:** Next.js (App Router), React, Tailwind CSS, ShadCN UI, Chart.js.
+* **Frontend:** Next.js (App Router), React, Tailwind CSS, ShadCN UI, ShadCN Charts (Recharts).
 * **Backend:** Next.js Route Handlers (`app/api/*`) and Server Actions.
 * **Database & ORM:** PostgreSQL managed via Prisma ORM.
 * **Authentication & Identity:** Clerk.
@@ -33,6 +33,8 @@ Security is handled via Clerk.
 * **Route Protection:** Use Clerk middleware to protect standard routes. Use `auth()` or `currentUser()` inside API Routes and Server Actions to verify identity before executing logic.
 
 ## 4. Core Database Entities (Prisma)
+
+* **Prisma Singleton:** Always import the Prisma client from a centralized singleton file (e.g., `lib/prisma.ts`) to prevent connection exhaustion during hot-reloading in development. Never instantiate `new PrismaClient()` directly inside a component or route.
 
 * **User:** Base account (id [PK], clerk_id [Unique], name, email, role [Student/Faculty/Admin]).
 * **Student:** Links to User (student_id [PK], user_id [FK], roll_no [Unique], department).

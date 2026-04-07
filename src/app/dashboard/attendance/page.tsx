@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle, XCircle, Clock, CalendarIcon, Filter } from "lucide-react";
+import { Filter } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
 import { mockAttendance, mockStudents, mockCourses } from "@/lib/mock-data";
 import type { Attendance } from "@/types";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,

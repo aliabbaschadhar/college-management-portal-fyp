@@ -153,7 +153,7 @@ const Header = () => {
               className="md:hidden overflow-hidden border-t border-white/5 mt-4"
             >
               <div className="py-6 space-y-2">
-                {[...navLinks, { label: 'Dashboard', href: '/dashboard', auth: true }].map((link: any, i) => (
+                {[...navLinks, { label: 'Dashboard', href: '/dashboard', auth: true }].map((link: { label: string; href: string; auth?: boolean }, i) => (
                   <motion.div
                     key={link.label}
                     initial={{ x: -20, opacity: 0 }}

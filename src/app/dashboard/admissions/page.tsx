@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle, XCircle, Clock, Eye, Trash2 } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Eye } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
-import { mockAdmissions, DEPARTMENTS } from "@/lib/mock-data";
+import { mockAdmissions } from "@/lib/mock-data";
 import type { Admission } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +32,7 @@ const statusColors: Record<Admission["status"], string> = {
   Rejected: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
 };
 
-const statusIcons: Record<Admission["status"], any> = {
+const statusIcons: Record<Admission["status"], LucideIcon> = {
   Pending: Clock,
   Approved: CheckCircle,
   Rejected: XCircle,
