@@ -3,11 +3,19 @@
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
-import { GraduationCap, Menu, X } from 'lucide-react'
+import { GraduationCap, Menu, X, ChevronRight } from 'lucide-react'
+import { motion, AnimatePresence, useScroll, useSpring } from 'framer-motion'
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
+  
+  const { scrollYProgress } = useScroll()
+  const scaleX = useSpring(scrollYProgress, {
+    stiffness: 100,
+    damping: 30,
+    restDelta: 0.001
+  })
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20)
@@ -15,80 +23,118 @@ const Header = () => {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
+  const navLinks = [
+    { label: 'Home', href: '/' },
+    { label: 'About', href: '/about' },
+    { label: 'Admissions', href: '/admissions' },
+    { label: 'Courses', href: '/courses' },
+  ]
+
   return (
-    <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+    <motion.header
+      initial={{ y: -100 }}
+      animate={{ y: 0 }}
+      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
         scrolled
-          ? 'border-b border-white/[0.07] bg-[#080C14]/80 backdrop-blur-xl shadow-lg shadow-black/20'
-          : 'bg-transparent'
+          ? 'border-b border-white/[0.08] bg-[#080C14]/70 backdrop-blur-xl shadow-2xl shadow-black/40 py-3'
+          : 'bg-transparent py-5'
       }`}
     >
+      {/* Scroll Progress Bar */}
+      <motion.div
+        className="absolute top-0 left-0 right-0 h-[2px] origin-left z-50"
+        style={{ 
+          scaleX,
+          background: 'linear-gradient(90deg, #3D5EE1, #6FCCD8, #3D5EE1)'
+        }}
+      />
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between">
+        <div className="flex items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5 group">
+          <Link href="/" className="flex items-center gap-3 group relative">
             <div
-              className="h-8 w-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105"
+              className="h-9 w-9 rounded-xl flex items-center justify-center transition-all duration-500 group-hover:rotate-[10deg] group-hover:scale-110 shadow-lg shadow-blue-500/20"
               style={{ background: 'linear-gradient(135deg, #3D5EE1, #6FCCD8)' }}
             >
               <GraduationCap className="h-5 w-5 text-white" />
             </div>
-            <span className="text-base font-black tracking-tight text-white hidden sm:inline-block">
-              College Portal
-            </span>
+            <div className="flex flex-col">
+              <span className="text-sm font-black tracking-tighter text-white uppercase leading-none">
+                College
+              </span>
+              <span className="text-[10px] font-bold tracking-[0.2em] text-[#6FCCD8] uppercase leading-none mt-1">
+                Portal
+              </span>
+            </div>
+            
+            {/* Logo Glow */}
+            <div className="absolute -inset-2 bg-blue-500/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           </Link>
 
           {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-1">
-            <Link
-              href="/"
-              className="px-4 py-2 rounded-lg text-sm font-medium text-white/60 hover:text-white hover:bg-white/[0.06] transition-all"
-            >
-              Home
-            </Link>
+            {navLinks.map((link) => (
+              <Link
+                key={link.label}
+                href={link.href}
+                className="relative px-4 py-2 text-sm font-semibold text-white/50 hover:text-white transition-colors group/nav"
+              >
+                {link.label}
+                <span className="absolute bottom-0 left-4 right-4 h-[2px] bg-gradient-to-r from-[#3D5EE1] to-[#6FCCD8] origin-left scale-x-0 group-hover/nav:scale-x-100 transition-transform duration-300" />
+              </Link>
+            ))}
             <SignedIn>
               <Link
                 href="/dashboard"
-                className="px-4 py-2 rounded-lg text-sm font-medium text-white/60 hover:text-white hover:bg-white/[0.06] transition-all"
+                className="relative px-4 py-2 text-sm font-semibold text-white/50 hover:text-white transition-colors group/nav"
               >
                 Dashboard
+                <span className="absolute bottom-0 left-4 right-4 h-[2px] bg-gradient-to-r from-[#3D5EE1] to-[#6FCCD8] origin-left scale-x-0 group-hover/nav:scale-x-100 transition-transform duration-300" />
               </Link>
             </SignedIn>
           </nav>
 
           {/* Desktop Auth */}
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-4">
             <SignedOut>
               <Link href="/sign-in">
-                <button className="px-4 py-2 rounded-lg border border-white/15 bg-white/5 text-sm font-semibold text-white/70 backdrop-blur-sm hover:bg-white/10 hover:text-white transition-all">
+                <button className="px-5 py-2 rounded-xl border border-white/10 bg-white/5 text-sm font-bold text-white/70 hover:bg-white/10 hover:text-white hover:border-white/20 transition-all active:scale-95">
                   Sign In
                 </button>
               </Link>
               <Link href="/sign-up">
                 <button
-                  className="px-4 py-2 rounded-lg text-sm font-bold text-white transition-all hover:brightness-110 active:scale-95"
+                  className="px-5 py-2 rounded-xl text-sm font-bold text-white transition-all hover:brightness-110 hover:shadow-[0_0_20px_rgba(61,94,225,0.4)] active:scale-95"
                   style={{ background: 'linear-gradient(135deg, #3D5EE1, #6FCCD8)' }}
                 >
-                  Sign Up
+                  Join Now
                 </button>
               </Link>
             </SignedOut>
             <SignedIn>
-              <UserButton
-                afterSignOutUrl="/"
-                appearance={{
-                  elements: {
-                    avatarBox: 'h-9 w-9',
-                    userButtonPopoverCard: 'shadow-2xl',
-                  },
-                }}
-              />
+              <div className="flex items-center gap-3 pl-4 border-l border-white/10">
+                <UserButton
+                  afterSignOutUrl="/"
+                  appearance={{
+                    elements: {
+                      avatarBox: 'h-9 w-9 ring-2 ring-white/10 ring-offset-2 ring-offset-[#080C14] transition-all hover:ring-[#3D5EE1]',
+                      userButtonPopoverCard: 'shadow-2xl border border-white/10 bg-[#080C14]/90 backdrop-blur-xl',
+                    },
+                  }}
+                />
+              </div>
             </SignedIn>
           </div>
 
           {/* Mobile Menu Toggle */}
           <button
-            className="md:hidden p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/[0.06] transition-all"
+            className={`md:hidden p-2.5 rounded-xl transition-all ${
+              mobileMenuOpen 
+                ? 'bg-[#3D5EE1] text-white' 
+                : 'text-white/60 hover:text-white hover:bg-white/5'
+            }`}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label="Toggle menu"
           >
@@ -97,52 +143,68 @@ const Header = () => {
         </div>
 
         {/* Mobile Menu */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t border-white/[0.07] py-4 space-y-1">
-            <Link
-              href="/"
-              className="block rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 hover:text-white hover:bg-white/[0.06] transition-all"
-              onClick={() => setMobileMenuOpen(false)}
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0, y: -20 }}
+              animate={{ opacity: 1, height: 'auto', y: 0 }}
+              exit={{ opacity: 0, height: 0, y: -20 }}
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              className="md:hidden overflow-hidden border-t border-white/5 mt-4"
             >
-              Home
-            </Link>
-            <SignedIn>
-              <Link
-                href="/dashboard"
-                className="block rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 hover:text-white hover:bg-white/[0.06] transition-all"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Dashboard
-              </Link>
-            </SignedIn>
-
-            <div className="pt-3 border-t border-white/[0.07] mt-3 flex flex-col gap-2 px-1">
-              <SignedOut>
-                <Link href="/sign-in" onClick={() => setMobileMenuOpen(false)}>
-                  <button className="w-full rounded-lg border border-white/15 bg-white/5 py-3 text-sm font-semibold text-white/70 hover:bg-white/10 hover:text-white transition-all">
-                    Sign In
-                  </button>
-                </Link>
-                <Link href="/sign-up" onClick={() => setMobileMenuOpen(false)}>
-                  <button
-                    className="w-full rounded-lg py-3 text-sm font-bold text-white transition-all hover:brightness-110"
-                    style={{ background: 'linear-gradient(135deg, #3D5EE1, #6FCCD8)' }}
+              <div className="py-6 space-y-2">
+                {[...navLinks, { label: 'Dashboard', href: '/dashboard', auth: true }].map((link, i) => (
+                  <motion.div
+                    key={link.label}
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: i * 0.1 }}
                   >
-                    Sign Up
-                  </button>
-                </Link>
-              </SignedOut>
-              <SignedIn>
-                <div className="flex items-center gap-3 py-2 px-3">
-                  <UserButton afterSignOutUrl="/" />
-                  <span className="text-sm text-white/50">My Account</span>
+                    {(!link.auth || (link.auth && <SignedIn />)) && (
+                      <Link
+                        href={link.href}
+                        className="flex items-center justify-between rounded-xl px-4 py-3.5 text-base font-bold text-white/60 hover:text-white hover:bg-white/5 transition-all group"
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        {link.label}
+                        <ChevronRight className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </Link>
+                    )}
+                  </motion.div>
+                ))}
+
+                <div className="pt-6 border-t border-white/5 mt-6 grid grid-cols-2 gap-3">
+                  <SignedOut>
+                    <Link href="/sign-in" className="col-span-1" onClick={() => setMobileMenuOpen(false)}>
+                      <button className="w-full rounded-xl border border-white/10 bg-white/5 py-3.5 text-sm font-bold text-white/70 hover:bg-white/10">
+                        Sign In
+                      </button>
+                    </Link>
+                    <Link href="/sign-up" className="col-span-1" onClick={() => setMobileMenuOpen(false)}>
+                      <button
+                        className="w-full rounded-xl py-3.5 text-sm font-black text-white shadow-lg shadow-blue-500/20"
+                        style={{ background: 'linear-gradient(135deg, #3D5EE1, #6FCCD8)' }}
+                      >
+                        Join
+                      </button>
+                    </Link>
+                  </SignedOut>
+                  <SignedIn>
+                    <div className="col-span-2 flex items-center gap-4 bg-white/5 p-4 rounded-2xl border border-white/5">
+                      <UserButton afterSignOutUrl="/" />
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-white">Account Settings</span>
+                        <span className="text-xs text-white/40">Manage your profile</span>
+                      </div>
+                    </div>
+                  </SignedIn>
                 </div>
-              </SignedIn>
-            </div>
-          </div>
-        )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
-    </header>
+    </motion.header>
   )
 }
 
