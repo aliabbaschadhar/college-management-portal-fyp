@@ -1,0 +1,115 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { GraduationCap, PanelLeftClose, PanelLeft } from "lucide-react";
+import { useState, useEffect } from "react";
+import { cn } from "@/lib/utils";
+import type { NavItem } from "@/lib/sidebar-config";
+
+interface SidebarProps {
+  navItems: NavItem[];
+  roleLabel: string;
+  isMobileOpen: boolean;
+  onMobileClose: () => void;
+}
+
+export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose }: SidebarProps) {
+  const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(false);
+
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    onMobileClose();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  const isActive = (href: string) => {
+    if (href === "/dashboard") return pathname === "/dashboard";
+    return pathname.startsWith(href);
+  };
+
+  return (
+    <>
+      {/* Mobile overlay */}
+      {isMobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+          onClick={onMobileClose}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={cn(
+          "fixed lg:sticky top-0 left-0 z-50 flex h-screen flex-col border-r border-border bg-card transition-all duration-300 ease-in-out",
+          collapsed ? "w-[72px]" : "w-64",
+          isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        )}
+      >
+        {/* Logo */}
+        <div className="flex h-16 items-center gap-3 border-b border-border px-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand-primary to-brand-secondary">
+            <GraduationCap className="h-5 w-5 text-white" />
+          </div>
+          {!collapsed && (
+            <div className="flex flex-col overflow-hidden">
+              <span className="text-sm font-bold text-foreground truncate">College Portal</span>
+              <span className="text-[10px] font-medium text-muted-foreground truncate">{roleLabel}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+          {navItems.map((item) => {
+            const active = isActive(item.href);
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                  active
+                    ? "bg-brand-primary/10 text-brand-primary border-l-[3px] border-brand-primary"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground border-l-[3px] border-transparent"
+                )}
+                title={collapsed ? item.title : undefined}
+              >
+                <item.icon className={cn("h-[18px] w-[18px] shrink-0", active && "text-brand-primary")} />
+                {!collapsed && (
+                  <>
+                    <span className="truncate">{item.title}</span>
+                    {item.badge !== undefined && item.badge > 0 && (
+                      <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-brand-primary px-1.5 text-[10px] font-bold text-white">
+                        {item.badge}
+                      </span>
+                    )}
+                  </>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Collapse toggle (desktop) */}
+        <div className="hidden lg:flex border-t border-border p-3">
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+          >
+            {collapsed ? (
+              <PanelLeft className="h-4 w-4" />
+            ) : (
+              <>
+                <PanelLeftClose className="h-4 w-4" />
+                <span>Collapse</span>
+              </>
+            )}
+          </button>
+        </div>
+      </aside>
+    </>
+  );
+}

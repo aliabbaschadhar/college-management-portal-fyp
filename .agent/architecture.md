@@ -14,7 +14,9 @@ This document outlines the technical architecture, data models, and core busines
 
 The application uses a unified, full-stack Next.js architecture:
 
-1. **Presentation Layer (Frontend):** Handles interactivity, UI state, and data visualization. Uses ShadCN and Tailwind. Chart.js is used for dashboards. Communicates with the backend via Server Actions or fetch calls to API routes.
+1. **Presentation Layer (Frontend):** Handles interactivity, UI state, and data visualization. Uses ShadCN, Tailwind, and Framer Motion.
+   * **Dashboard Shell:** Uses a unified `/dashboard` route with a `DashboardShell` layout component managing navigation and theming dynamically based on the active role.
+   * **Mock Data Strategy:** Development uses centralized mock data (`src/lib/mock-data.ts`) bound to strict TypeScript models (`src/types/index.ts`) before APIs are integrated.
 2. **Application Logic Layer (Next.js Server):** 
    * **Server Components:** Used for initial data fetching and rendering static UI securely on the server.
    * **Route Handlers (`app/api`):** Used for RESTful endpoints (e.g., webhook receivers from Clerk, complex mutations).

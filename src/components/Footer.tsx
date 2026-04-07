@@ -47,27 +47,37 @@ const Footer = () => {
   ]
 
   return (
-    <footer className="relative border-t border-white/[0.06] bg-[#080C14] pt-20 pb-10 overflow-hidden">
+    <footer className="relative border-t border-white/6 bg-[#080C14] pt-20 pb-10 overflow-hidden">
+      {/* Background Dot Pattern */}
+      <div 
+        className="absolute inset-0 pointer-events-none opacity-[0.2]"
+        style={{
+          backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)',
+          backgroundSize: '24px 24px',
+        }}
+      />
       {/* Background Glows */}
       <div className="absolute inset-x-0 bottom-0 -z-10 h-96 opacity-20 pointer-events-none">
-        <div className="absolute left-[-10%] bottom-[-10%] h-[500px] w-[500px] rounded-full bg-[#3D5EE1] blur-[120px]" />
-        <div className="absolute right-[-10%] bottom-[-10%] h-[400px] w-[400px] rounded-full bg-[#6FCCD8] blur-[100px]" />
+        <div className="absolute left-[-10%] bottom-[-10%] h-[500px] w-[500px] rounded-full bg-brand-primary blur-[120px]" />
+        <div className="absolute right-[-10%] bottom-[-10%] h-[400px] w-[400px] rounded-full bg-brand-secondary blur-[100px]" />
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-12 lg:gap-8 mb-16">
           {/* Brand Section */}
           <div className="lg:col-span-2">
-            <Link href="/" className="flex items-center gap-3 group mb-6">
+            <Link href="/" className="flex items-center gap-3 group mb-6 relative">
               <div
-                className="h-10 w-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105"
-                style={{ background: 'linear-gradient(135deg, #3D5EE1, #6FCCD8)' }}
+                className="h-10 w-10 rounded-xl flex items-center justify-center transition-all duration-500 group-hover:rotate-[5deg] group-hover:scale-110 shadow-lg shadow-blue-500/20"
+                style={{ background: 'linear-gradient(135deg, var(--color-brand-primary), var(--color-brand-secondary))' }}
               >
                 <GraduationCap className="h-6 w-6 text-white" />
               </div>
               <span className="text-xl font-black tracking-tight text-white">
                 College Portal
               </span>
+              {/* Glow */}
+              <div className="absolute -inset-2 bg-blue-500/10 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10" />
             </Link>
             <p className="text-white/40 text-sm leading-relaxed max-w-xs mb-8">
               Empowering students and faculty with a modern, integrated management experience. Built for excellence at Govt. Graduate College, Hafizabad.
@@ -82,7 +92,7 @@ const Footer = () => {
                 <Link
                   key={i}
                   href={social.href}
-                  className="h-10 w-10 rounded-lg border border-white/[0.08] bg-white/5 flex items-center justify-center text-white/50 hover:text-white hover:border-white/20 transition-all active:scale-95"
+                  className="h-10 w-10 rounded-lg border border-white/8 bg-white/5 flex items-center justify-center text-white/50 hover:text-white hover:border-white/20 transition-all active:scale-95"
                 >
                   <social.icon className="h-5 w-5" />
                 </Link>
@@ -103,7 +113,7 @@ const Footer = () => {
                       href={link.href}
                       className="text-sm text-white/40 hover:text-white transition-colors flex items-center group/link"
                     >
-                      <span className="w-0 group-hover/link:w-2 h-[1px] bg-[#6FCCD8] mr-0 group-hover/link:mr-2 transition-all duration-300" />
+                      <span className="w-0 group-hover/link:w-2 h-px bg-brand-secondary mr-0 group-hover/link:mr-2 transition-all duration-300" />
                       {link.label}
                     </Link>
                   </li>
@@ -114,9 +124,9 @@ const Footer = () => {
         </div>
 
         {/* Contact Info Bar */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-10 border-y border-white/[0.05] mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-10 border-y border-white/5 mb-10">
           <div className="flex items-center gap-4 text-white/50">
-            <div className="h-10 w-10 rounded-full bg-white/5 flex items-center justify-center text-[#3D5EE1]">
+            <div className="h-10 w-10 rounded-full bg-white/5 flex items-center justify-center text-brand-primary">
               <MapPin className="h-5 w-5" />
             </div>
             <div className="text-sm">
@@ -125,7 +135,7 @@ const Footer = () => {
             </div>
           </div>
           <div className="flex items-center gap-4 text-white/50">
-            <div className="h-10 w-10 rounded-full bg-white/5 flex items-center justify-center text-[#6FCCD8]">
+            <div className="h-10 w-10 rounded-full bg-white/5 flex items-center justify-center text-brand-secondary">
               <Phone className="h-5 w-5" />
             </div>
             <div className="text-sm">

@@ -96,3 +96,13 @@ When generating UI components, adhere to these standard practices based on the c
 1. The font `Roboto` is injected via a CSS variable (`--font-roboto`) and mapped to `font-sans`.
 2. The custom font sizes and colors detailed above are mapped to the `theme.extend` object in `tailwind.config.ts`.
 3. Do not hardcode hex values in the JSX/TSX files. Always use the predefined utility classes (e.g., use `text-brand-primary`, not `text-[#3D5EE1]`).
+
+---
+
+## 6. Animation, Interaction & Iconography
+
+* **Icons:** Use `lucide-react` exclusively for iconography. Icons should maintain a consistent stroke weight and scale proportionately with surrounding typography.
+* **Animation (`framer-motion`):** We use `framer-motion` to achieve our premium "dark glassmorphism" aesthetic and interactive feel.
+  * Structural page transitions should utilize `initial={{ opacity: 0, y: 20 }}` and `animate={{ opacity: 1, y: 0 }}`.
+  * List items (like dashboard feeds) should employ staggered entrance animations with layout transitions (`AnimatePresence mode="popLayout"`).
+  * Hover states should be responsive, utilizing scale effects and subtle opacity shifts to give an organic, high-end feel without being distracting.

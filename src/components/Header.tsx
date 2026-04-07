@@ -37,7 +37,7 @@ const Header = () => {
       transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
         scrolled
-          ? 'border-b border-white/[0.08] bg-[#080C14]/70 backdrop-blur-xl shadow-2xl shadow-black/40 py-3'
+          ? 'border-b border-white/8 bg-[#080C14]/70 backdrop-blur-xl shadow-2xl shadow-black/40 py-3'
           : 'bg-transparent py-5'
       }`}
     >
@@ -46,7 +46,7 @@ const Header = () => {
         className="absolute top-0 left-0 right-0 h-[2px] origin-left z-50"
         style={{ 
           scaleX,
-          background: 'linear-gradient(90deg, #3D5EE1, #6FCCD8, #3D5EE1)'
+          background: 'linear-gradient(90deg, var(--color-brand-primary), var(--color-brand-secondary), var(--color-brand-primary))'
         }}
       />
 
@@ -55,7 +55,7 @@ const Header = () => {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group relative">
             <div
-              className="h-9 w-9 rounded-xl flex items-center justify-center transition-all duration-500 group-hover:rotate-[10deg] group-hover:scale-110 shadow-lg shadow-blue-500/20"
+              className="h-9 w-9 rounded-xl flex items-center justify-center transition-all duration-500 group-hover:rotate-10 group-hover:scale-110 shadow-lg shadow-blue-500/20"
               style={{ background: 'linear-gradient(135deg, #3D5EE1, #6FCCD8)' }}
             >
               <GraduationCap className="h-5 w-5 text-white" />
@@ -64,7 +64,7 @@ const Header = () => {
               <span className="text-sm font-black tracking-tighter text-white uppercase leading-none">
                 College
               </span>
-              <span className="text-[10px] font-bold tracking-[0.2em] text-[#6FCCD8] uppercase leading-none mt-1">
+              <span className="text-[10px] font-bold tracking-[0.2em] text-brand-secondary uppercase leading-none mt-1">
                 Portal
               </span>
             </div>
@@ -82,7 +82,7 @@ const Header = () => {
                 className="relative px-4 py-2 text-sm font-semibold text-white/50 hover:text-white transition-colors group/nav"
               >
                 {link.label}
-                <span className="absolute bottom-0 left-4 right-4 h-[2px] bg-gradient-to-r from-[#3D5EE1] to-[#6FCCD8] origin-left scale-x-0 group-hover/nav:scale-x-100 transition-transform duration-300" />
+                <span className="absolute bottom-0 left-4 right-4 h-[2px] bg-linear-to-r from-brand-primary to-brand-secondary origin-left scale-x-0 group-hover/nav:scale-x-100 transition-transform duration-300" />
               </Link>
             ))}
             <SignedIn>
@@ -91,7 +91,7 @@ const Header = () => {
                 className="relative px-4 py-2 text-sm font-semibold text-white/50 hover:text-white transition-colors group/nav"
               >
                 Dashboard
-                <span className="absolute bottom-0 left-4 right-4 h-[2px] bg-gradient-to-r from-[#3D5EE1] to-[#6FCCD8] origin-left scale-x-0 group-hover/nav:scale-x-100 transition-transform duration-300" />
+                <span className="absolute bottom-0 left-4 right-4 h-[2px] bg-linear-to-r from-brand-primary to-brand-secondary origin-left scale-x-0 group-hover/nav:scale-x-100 transition-transform duration-300" />
               </Link>
             </SignedIn>
           </nav>
@@ -107,7 +107,7 @@ const Header = () => {
               <Link href="/sign-up">
                 <button
                   className="px-5 py-2 rounded-xl text-sm font-bold text-white transition-all hover:brightness-110 hover:shadow-[0_0_20px_rgba(61,94,225,0.4)] active:scale-95"
-                  style={{ background: 'linear-gradient(135deg, #3D5EE1, #6FCCD8)' }}
+                  style={{ background: 'linear-gradient(135deg, var(--color-brand-primary), var(--color-brand-secondary))' }}
                 >
                   Join Now
                 </button>
@@ -119,7 +119,7 @@ const Header = () => {
                   afterSignOutUrl="/"
                   appearance={{
                     elements: {
-                      avatarBox: 'h-9 w-9 ring-2 ring-white/10 ring-offset-2 ring-offset-[#080C14] transition-all hover:ring-[#3D5EE1]',
+                      avatarBox: 'h-9 w-9 ring-2 ring-white/10 ring-offset-2 ring-offset-[#080C14] transition-all hover:ring-brand-primary',
                       userButtonPopoverCard: 'shadow-2xl border border-white/10 bg-[#080C14]/90 backdrop-blur-xl',
                     },
                   }}
@@ -132,7 +132,7 @@ const Header = () => {
           <button
             className={`md:hidden p-2.5 rounded-xl transition-all ${
               mobileMenuOpen 
-                ? 'bg-[#3D5EE1] text-white' 
+                ? 'bg-brand-primary text-white' 
                 : 'text-white/60 hover:text-white hover:bg-white/5'
             }`}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -153,14 +153,14 @@ const Header = () => {
               className="md:hidden overflow-hidden border-t border-white/5 mt-4"
             >
               <div className="py-6 space-y-2">
-                {[...navLinks, { label: 'Dashboard', href: '/dashboard', auth: true }].map((link, i) => (
+                {[...navLinks, { label: 'Dashboard', href: '/dashboard', auth: true }].map((link: any, i) => (
                   <motion.div
                     key={link.label}
                     initial={{ x: -20, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     transition={{ delay: i * 0.1 }}
                   >
-                    {(!link.auth || (link.auth && <SignedIn />)) && (
+                    {!link.auth ? (
                       <Link
                         href={link.href}
                         className="flex items-center justify-between rounded-xl px-4 py-3.5 text-base font-bold text-white/60 hover:text-white hover:bg-white/5 transition-all group"
@@ -169,6 +169,17 @@ const Header = () => {
                         {link.label}
                         <ChevronRight className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </Link>
+                    ) : (
+                      <SignedIn>
+                        <Link
+                          href={link.href}
+                          className="flex items-center justify-between rounded-xl px-4 py-3.5 text-base font-bold text-white/60 hover:text-white hover:bg-white/5 transition-all group"
+                          onClick={() => setMobileMenuOpen(false)}
+                        >
+                          {link.label}
+                          <ChevronRight className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </Link>
+                      </SignedIn>
                     )}
                   </motion.div>
                 ))}
@@ -183,7 +194,7 @@ const Header = () => {
                     <Link href="/sign-up" className="col-span-1" onClick={() => setMobileMenuOpen(false)}>
                       <button
                         className="w-full rounded-xl py-3.5 text-sm font-black text-white shadow-lg shadow-blue-500/20"
-                        style={{ background: 'linear-gradient(135deg, #3D5EE1, #6FCCD8)' }}
+                        style={{ background: 'linear-gradient(135deg, var(--color-brand-primary), var(--color-brand-secondary))' }}
                       >
                         Join
                       </button>

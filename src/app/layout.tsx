@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
 import { Roboto } from 'next/font/google'
+import { ThemeProvider } from '@/lib/theme-provider'
 import './globals.css'
 
 const roboto = Roboto({
@@ -33,11 +34,18 @@ export default function RootLayout({
         },
       }}
     >
-      <html lang="en">
+      <html lang="en" suppressHydrationWarning>
         <body
-          className={`${roboto.variable} font-sans antialiased bg-brand-light text-brand-dark`}
+          className={`${roboto.variable} font-sans antialiased`}
         >
-          {children}
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="light"
+            enableSystem={false}
+            disableTransitionOnChange={false}
+          >
+            {children}
+          </ThemeProvider>
         </body>
       </html>
     </ClerkProvider>
