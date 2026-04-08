@@ -1,8 +1,8 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getFacultyDashboardData } from "@/lib/services/faculty";
 
-export async function GET(_request: NextRequest) {
+export async function GET() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

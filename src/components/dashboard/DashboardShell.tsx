@@ -27,7 +27,6 @@ export function DashboardShell({ children, role, roleLabel }: DashboardShellProp
 
       <div className="flex flex-1 flex-col overflow-hidden">
         <DashboardHeader
-          roleLabel={roleLabel}
           onMenuClick={() => setMobileOpen(!mobileOpen)}
         />
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">

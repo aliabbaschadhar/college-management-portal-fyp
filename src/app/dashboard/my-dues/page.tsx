@@ -65,10 +65,10 @@ export default function MyDuesPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatsCard title="Total Fees" value={`PKR ${totalAmount.toLocaleString()}`} trend="This semester" trendDirection="up" icon={CreditCard} iconColor="#3D5EE1" iconBg="rgba(61,94,225,0.1)" />
-        <StatsCard title="Paid" value={`PKR ${paidAmount.toLocaleString()}`} trend="Cleared" trendDirection="up" icon={CheckCircle} iconColor="#1ABE17" iconBg="rgba(26,190,23,0.1)" />
-        <StatsCard title="Pending" value={`PKR ${pendingAmount.toLocaleString()}`} trend={pendingAmount > 0 ? "Due" : "Clear"} trendDirection={pendingAmount > 0 ? "down" : "up"} icon={AlertTriangle} iconColor="#EAB300" iconBg="rgba(234,179,0,0.1)" />
-        <StatsCard title="Overdue" value={overdueCount} trend={overdueCount > 0 ? "Action needed" : "None"} trendDirection={overdueCount > 0 ? "down" : "up"} icon={XCircle} iconColor="#E82646" iconBg="rgba(232,38,70,0.1)" />
+        <StatsCard title="Total Fees" value={`PKR ${totalAmount.toLocaleString()}`} trend="This semester" trendDirection="up" icon={CreditCard} iconColor="var(--color-brand-primary)" iconBg="rgb(var(--color-brand-primary-rgb) / 0.1)" />
+        <StatsCard title="Paid" value={`PKR ${paidAmount.toLocaleString()}`} trend="Cleared" trendDirection="up" icon={CheckCircle} iconColor="var(--color-system-success)" iconBg="rgb(var(--color-system-success-rgb) / 0.1)" />
+        <StatsCard title="Pending" value={`PKR ${pendingAmount.toLocaleString()}`} trend={pendingAmount > 0 ? "Due" : "Clear"} trendDirection={pendingAmount > 0 ? "down" : "up"} icon={AlertTriangle} iconColor="var(--color-system-warning)" iconBg="rgb(var(--color-system-warning-rgb) / 0.1)" />
+        <StatsCard title="Overdue" value={overdueCount} trend={overdueCount > 0 ? "Action needed" : "None"} trendDirection={overdueCount > 0 ? "down" : "up"} icon={XCircle} iconColor="var(--color-system-danger)" iconBg="rgb(var(--color-system-danger-rgb) / 0.1)" />
       </div>
 
       {/* Progress bar */}

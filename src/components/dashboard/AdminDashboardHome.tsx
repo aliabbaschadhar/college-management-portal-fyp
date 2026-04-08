@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Users, GraduationCap, BookOpen, UserPlus, ClipboardCheck, Calendar, ArrowRight, DollarSign, Bell } from "lucide-react";
+import { Users, GraduationCap, BookOpen, UserPlus, ClipboardCheck, Calendar, ArrowRight, Bell } from "lucide-react";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import Link from "next/link";
@@ -40,23 +40,40 @@ interface AdminDashboardData {
   recentAnnouncements: { id: string; title: string; priority: string; date: string }[];
 }
 
+interface AdminDashboardApiResponse {
+  error?: string;
+  stats?: Partial<AdminDashboardData["stats"]>;
+  studentsPerDepartment?: AdminDashboardData["studentsPerDepartment"];
+  attendanceOverview?: AdminDashboardData["attendanceOverview"];
+  recentAnnouncements?: AdminDashboardData["recentAnnouncements"];
+}
+
 const quickActions = [
-  { title: "Add Student", href: "/dashboard/students", icon: UserPlus, color: "#3D5EE1" },
-  { title: "Mark Attendance", href: "/dashboard/attendance", icon: ClipboardCheck, color: "#1ABE17" },
-  { title: "Create Announcement", href: "/dashboard/announcements", icon: Bell, color: "#EAB300" },
-  { title: "Generate Timetable", href: "/dashboard/timetable", icon: Calendar, color: "#6FCCD8" },
+  { title: "Add Student", href: "/dashboard/students", icon: UserPlus, iconClass: "text-brand-primary", bgClass: "bg-brand-primary/10" },
+  { title: "Mark Attendance", href: "/dashboard/attendance", icon: ClipboardCheck, iconClass: "text-system-success", bgClass: "bg-system-success/10" },
+  { title: "Create Announcement", href: "/dashboard/announcements", icon: Bell, iconClass: "text-system-warning", bgClass: "bg-system-warning/10" },
+  { title: "Generate Timetable", href: "/dashboard/timetable", icon: Calendar, iconClass: "text-brand-secondary", bgClass: "bg-brand-secondary/10" },
 ];
 
-const DEPT_COLORS = ["#3D5EE1", "#6FCCD8", "#A78BFA", "#F59E0B", "#10B981", "#EF4444", "#8B5CF6", "#EC4899"];
+const DEPT_COLORS = [
+  "var(--color-data-1)",
+  "var(--color-data-2)",
+  "var(--color-data-3)",
+  "var(--color-data-4)",
+  "var(--color-data-5)",
+  "var(--color-data-6)",
+  "var(--color-data-7)",
+  "var(--color-data-8)",
+];
 
 const barChartConfig: ChartConfig = {
-  students: { label: "Students", color: "#3D5EE1" },
+  students: { label: "Students", color: "var(--color-data-1)" },
 };
 
 const doughnutConfig: ChartConfig = {
-  present: { label: "Present", color: "#1ABE17" },
-  absent: { label: "Absent", color: "#E82646" },
-  late: { label: "Late", color: "#EAB300" },
+  present: { label: "Present", color: "var(--color-system-success)" },
+  absent: { label: "Absent", color: "var(--color-system-danger)" },
+  late: { label: "Late", color: "var(--color-system-warning)" },
 };
 
 const defaultData: AdminDashboardData = {
@@ -66,15 +83,41 @@ const defaultData: AdminDashboardData = {
   recentAnnouncements: [],
 };
 
+function normalizeAdminDashboardData(payload: AdminDashboardApiResponse | null | undefined): AdminDashboardData {
+  const stats = payload?.stats;
+
+  return {
+    stats: {
+      totalStudents: stats?.totalStudents ?? 0,
+      totalFaculty: stats?.totalFaculty ?? 0,
+      activeCourses: stats?.activeCourses ?? 0,
+      pendingAdmissions: stats?.pendingAdmissions ?? 0,
+      totalFeeCollected: stats?.totalFeeCollected ?? 0,
+      totalFeePending: stats?.totalFeePending ?? 0,
+      attendanceRate: stats?.attendanceRate ?? 0,
+    },
+    studentsPerDepartment: Array.isArray(payload?.studentsPerDepartment) ? payload.studentsPerDepartment : [],
+    attendanceOverview: Array.isArray(payload?.attendanceOverview) ? payload.attendanceOverview : [],
+    recentAnnouncements: Array.isArray(payload?.recentAnnouncements) ? payload.recentAnnouncements : [],
+  };
+}
+
 export default function AdminDashboardHome() {
   const [data, setData] = useState<AdminDashboardData>(defaultData);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch("/api/dashboard/admin")
-      .then((r) => r.json())
-      .then((d: AdminDashboardData) => { setData(d); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then(async (r) => {
+        const payload = (await r.json()) as AdminDashboardApiResponse;
+        if (!r.ok || payload.error) {
+          return defaultData;
+        }
+        return normalizeAdminDashboardData(payload);
+      })
+      .then((d) => setData(d))
+      .catch(() => setData(defaultData))
+      .finally(() => setLoading(false));
   }, []);
 
   const barChartData = data.studentsPerDepartment.map((item, i) => ({
@@ -86,7 +129,7 @@ export default function AdminDashboardHome() {
   const pieData = data.attendanceOverview.map((item, i) => ({
     name: item.name,
     value: item.value,
-    fill: ["#1ABE17", "#E82646", "#EAB300"][i] ?? "#6FCCD8",
+    fill: ["var(--color-system-success)", "var(--color-system-danger)", "var(--color-system-warning)"][i] ?? "var(--color-brand-secondary)",
   }));
 
   if (loading) {
@@ -112,8 +155,8 @@ export default function AdminDashboardHome() {
           trend="12%"
           trendDirection="up"
           icon={Users}
-          iconColor="#3D5EE1"
-          iconBg="rgba(61,94,225,0.1)"
+          iconColor="var(--color-brand-primary)"
+          iconBg="rgb(var(--color-brand-primary-rgb) / 0.1)"
         />
         <StatsCard
           title="Total Faculty"
@@ -121,8 +164,8 @@ export default function AdminDashboardHome() {
           trend="3%"
           trendDirection="up"
           icon={GraduationCap}
-          iconColor="#6FCCD8"
-          iconBg="rgba(111,204,216,0.1)"
+          iconColor="var(--color-brand-secondary)"
+          iconBg="rgb(var(--color-brand-secondary-rgb) / 0.1)"
         />
         <StatsCard
           title="Active Courses"
@@ -130,8 +173,8 @@ export default function AdminDashboardHome() {
           trend="5%"
           trendDirection="up"
           icon={BookOpen}
-          iconColor="#A78BFA"
-          iconBg="rgba(167,139,250,0.1)"
+          iconColor="var(--color-data-3)"
+          iconBg="color-mix(in oklab, var(--color-data-3) 10%, transparent)"
         />
         <StatsCard
           title="Pending Admissions"
@@ -139,8 +182,8 @@ export default function AdminDashboardHome() {
           trend="2"
           trendDirection="down"
           icon={UserPlus}
-          iconColor="#F59E0B"
-          iconBg="rgba(245,158,11,0.1)"
+          iconColor="var(--color-data-4)"
+          iconBg="color-mix(in oklab, var(--color-data-4) 10%, transparent)"
         />
       </motion.div>
 
@@ -236,10 +279,9 @@ export default function AdminDashboardHome() {
                 className="group flex items-center gap-3 rounded-lg p-3 hover:bg-accent/50 transition-colors"
               >
                 <div
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-                  style={{ backgroundColor: `${qa.color}15` }}
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${qa.bgClass}`}
                 >
-                  <qa.icon className="h-4 w-4" style={{ color: qa.color }} />
+                  <qa.icon className={`h-4 w-4 ${qa.iconClass}`} />
                 </div>
                 <span className="text-sm font-medium text-foreground flex-1">{qa.title}</span>
                 <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />

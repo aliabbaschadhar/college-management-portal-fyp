@@ -1,13 +1,194 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { requireRole } from "@/lib/auth-guard";
 import { Prisma } from "@prisma/client";
+import { hasTimeOverlap, parseTimetablePayload } from "@/lib/timetable";
+import { auth } from "@clerk/nextjs/server";
+
+async function requireAdmin() {
+  const { userId } = await auth();
+  if (!userId) {
+    return {
+      denied: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+      userId: null,
+    };
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { role: true },
+  });
+
+  if (!user || user.role !== "ADMIN") {
+    return {
+      denied: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+      userId,
+    };
+  }
+
+  return { denied: null, userId };
+}
+
+async function checkRoomConflict(
+  room: string,
+  day: string,
+  startTime: string,
+  endTime: string,
+  excludeId: string
+) {
+  const entries = await prisma.timetable.findMany({
+    where: { room, day, id: { not: excludeId } },
+    select: { startTime: true, endTime: true },
+  });
+
+  return entries.find((entry) =>
+    hasTimeOverlap(startTime, endTime, entry.startTime, entry.endTime)
+  );
+}
+
+async function checkFacultyConflict(
+  assignedFacultyId: string,
+  day: string,
+  startTime: string,
+  endTime: string,
+  excludeId: string
+) {
+  const entries = await prisma.timetable.findMany({
+    where: {
+      day,
+      id: { not: excludeId },
+      course: { assignedFaculty: assignedFacultyId },
+    },
+    select: { startTime: true, endTime: true },
+  });
+
+  return entries.find((entry) =>
+    hasTimeOverlap(startTime, endTime, entry.startTime, entry.endTime)
+  );
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { denied } = await requireAdmin();
+  if (denied) return denied;
+
+  try {
+    const { id } = await params;
+
+    const existing = await prisma.timetable.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        courseId: true,
+        room: true,
+        day: true,
+        startTime: true,
+        endTime: true,
+      },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: "Timetable entry not found" }, { status: 404 });
+    }
+
+    const incoming = (await request.json()) as Partial<{
+      courseId: string;
+      room: string;
+      day: string;
+      startTime: string;
+      endTime: string;
+    }>;
+
+    const mergedPayload = {
+      courseId: incoming.courseId ?? existing.courseId,
+      room: incoming.room ?? existing.room,
+      day: incoming.day ?? existing.day,
+      startTime: incoming.startTime ?? existing.startTime,
+      endTime: incoming.endTime ?? existing.endTime,
+    };
+
+    const parsed = parseTimetablePayload(mergedPayload);
+    if (!parsed.ok) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+
+    const body = parsed.data;
+
+    const course = await prisma.course.findUnique({
+      where: { id: body.courseId },
+      select: { assignedFaculty: true },
+    });
+
+    if (!course) {
+      return NextResponse.json({ error: "Course not found" }, { status: 404 });
+    }
+
+    const roomConflict = await checkRoomConflict(
+      body.room,
+      body.day,
+      body.startTime,
+      body.endTime,
+      id
+    );
+    if (roomConflict) {
+      return NextResponse.json(
+        {
+          error: `Room "${body.room}" is already booked on ${body.day} between ${body.startTime} and ${body.endTime}`,
+        },
+        { status: 409 }
+      );
+    }
+
+    if (course.assignedFaculty) {
+      const facultyConflict = await checkFacultyConflict(
+        course.assignedFaculty,
+        body.day,
+        body.startTime,
+        body.endTime,
+        id
+      );
+
+      if (facultyConflict) {
+        return NextResponse.json(
+          {
+            error: `Assigned faculty is already scheduled on ${body.day} between ${body.startTime} and ${body.endTime}`,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    const updated = await prisma.timetable.update({
+      where: { id },
+      data: {
+        courseId: body.courseId,
+        room: body.room,
+        day: body.day,
+        startTime: body.startTime,
+        endTime: body.endTime,
+      },
+      include: {
+        course: {
+          include: {
+            faculty: { include: { user: { select: { name: true } } } },
+          },
+        },
+      },
+    });
+
+    return NextResponse.json(updated);
+  } catch (error) {
+    console.error("PATCH /api/timetable/[id] error:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+}
 
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const denied = await requireRole(["ADMIN"]);
+  const { denied } = await requireAdmin();
   if (denied) return denied;
 
   try {

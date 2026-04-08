@@ -1,10 +1,44 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { ApiError, errorResponse, handleApiError, parseJsonBody } from "@/lib/api-errors";
+
+interface GradeCreateBody {
+  studentId: string;
+  courseId: string;
+  quizMarks: number;
+  assignmentMarks: number;
+  midMarks: number;
+  finalMarks: number;
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function validateMarks(value: number, field: string) {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new ApiError("BAD_REQUEST", `${field} must be a non-negative number`, 400);
+  }
+}
+
+function validateGradeBody(body: GradeCreateBody) {
+  if (!isNonEmptyString(body.studentId)) {
+    throw new ApiError("BAD_REQUEST", "studentId is required", 400);
+  }
+  if (!isNonEmptyString(body.courseId)) {
+    throw new ApiError("BAD_REQUEST", "courseId is required", 400);
+  }
+
+  validateMarks(body.quizMarks, "quizMarks");
+  validateMarks(body.assignmentMarks, "assignmentMarks");
+  validateMarks(body.midMarks, "midMarks");
+  validateMarks(body.finalMarks, "finalMarks");
+}
 
 export async function GET(request: NextRequest) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
 
   try {
     // Load user with role and faculty/student info
@@ -17,7 +51,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
 
     const { searchParams } = request.nextUrl;
     const courseId = searchParams.get("courseId");
@@ -30,10 +64,10 @@ export async function GET(request: NextRequest) {
     if (!isAdmin && !isFaculty) {
       // Students can only see their own grades
       if (!user.student) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        return errorResponse("FORBIDDEN", "Forbidden", 403);
       }
       if (studentId && studentId !== user.student.id) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        return errorResponse("FORBIDDEN", "Forbidden", 403);
       }
     }
 
@@ -44,14 +78,14 @@ export async function GET(request: NextRequest) {
         select: { assignedFaculty: true },
       });
       if (!course || course.assignedFaculty !== user.faculty.id) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        return errorResponse("FORBIDDEN", "Forbidden", 403);
       }
     }
 
     // If studentId is provided, ensure only authorized users can view
     if (studentId && !isAdmin && !isFaculty) {
       if (!user.student || user.student.id !== studentId) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        return errorResponse("FORBIDDEN", "Forbidden", 403);
       }
     }
 
@@ -71,14 +105,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(grades);
   } catch (error) {
-    console.error("GET /api/grades error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return handleApiError("GET /api/grades", error);
   }
 }
 
 export async function POST(request: NextRequest) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
 
   try {
     // Check user role - only admin/faculty can create/update grades
@@ -88,17 +121,11 @@ export async function POST(request: NextRequest) {
     });
 
     if (!user || !["ADMIN", "FACULTY"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return errorResponse("FORBIDDEN", "Forbidden", 403);
     }
 
-    const body = (await request.json()) as {
-      studentId: string;
-      courseId: string;
-      quizMarks: number;
-      assignmentMarks: number;
-      midMarks: number;
-      finalMarks: number;
-    };
+    const body = await parseJsonBody<GradeCreateBody>(request);
+    validateGradeBody(body);
 
     // If faculty, verify they're assigned to the course
     if (user.role === "FACULTY" && user.faculty) {
@@ -107,7 +134,7 @@ export async function POST(request: NextRequest) {
         select: { assignedFaculty: true },
       });
       if (!course || course.assignedFaculty !== user.faculty.id) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        return errorResponse("FORBIDDEN", "Forbidden", 403);
       }
     }
 
@@ -116,7 +143,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (existing?.locked) {
-      return NextResponse.json({ error: "Grade is locked" }, { status: 403 });
+      return errorResponse("FORBIDDEN", "Grade is locked", 403);
     }
 
     const total = body.quizMarks + body.assignmentMarks + body.midMarks + body.finalMarks;
@@ -145,7 +172,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(grade, { status: existing ? 200 : 201 });
   } catch (error) {
-    console.error("POST /api/grades error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return handleApiError("POST /api/grades", error);
   }
 }

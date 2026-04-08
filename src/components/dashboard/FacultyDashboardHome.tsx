@@ -80,18 +80,25 @@ const item = {
   show: { opacity: 1, y: 0 },
 };
 
-const CHART_COLORS = ["#3D5EE1", "#6FCCD8", "#A78BFA", "#F59E0B", "#1ABE17", "#E82646"];
+const CHART_COLORS = [
+  "var(--color-data-1)",
+  "var(--color-data-2)",
+  "var(--color-data-3)",
+  "var(--color-data-4)",
+  "var(--color-data-5)",
+  "var(--color-data-6)",
+];
 
 const attendancePieData = [
-  { name: "Present", value: 78, fill: "#1ABE17" },
-  { name: "Late", value: 12, fill: "#EAB300" },
-  { name: "Absent", value: 10, fill: "#E82646" },
+  { name: "Present", value: 78, fill: "var(--color-system-success)" },
+  { name: "Late", value: 12, fill: "var(--color-system-warning)" },
+  { name: "Absent", value: 10, fill: "var(--color-system-danger)" },
 ];
 
 const attendancePieConfig: ChartConfig = {
-  present: { label: "Present", color: "#1ABE17" },
-  late: { label: "Late", color: "#EAB300" },
-  absent: { label: "Absent", color: "#E82646" },
+  present: { label: "Present", color: "var(--color-system-success)" },
+  late: { label: "Late", color: "var(--color-system-warning)" },
+  absent: { label: "Absent", color: "var(--color-system-danger)" },
 };
 
 const defaultData: FacultyDashboardData = {
@@ -138,10 +145,10 @@ export function FacultyDashboardHome() {
   );
 
   const quickActions = [
-    { title: "Mark Attendance", href: "/dashboard/mark-attendance", icon: ClipboardCheck, color: "#1ABE17" },
-    { title: "Enter Grades", href: "/dashboard/grades", icon: TrendingUp, color: "#3D5EE1" },
-    { title: "Create Quiz", href: "/dashboard/quizzes", icon: FileText, color: "#A78BFA" },
-    { title: "Question Bank", href: "/dashboard/question-bank", icon: BookOpen, color: "#F59E0B" },
+    { title: "Mark Attendance", href: "/dashboard/mark-attendance", icon: ClipboardCheck, iconClass: "text-system-success", bgClass: "bg-system-success/10" },
+    { title: "Enter Grades", href: "/dashboard/grades", icon: TrendingUp, iconClass: "text-brand-primary", bgClass: "bg-brand-primary/10" },
+    { title: "Create Quiz", href: "/dashboard/quizzes", icon: FileText, iconClass: "text-data-3", bgClass: "bg-data-3/10" },
+    { title: "Question Bank", href: "/dashboard/question-bank", icon: BookOpen, iconClass: "text-data-4", bgClass: "bg-data-4/10" },
   ];
 
   if (loading) {
@@ -167,8 +174,8 @@ export function FacultyDashboardHome() {
           trend="Active"
           trendDirection="up"
           icon={BookOpen}
-          iconColor="#3D5EE1"
-          iconBg="rgba(61,94,225,0.1)"
+          iconColor="var(--color-brand-primary)"
+          iconBg="rgb(var(--color-brand-primary-rgb) / 0.1)"
         />
         <StatsCard
           title="Total Students"
@@ -176,8 +183,8 @@ export function FacultyDashboardHome() {
           trend="Across courses"
           trendDirection="up"
           icon={Users}
-          iconColor="#6FCCD8"
-          iconBg="rgba(111,204,216,0.1)"
+          iconColor="var(--color-brand-secondary)"
+          iconBg="rgb(var(--color-brand-secondary-rgb) / 0.1)"
         />
         <StatsCard
           title="Avg Feedback"
@@ -185,8 +192,8 @@ export function FacultyDashboardHome() {
           trend={data.stats.avgRating >= 4 ? "Excellent" : "Good"}
           trendDirection="up"
           icon={Star}
-          iconColor="#F59E0B"
-          iconBg="rgba(245,158,11,0.1)"
+          iconColor="var(--color-data-4)"
+          iconBg="color-mix(in oklab, var(--color-data-4) 10%, transparent)"
         />
         <StatsCard
           title="Active Quizzes"
@@ -194,8 +201,8 @@ export function FacultyDashboardHome() {
           trend="Published"
           trendDirection="up"
           icon={FileText}
-          iconColor="#A78BFA"
-          iconBg="rgba(167,139,250,0.1)"
+          iconColor="var(--color-data-3)"
+          iconBg="color-mix(in oklab, var(--color-data-3) 10%, transparent)"
         />
       </motion.div>
 
@@ -330,10 +337,9 @@ export function FacultyDashboardHome() {
                   className="group flex items-center gap-3 rounded-lg p-2.5 hover:bg-accent/50 transition-colors"
                 >
                   <div
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-                    style={{ backgroundColor: `${qa.color}15` }}
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${qa.bgClass}`}
                   >
-                    <qa.icon className="h-3.5 w-3.5" style={{ color: qa.color }} />
+                    <qa.icon className={`h-3.5 w-3.5 ${qa.iconClass}`} />
                   </div>
                   <span className="text-sm font-medium text-foreground flex-1">{qa.title}</span>
                   <ArrowRight className="h-3.5 w-3.5 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />

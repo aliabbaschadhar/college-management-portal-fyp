@@ -1,11 +1,11 @@
 import { auth } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { errorResponse, handleApiError } from "@/lib/api-errors";
 
 export async function GET() {
   const { userId } = await auth();
-  if (!userId) {
-    return new Response("Unauthorized", { status: 401 });
-  }
+  if (!userId) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
 
   try {
     const user = await prisma.user.findUnique({
@@ -17,11 +17,9 @@ export async function GET() {
       },
     });
 
-    if (!user) {
-      return new Response("User not found", { status: 404 });
-    }
+    if (!user) return errorResponse("NOT_FOUND", "User not found", 404);
 
-    return Response.json({
+    return NextResponse.json({
       id: user.id,
       clerkId: user.clerkId,
       email: user.email,
@@ -32,7 +30,6 @@ export async function GET() {
       admin: user.admin,
     });
   } catch (error) {
-    console.error("Error fetching current user:", error);
-    return new Response("Internal Server Error", { status: 500 });
+    return handleApiError("GET /api/me", error);
   }
 }

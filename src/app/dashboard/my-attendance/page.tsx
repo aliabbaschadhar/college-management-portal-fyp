@@ -48,9 +48,9 @@ const statusColors: Record<AttendanceStatus, string> = {
 };
 
 const chartConfig = {
-  present: { label: "Present", color: "#1ABE17" },
-  absent: { label: "Absent", color: "#E82646" },
-  late: { label: "Late", color: "#EAB300" },
+  present: { label: "Present", color: "var(--color-system-success)" },
+  absent: { label: "Absent", color: "var(--color-system-danger)" },
+  late: { label: "Late", color: "var(--color-system-warning)" },
 } satisfies ChartConfig;
 
 export default function MyAttendancePage() {
@@ -143,10 +143,10 @@ export default function MyAttendancePage() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatsCard title="Attendance %" value={`${attendancePercent}%`} trend={attendancePercent >= 75 ? "Good" : "Low"} trendDirection={attendancePercent >= 75 ? "up" : "down"} icon={Clock} iconColor="#3D5EE1" iconBg="rgba(61,94,225,0.1)" />
-        <StatsCard title="Present" value={presentCount} trend={`of ${totalCount}`} trendDirection="up" icon={CheckCircle} iconColor="#1ABE17" iconBg="rgba(26,190,23,0.1)" />
-        <StatsCard title="Absent" value={absentCount} trend={`of ${totalCount}`} trendDirection="down" icon={XCircle} iconColor="#E82646" iconBg="rgba(232,38,70,0.1)" />
-        <StatsCard title="Late" value={lateCount} trend={`of ${totalCount}`} trendDirection="down" icon={AlertCircle} iconColor="#EAB300" iconBg="rgba(234,179,0,0.1)" />
+        <StatsCard title="Attendance %" value={`${attendancePercent}%`} trend={attendancePercent >= 75 ? "Good" : "Low"} trendDirection={attendancePercent >= 75 ? "up" : "down"} icon={Clock} iconColor="var(--color-brand-primary)" iconBg="rgb(var(--color-brand-primary-rgb) / 0.1)" />
+        <StatsCard title="Present" value={presentCount} trend={`of ${totalCount}`} trendDirection="up" icon={CheckCircle} iconColor="var(--color-system-success)" iconBg="rgb(var(--color-system-success-rgb) / 0.1)" />
+        <StatsCard title="Absent" value={absentCount} trend={`of ${totalCount}`} trendDirection="down" icon={XCircle} iconColor="var(--color-system-danger)" iconBg="rgb(var(--color-system-danger-rgb) / 0.1)" />
+        <StatsCard title="Late" value={lateCount} trend={`of ${totalCount}`} trendDirection="down" icon={AlertCircle} iconColor="var(--color-system-warning)" iconBg="rgb(var(--color-system-warning-rgb) / 0.1)" />
       </div>
 
       {/* Chart */}

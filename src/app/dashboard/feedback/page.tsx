@@ -23,7 +23,13 @@ interface FeedbackItem {
   date: string;
 }
 
-const STAR_COLORS = ["#E82646", "#F97316", "#EAB300", "#84CC16", "#1ABE17"];
+const STAR_COLORS = [
+  "var(--color-system-danger)",
+  "var(--color-data-4)",
+  "var(--color-system-warning)",
+  "var(--color-data-7)",
+  "var(--color-system-success)",
+];
 
 export default function FacultyFeedbackPage() {
   const [feedback, setFeedback] = useState<FeedbackItem[]>([]);
@@ -84,8 +90,8 @@ export default function FacultyFeedbackPage() {
           trend={avgRating >= 4 ? "Excellent" : "Good"}
           trendDirection="up"
           icon={Star}
-          iconColor="#F59E0B"
-          iconBg="rgba(245,158,11,0.1)"
+          iconColor="var(--color-data-4)"
+          iconBg="color-mix(in oklab, var(--color-data-4) 10%, transparent)"
         />
         <StatsCard
           title="Total Reviews"
@@ -93,8 +99,8 @@ export default function FacultyFeedbackPage() {
           trend="All time"
           trendDirection="up"
           icon={MessageSquare}
-          iconColor="#3D5EE1"
-          iconBg="rgba(61,94,225,0.1)"
+          iconColor="var(--color-brand-primary)"
+          iconBg="rgb(var(--color-brand-primary-rgb) / 0.1)"
         />
         <StatsCard
           title="5-Star Reviews"
@@ -102,8 +108,8 @@ export default function FacultyFeedbackPage() {
           trend={`${totalReviews > 0 ? Math.round((fiveStarCount / totalReviews) * 100) : 0}%`}
           trendDirection="up"
           icon={TrendingUp}
-          iconColor="#1ABE17"
-          iconBg="rgba(26,190,23,0.1)"
+          iconColor="var(--color-system-success)"
+          iconBg="rgb(var(--color-system-success-rgb) / 0.1)"
         />
       </div>
 

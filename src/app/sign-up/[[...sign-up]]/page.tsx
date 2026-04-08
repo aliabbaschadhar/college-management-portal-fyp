@@ -75,8 +75,8 @@ export default function SignUpPage() {
                   headerTitle: "hidden",
                   headerSubtitle: "hidden",
                   formButtonPrimary:
-                    "bg-[#003B73] hover:bg-[#002952] text-white transition-colors",
-                  footerActionLink: "text-[#4FC3F7] hover:text-[#003B73]",
+                    "bg-primary-navy hover:bg-primary-navy/90 text-white transition-colors",
+                  footerActionLink: "text-secondary-cyan hover:text-primary-navy",
                 },
               }}
               forceRedirectUrl="/dashboard"

@@ -14,6 +14,27 @@
   --color-brand-dark: #131022;
   --color-brand-light: #E9EDF4;
   --color-brand-white: #FFFFFF;
+  --color-brand-soft: #E8E8E8;
+  --color-brand-primary-rgb: 61 94 225;
+  --color-brand-secondary-rgb: 111 204 216;
+  --color-system-success-rgb: 26 190 23;
+  --color-system-warning-rgb: 234 179 0;
+  --color-system-danger-rgb: 232 38 70;
+  --color-data-1: #3D5EE1;
+  --color-data-2: #6FCCD8;
+  --color-data-3: #A78BFA;
+  --color-data-4: #F59E0B;
+  --color-data-5: #1ABE17;
+  --color-data-6: #E82646;
+  --color-data-7: #10B981;
+  --color-data-8: #EC4899;
+
+  /* Legacy token aliases used in auth pages/components */
+  --color-primary-navy: var(--color-brand-primary);
+  --color-secondary-cyan: var(--color-brand-secondary);
+  --color-light-blue: var(--color-brand-light);
+  --color-dark-grey: var(--color-brand-dark);
+  --color-soft-grey: var(--color-brand-soft);
   
   --color-system-info: #0F65CD;
   --color-system-success: #1ABE17;
@@ -21,6 +42,10 @@
   --color-system-danger: #E82646;
   --color-system-skyblue: #05C3FB;
   --color-system-strokecard: #FFFFFF;
+  --color-semantic-info: var(--color-system-info);
+  --color-semantic-success: var(--color-system-success);
+  --color-semantic-warning: var(--color-system-warning);
+  --color-semantic-danger: var(--color-system-danger);
 
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -62,6 +87,11 @@
 
 :root {
   --radius: 0.625rem;
+  --color-brand-primary-rgb: 61 94 225;
+  --color-brand-secondary-rgb: 111 204 216;
+  --color-system-success-rgb: 26 190 23;
+  --color-system-warning-rgb: 234 179 0;
+  --color-system-danger-rgb: 232 38 70;
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
   --card: oklch(1 0 0);

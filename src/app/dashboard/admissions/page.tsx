@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { CheckCircle, XCircle, Clock, Eye } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
@@ -54,89 +54,138 @@ const statusIcons: Record<"Pending" | "Approved" | "Rejected", LucideIcon> = {
 export default function ManageAdmissionsPage() {
   const [admissions, setAdmissions] = useState<Admission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
   const [selectedAdmission, setSelectedAdmission] = useState<Admission | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
-  useEffect(() => {
+  const loadAdmissions = useCallback(() => {
+    setLoading(true);
+    setError(null);
     const url = filterStatus === "all" ? "/api/admissions" : `/api/admissions?status=${filterStatus}`;
     fetch(url)
-      .then((r) => r.json())
-      .then((d: Admission[]) => { setAdmissions(Array.isArray(d) ? d : []); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then(async (r) => {
+        const payload = (await r.json()) as Admission[] | { error?: string };
+        if (!r.ok) {
+          const message = !Array.isArray(payload) && payload.error
+            ? payload.error
+            : "Failed to load admissions";
+          throw new Error(message);
+        }
+        return payload;
+      })
+      .then((d) => {
+        setAdmissions(Array.isArray(d) ? d : []);
+      })
+      .catch((e: unknown) => {
+        const message = e instanceof Error ? e.message : "Failed to load admissions";
+        setError(message);
+        setAdmissions([]);
+      })
+      .finally(() => setLoading(false));
   }, [filterStatus]);
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadAdmissions();
+  }, [loadAdmissions]);
+
   const handleStatusChange = async (id: string, newStatus: "Pending" | "Approved" | "Rejected") => {
+    setMutationError(null);
     const res = await fetch(`/api/admissions/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: newStatus }),
     });
-    if (res.ok) {
-      setAdmissions((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, status: newStatus } : a))
-      );
-      if (selectedAdmission?.id === id) {
-        setSelectedAdmission({ ...selectedAdmission, status: newStatus });
-      }
+    if (!res.ok) {
+      const payload = (await res.json().catch(() => null)) as { error?: string } | null;
+      setMutationError(payload?.error ?? "Failed to update admission status");
+      return;
+    }
+
+    setAdmissions((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, status: newStatus } : a))
+    );
+    if (selectedAdmission?.id === id) {
+      setSelectedAdmission({ ...selectedAdmission, status: newStatus });
     }
   };
 
   const columns: Column<Admission>[] = [
-    { key: "studentName", header: "Applicant", sortable: true, render: (row) => (
-      <div>
-        <p className="font-medium text-foreground">{row.studentName}</p>
-        <p className="text-xs text-muted-foreground">{row.email}</p>
-      </div>
-    )},
+    {
+      key: "studentName", header: "Applicant", sortable: true, render: (row) => (
+        <div>
+          <p className="font-medium text-foreground">{row.studentName}</p>
+          <p className="text-xs text-muted-foreground">{row.email}</p>
+        </div>
+      )
+    },
     { key: "appliedDepartment", header: "Department", sortable: true },
-    { key: "applicationDate", header: "Date", sortable: true, render: (row) => (
-      <span className="text-muted-foreground">{new Date(row.applicationDate).toLocaleDateString()}</span>
-    )},
-    { key: "status", header: "Status", sortable: true, render: (row) => {
-      const Icon = statusIcons[row.status];
-      return (
-        <Badge variant="secondary" className={`flex w-fit items-center gap-1 ${statusColors[row.status]}`}>
-          <Icon className="h-3 w-3" />
-          {row.status}
-        </Badge>
-      );
-    }},
-    { key: "id", header: "Actions", render: (row) => (
-      <div className="flex items-center gap-1">
-        <button
-          onClick={() => { setSelectedAdmission(row); setViewDialogOpen(true); }}
-          className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"
-          title="View Details"
-        >
-          <Eye className="h-4 w-4 text-muted-foreground" />
-        </button>
-        {row.status === "Pending" && (
-          <>
-            <button
-              onClick={() => handleStatusChange(row.id, "Approved")}
-              className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
-              title="Approve"
-            >
-              <CheckCircle className="h-4 w-4 text-emerald-600" />
-            </button>
-            <button
-              onClick={() => handleStatusChange(row.id, "Rejected")}
-              className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
-              title="Reject"
-            >
-              <XCircle className="h-4 w-4 text-rose-600" />
-            </button>
-          </>
-        )}
-      </div>
-    )},
+    {
+      key: "applicationDate", header: "Date", sortable: true, render: (row) => (
+        <span className="text-muted-foreground">{new Date(row.applicationDate).toLocaleDateString()}</span>
+      )
+    },
+    {
+      key: "status", header: "Status", sortable: true, render: (row) => {
+        const Icon = statusIcons[row.status];
+        return (
+          <Badge variant="secondary" className={`flex w-fit items-center gap-1 ${statusColors[row.status]}`}>
+            <Icon className="h-3 w-3" />
+            {row.status}
+          </Badge>
+        );
+      }
+    },
+    {
+      key: "id", header: "Actions", render: (row) => (
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => { setSelectedAdmission(row); setViewDialogOpen(true); }}
+            className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"
+            title="View Details"
+          >
+            <Eye className="h-4 w-4 text-muted-foreground" />
+          </button>
+          {row.status === "Pending" && (
+            <>
+              <button
+                onClick={() => handleStatusChange(row.id, "Approved")}
+                className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+                title="Approve"
+              >
+                <CheckCircle className="h-4 w-4 text-emerald-600" />
+              </button>
+              <button
+                onClick={() => handleStatusChange(row.id, "Rejected")}
+                className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
+                title="Reject"
+              >
+                <XCircle className="h-4 w-4 text-rose-600" />
+              </button>
+            </>
+          )}
+        </div>
+      )
+    },
   ];
 
   if (loading) {
     return (
       <div className="flex justify-center p-8">
         <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-300">
+        <p className="text-sm font-medium">Failed to load admissions: {error}</p>
+        <Button variant="outline" onClick={loadAdmissions} className="w-fit">
+          Retry
+        </Button>
       </div>
     );
   }
@@ -149,7 +198,7 @@ export default function ManageAdmissionsPage() {
         breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Admissions" }]}
         action={
           <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-45">
               <SelectValue placeholder="Filter Status" />
             </SelectTrigger>
             <SelectContent>
@@ -169,9 +218,15 @@ export default function ManageAdmissionsPage() {
         searchKeys={["studentName", "email", "appliedDepartment"]}
       />
 
+      {mutationError && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-300">
+          {mutationError}
+        </div>
+      )}
+
       {/* Details Dialog */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-125">
           <DialogHeader>
             <DialogTitle>Application Details</DialogTitle>
             <DialogDescription>Reviewing admission request for {selectedAdmission?.studentName}</DialogDescription>

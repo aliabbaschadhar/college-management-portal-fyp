@@ -29,10 +29,10 @@ interface GradeWithCourse {
 }
 
 const chartConfig = {
-  quiz: { label: "Quiz", color: "#3D5EE1" },
-  assignment: { label: "Assignment", color: "#6FCCD8" },
-  mid: { label: "Midterm", color: "#A78BFA" },
-  final: { label: "Final", color: "#F59E0B" },
+  quiz: { label: "Quiz", color: "var(--color-brand-primary)" },
+  assignment: { label: "Assignment", color: "var(--color-brand-secondary)" },
+  mid: { label: "Midterm", color: "var(--color-data-3)" },
+  final: { label: "Final", color: "var(--color-data-4)" },
 } satisfies ChartConfig;
 
 export default function MyGradesPage() {

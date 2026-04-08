@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { User, Bell, Shield, Globe, Palette, Moon, Sun, Smartphone, Mail, Lock } from "lucide-react";
+import { User, Bell, Shield, Globe, Palette, Smartphone, Mail, Lock } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,10 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion } from "framer-motion";
-import { useTheme } from "next-themes";
 
 export default function SettingsPage() {
-  const { theme, setTheme } = useTheme();
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = () => {
@@ -114,26 +112,12 @@ export default function SettingsPage() {
               </h3>
               <div className="grid md:grid-cols-2 gap-8">
                 <div className="space-y-4">
-                  <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Select Mode</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <button 
-                      onClick={() => setTheme("light")}
-                      className={`p-6 rounded-3xl border-2 transition-all flex flex-col items-center gap-2 ${theme === 'light' ? 'border-brand-primary bg-brand-primary/5' : 'border-border hover:border-brand-primary/30'}`}
-                    >
-                      <div className="h-10 w-10 bg-white border shadow-sm rounded-full flex items-center justify-center">
-                        <Sun className="h-6 w-6 text-brand-secondary" />
-                      </div>
-                      <span className="font-bold">Light</span>
-                    </button>
-                    <button 
-                      onClick={() => setTheme("dark")}
-                      className={`p-6 rounded-3xl border-2 transition-all flex flex-col items-center gap-2 ${theme === 'dark' ? 'border-brand-primary bg-brand-primary/5' : 'border-border hover:border-brand-primary/30'}`}
-                    >
-                      <div className="h-10 w-10 bg-slate-900 border-slate-800 shadow-sm rounded-full flex items-center justify-center">
-                        <Moon className="h-6 w-6 text-brand-primary" />
-                      </div>
-                      <span className="font-bold text-slate-200">Dark</span>
-                    </button>
+                  <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Theme</p>
+                  <div className="p-4 rounded-2xl border bg-muted/10">
+                    <p className="font-bold">Theme Control</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Switch between light and dark mode from the sidebar footer toggle.
+                    </p>
                   </div>
                 </div>
                 

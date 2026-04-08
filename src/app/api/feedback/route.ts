@@ -2,10 +2,38 @@ import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { FeedbackType, Prisma } from "@prisma/client";
+import { ApiError, errorResponse, handleApiError, parseJsonBody } from "@/lib/api-errors";
+
+interface FeedbackCreateBody {
+  type: FeedbackType;
+  targetId: string;
+  rating: number;
+  comment?: string;
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function validateFeedbackBody(body: FeedbackCreateBody) {
+  const validTypes = new Set<FeedbackType>(["Course", "Faculty"]);
+  if (!validTypes.has(body.type)) {
+    throw new ApiError("BAD_REQUEST", "type must be Course or Faculty", 400);
+  }
+  if (!isNonEmptyString(body.targetId)) {
+    throw new ApiError("BAD_REQUEST", "targetId is required", 400);
+  }
+  if (!Number.isInteger(body.rating) || body.rating < 1 || body.rating > 5) {
+    throw new ApiError("BAD_REQUEST", "rating must be an integer between 1 and 5", 400);
+  }
+  if (body.comment !== undefined && typeof body.comment !== "string") {
+    throw new ApiError("BAD_REQUEST", "comment must be a string", 400);
+  }
+}
 
 export async function GET(request: NextRequest) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
 
   try {
     // Load user with role and associated records
@@ -18,11 +46,14 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
 
     const { searchParams } = request.nextUrl;
     const targetId = searchParams.get("targetId");
     const type = searchParams.get("type") as FeedbackType | null;
+    if (type && type !== "Course" && type !== "Faculty") {
+      return errorResponse("BAD_REQUEST", "Invalid feedback type filter", 400);
+    }
 
     // Build where clause with authorization checks
     const isAdmin = user.role === "ADMIN";
@@ -37,7 +68,7 @@ export async function GET(request: NextRequest) {
     if (!isAdmin && !isFaculty) {
       // Students can only see their own feedback
       if (!user.student) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        return errorResponse("FORBIDDEN", "Forbidden", 403);
       }
       whereClause = { ...whereClause, studentId: user.student.id };
     }
@@ -57,22 +88,17 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(feedbacks);
   } catch (error) {
-    console.error("GET /api/feedback error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return handleApiError("GET /api/feedback", error);
   }
 }
 
 export async function POST(request: NextRequest) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
 
   try {
-    const body = (await request.json()) as {
-      type: FeedbackType;
-      targetId: string;
-      rating: number;
-      comment?: string;
-    };
+    const body = await parseJsonBody<FeedbackCreateBody>(request);
+    validateFeedbackBody(body);
 
     // Resolve the student DB record from the authenticated Clerk user
     const student = await prisma.student.findFirst({
@@ -81,10 +107,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!student) {
-      return NextResponse.json(
-        { error: "Only students can submit feedback" },
-        { status: 403 }
-      );
+      return errorResponse("FORBIDDEN", "Only students can submit feedback", 403);
     }
 
     const feedback = await prisma.feedback.create({
@@ -108,7 +131,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(feedback, { status: 201 });
   } catch (error) {
-    console.error("POST /api/feedback error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return handleApiError("POST /api/feedback", error);
   }
 }

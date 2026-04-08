@@ -2,10 +2,49 @@ import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { FeeStatus } from "@prisma/client";
+import { ApiError, errorResponse, handleApiError, parseJsonBody } from "@/lib/api-errors";
+
+interface FeeCreateBody {
+  studentId: string;
+  type: string;
+  amount: number;
+  dueDate: string;
+  semester: number;
+}
+
+const FEE_STATUSES = new Set<FeeStatus>(["Paid", "Unpaid", "Overdue"]);
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function parseValidDate(value: string, fieldName: string): Date {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new ApiError("BAD_REQUEST", `${fieldName} must be a valid date`, 400);
+  }
+  return date;
+}
+
+function validateFeeBody(body: FeeCreateBody) {
+  if (!isNonEmptyString(body.studentId)) {
+    throw new ApiError("BAD_REQUEST", "studentId is required", 400);
+  }
+  if (!isNonEmptyString(body.type)) {
+    throw new ApiError("BAD_REQUEST", "type is required", 400);
+  }
+  if (!Number.isFinite(body.amount) || body.amount <= 0) {
+    throw new ApiError("BAD_REQUEST", "amount must be greater than 0", 400);
+  }
+  if (!Number.isInteger(body.semester) || body.semester < 1) {
+    throw new ApiError("BAD_REQUEST", "semester must be an integer >= 1", 400);
+  }
+  parseValidDate(body.dueDate, "dueDate");
+}
 
 export async function GET(request: NextRequest) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
 
   try {
     // Load user with role and student info
@@ -14,39 +53,47 @@ export async function GET(request: NextRequest) {
       select: { role: true, student: { select: { id: true } } },
     });
 
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
 
     const { searchParams } = request.nextUrl;
     const studentId = searchParams.get("studentId");
     const status = searchParams.get("status") as FeeStatus | null;
+    if (status && !FEE_STATUSES.has(status)) {
+      return errorResponse("BAD_REQUEST", "Invalid fee status filter", 400);
+    }
 
     // Build where clause based on role
     const isAdmin = user.role === "ADMIN";
     const isFaculty = user.role === "FACULTY";
 
-    let whereClause: { studentId?: string; status?: FeeStatus } = {
-      ...(status ? { status } : {}),
-    };
+    const resolvedStudentId = studentId
+      ? studentId
+      : !isAdmin && !isFaculty
+        ? user.student?.id
+        : undefined;
 
     if (studentId) {
       // If specific studentId requested, verify permissions
       if (!isAdmin && !isFaculty) {
         // Students can only view their own fees
         if (!user.student || user.student.id !== studentId) {
-          return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+          return errorResponse("FORBIDDEN", "Forbidden", 403);
         }
       }
-      whereClause.studentId = studentId;
     } else {
       // No studentId specified
       if (!isAdmin && !isFaculty) {
         // Students must filter by their own ID
         if (!user.student) {
-          return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+          return errorResponse("FORBIDDEN", "Forbidden", 403);
         }
-        whereClause.studentId = user.student.id;
       }
     }
+
+    const whereClause: { studentId?: string; status?: FeeStatus } = {
+      ...(status ? { status } : {}),
+      ...(resolvedStudentId ? { studentId: resolvedStudentId } : {}),
+    };
 
     const fees = await prisma.fee.findMany({
       where: whereClause,
@@ -59,14 +106,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(fees);
   } catch (error) {
-    console.error("GET /api/fees error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return handleApiError("GET /api/fees", error);
   }
 }
 
 export async function POST(request: NextRequest) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
 
   try {
     // Check user role - only admin/faculty can create fees
@@ -76,30 +122,25 @@ export async function POST(request: NextRequest) {
     });
 
     if (!user || !["ADMIN", "FACULTY"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return errorResponse("FORBIDDEN", "Forbidden", 403);
     }
 
-    const body = (await request.json()) as {
-      studentId: string;
-      type: string;
-      amount: number;
-      dueDate: string;
-      semester: number;
-    };
+    const body = await parseJsonBody<FeeCreateBody>(request);
+    validateFeeBody(body);
+    const dueDate = parseValidDate(body.dueDate, "dueDate");
 
     const fee = await prisma.fee.create({
       data: {
         studentId: body.studentId,
         type: body.type,
         amount: body.amount,
-        dueDate: new Date(body.dueDate),
+        dueDate,
         semester: body.semester,
       },
     });
 
     return NextResponse.json(fee, { status: 201 });
   } catch (error) {
-    console.error("POST /api/fees error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return handleApiError("POST /api/fees", error);
   }
 }

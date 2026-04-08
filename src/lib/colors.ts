@@ -1,32 +1,32 @@
-// Centralized color palette for the College Management Portal
+// Canonical source of color values is src/app/globals.css.
+// Keep this module CSS-token-based to avoid duplicating hex values in TS.
 export const colors = {
-  // Primary Blue (Navy) - used for headers, primary buttons, key UI elements
-  primary: "#003B73",
-
-  // Secondary Cyan (Highlights) - used for accents, links, hover states
-  secondary: "#4FC3F7",
-
-  // Light Blue (Card backgrounds) - used for card/section backgrounds
-  lightBlue: "#E3F2FD",
-
-  // Dark Grey (Text) - used for body text and headings
-  darkGrey: "#424242",
-
-  // Soft Grey (Borders) - used for borders, dividers, subtle UI elements
-  softGrey: "#E8E8E8",
-
-  // White - used for page backgrounds, card surfaces
-  white: "#FFFFFF",
+  brandPrimary: "var(--color-brand-primary)",
+  brandSecondary: "var(--color-brand-secondary)",
+  brandDark: "var(--color-brand-dark)",
+  brandLight: "var(--color-brand-light)",
+  brandWhite: "var(--color-brand-white)",
+  brandSoft: "var(--color-brand-soft)",
+  systemInfo: "var(--color-system-info)",
+  systemSuccess: "var(--color-system-success)",
+  systemWarning: "var(--color-system-warning)",
+  systemDanger: "var(--color-system-danger)",
+  data1: "var(--color-data-1)",
+  data2: "var(--color-data-2)",
+  data3: "var(--color-data-3)",
+  data4: "var(--color-data-4)",
+  data5: "var(--color-data-5)",
+  data6: "var(--color-data-6)",
+  data7: "var(--color-data-7)",
+  data8: "var(--color-data-8)",
 } as const;
 
-// Tailwind-compatible CSS variable names mapped to the palette
-export const colorVars = {
-  "--color-primary-navy": colors.primary,
-  "--color-secondary-cyan": colors.secondary,
-  "--color-light-blue": colors.lightBlue,
-  "--color-dark-grey": colors.darkGrey,
-  "--color-soft-grey": colors.softGrey,
-  "--color-white": colors.white,
+export const rgbTokens = {
+  brandPrimary: "var(--color-brand-primary-rgb)",
+  brandSecondary: "var(--color-brand-secondary-rgb)",
+  success: "var(--color-system-success-rgb)",
+  warning: "var(--color-system-warning-rgb)",
+  danger: "var(--color-system-danger-rgb)",
 } as const;
 
 export type ColorKey = keyof typeof colors;

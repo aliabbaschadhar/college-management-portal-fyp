@@ -27,7 +27,14 @@ const COURSE_COLORS = [
   "from-cyan-500/10 to-sky-500/10 border-cyan-500/20",
 ];
 
-const ICON_COLORS = ["#3D5EE1", "#1ABE17", "#A78BFA", "#F59E0B", "#E82646", "#6FCCD8"];
+const ICON_COLORS = [
+  "var(--color-brand-primary)",
+  "var(--color-system-success)",
+  "var(--color-data-3)",
+  "var(--color-data-4)",
+  "var(--color-system-danger)",
+  "var(--color-brand-secondary)",
+];
 
 export default function MyCoursesPage() {
   const [courses, setCourses] = useState<CourseWithDetails[]>([]);
@@ -72,7 +79,9 @@ export default function MyCoursesPage() {
               {/* Course Icon */}
               <div
                 className="flex h-12 w-12 items-center justify-center rounded-xl mb-4"
-                style={{ backgroundColor: `${ICON_COLORS[idx % ICON_COLORS.length]}15` }}
+                style={{
+                  backgroundColor: `color-mix(in oklab, ${ICON_COLORS[idx % ICON_COLORS.length]} 15%, transparent)`,
+                }}
               >
                 <BookOpen className="h-6 w-6" style={{ color: ICON_COLORS[idx % ICON_COLORS.length] }} />
               </div>

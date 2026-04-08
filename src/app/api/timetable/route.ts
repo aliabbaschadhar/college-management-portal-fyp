@@ -1,29 +1,134 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
+import {
+  hasTimeOverlap,
+  parseTimetablePayload,
+  TIMETABLE_DAYS,
+} from "@/lib/timetable";
+
+async function getAuthenticatedAppUser(clerkId: string) {
+  return prisma.user.findUnique({
+    where: { clerkId },
+    select: {
+      role: true,
+      faculty: { select: { id: true } },
+      student: { select: { id: true } },
+    },
+  });
+}
+
+function parseSemester(value: string | null): number | null | "invalid" {
+  if (!value) return null;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) return "invalid";
+  return parsed;
+}
+
+async function checkRoomConflict(
+  room: string,
+  day: string,
+  startTime: string,
+  endTime: string,
+  excludeId?: string
+) {
+  const where: Prisma.TimetableWhereInput = {
+    room,
+    day,
+    ...(excludeId ? { id: { not: excludeId } } : {}),
+  };
+  const roomEntries = await prisma.timetable.findMany({
+    where,
+    select: { id: true, startTime: true, endTime: true },
+  });
+
+  return roomEntries.find((entry) =>
+    hasTimeOverlap(startTime, endTime, entry.startTime, entry.endTime)
+  );
+}
+
+async function checkFacultyConflict(
+  assignedFacultyId: string,
+  day: string,
+  startTime: string,
+  endTime: string,
+  excludeId?: string
+) {
+  const where: Prisma.TimetableWhereInput = {
+    day,
+    course: { assignedFaculty: assignedFacultyId },
+    ...(excludeId ? { id: { not: excludeId } } : {}),
+  };
+
+  const facultyEntries = await prisma.timetable.findMany({
+    where,
+    select: { id: true, startTime: true, endTime: true },
+  });
+
+  return facultyEntries.find((entry) =>
+    hasTimeOverlap(startTime, endTime, entry.startTime, entry.endTime)
+  );
+}
 
 export async function GET(request: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
+    const appUser = await getAuthenticatedAppUser(userId);
+    if (!appUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = request.nextUrl;
     const department = searchParams.get("department");
     const semester = searchParams.get("semester");
     const courseId = searchParams.get("courseId");
 
+    const parsedSemester = parseSemester(semester);
+    if (parsedSemester === "invalid") {
+      return NextResponse.json(
+        { error: "semester must be a positive integer" },
+        { status: 400 }
+      );
+    }
+
+    const whereClause: Prisma.TimetableWhereInput = {
+      ...(courseId ? { courseId } : {}),
+    };
+
+    if (department || parsedSemester) {
+      whereClause.course = {
+        ...(department ? { department } : {}),
+        ...(parsedSemester ? { semester: parsedSemester } : {}),
+      };
+    }
+
+    if (appUser.role === "FACULTY") {
+      if (!appUser.faculty) {
+        return NextResponse.json([]);
+      }
+
+      whereClause.course = {
+        ...(whereClause.course as Prisma.CourseWhereInput | undefined),
+        assignedFaculty: appUser.faculty.id,
+      };
+    }
+
+    if (appUser.role === "STUDENT") {
+      if (!appUser.student) {
+        return NextResponse.json([]);
+      }
+
+      whereClause.course = {
+        ...(whereClause.course as Prisma.CourseWhereInput | undefined),
+        enrollments: { some: { studentId: appUser.student.id } },
+      };
+    }
+
     const timetables = await prisma.timetable.findMany({
-      where: {
-        ...(courseId ? { courseId } : {}),
-        ...(department || semester
-          ? {
-              course: {
-                ...(department ? { department } : {}),
-                ...(semester ? { semester: parseInt(semester) } : {}),
-              },
-            }
-          : {}),
-      },
+      where: whereClause,
       include: {
         course: {
           include: {
@@ -31,6 +136,7 @@ export async function GET(request: NextRequest) {
           },
         },
       },
+      orderBy: [{ day: "asc" }, { startTime: "asc" }],
     });
 
     return NextResponse.json(timetables);
@@ -45,25 +151,18 @@ export async function POST(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    // Check user role - only admin can create timetable entries
-    const user = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { role: true },
-    });
-
-    if (!user || user.role !== "ADMIN") {
+    const appUser = await getAuthenticatedAppUser(userId);
+    if (!appUser || appUser.role !== "ADMIN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const body = (await request.json()) as {
-      courseId: string;
-      room: string;
-      day: string;
-      startTime: string;
-      endTime: string;
-    };
+    const payload = parseTimetablePayload(await request.json());
+    if (!payload.ok) {
+      return NextResponse.json({ error: payload.error }, { status: 400 });
+    }
 
-    // Load course to find assigned faculty
+    const body = payload.data;
+
     const course = await prisma.course.findUnique({
       where: { id: body.courseId },
       select: { assignedFaculty: true },
@@ -73,32 +172,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    // Conflict check: same room at same day+startTime
-    const roomConflict = await prisma.timetable.findFirst({
-      where: { room: body.room, day: body.day, startTime: body.startTime },
-    });
+    if (!TIMETABLE_DAYS.includes(body.day)) {
+      return NextResponse.json(
+        { error: `day must be one of: ${TIMETABLE_DAYS.join(", ")}` },
+        { status: 400 }
+      );
+    }
+
+    const roomConflict = await checkRoomConflict(
+      body.room,
+      body.day,
+      body.startTime,
+      body.endTime
+    );
 
     if (roomConflict) {
       return NextResponse.json(
-        { error: `Room "${body.room}" is already booked on ${body.day} at ${body.startTime}` },
+        {
+          error: `Room "${body.room}" is already booked on ${body.day} between ${body.startTime} and ${body.endTime}`,
+        },
         { status: 409 }
       );
     }
 
-    // Conflict check: same faculty at same day+startTime
     if (course.assignedFaculty) {
-      const facultyConflict = await prisma.timetable.findFirst({
-        where: {
-          day: body.day,
-          startTime: body.startTime,
-          course: { assignedFaculty: course.assignedFaculty },
-        },
-      });
+      const facultyConflict = await checkFacultyConflict(
+        course.assignedFaculty,
+        body.day,
+        body.startTime,
+        body.endTime
+      );
 
       if (facultyConflict) {
         return NextResponse.json(
           {
-            error: `Faculty is already assigned to another class on ${body.day} at ${body.startTime}`,
+            error: `Assigned faculty is already scheduled on ${body.day} between ${body.startTime} and ${body.endTime}`,
           },
           { status: 409 }
         );
@@ -112,6 +220,13 @@ export async function POST(request: NextRequest) {
         day: body.day,
         startTime: body.startTime,
         endTime: body.endTime,
+      },
+      include: {
+        course: {
+          include: {
+            faculty: { include: { user: { select: { name: true } } } },
+          },
+        },
       },
     });
 

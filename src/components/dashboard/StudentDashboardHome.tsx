@@ -69,16 +69,16 @@ const item = {
 };
 
 const attendanceChartConfig = {
-  present: { label: "Present", color: "#1ABE17" },
-  absent: { label: "Absent", color: "#E82646" },
-  late: { label: "Late", color: "#EAB300" },
+  present: { label: "Present", color: "var(--color-system-success)" },
+  absent: { label: "Absent", color: "var(--color-system-danger)" },
+  late: { label: "Late", color: "var(--color-system-warning)" },
 } satisfies ChartConfig;
 
 const gradeChartConfig = {
-  quiz: { label: "Quiz", color: "#3D5EE1" },
-  assignment: { label: "Assignment", color: "#6FCCD8" },
-  mid: { label: "Mid", color: "#A78BFA" },
-  final: { label: "Final", color: "#F59E0B" },
+  quiz: { label: "Quiz", color: "var(--color-brand-primary)" },
+  assignment: { label: "Assignment", color: "var(--color-brand-secondary)" },
+  mid: { label: "Mid", color: "var(--color-data-3)" },
+  final: { label: "Final", color: "var(--color-data-4)" },
 } satisfies ChartConfig;
 
 export function StudentDashboardHome() {
@@ -132,10 +132,34 @@ export function StudentDashboardHome() {
   );
 
   const quickActions = [
-    { title: "View Courses", href: "/dashboard/my-courses", icon: BookOpen, color: "#3D5EE1" },
-    { title: "My Attendance", href: "/dashboard/my-attendance", icon: Clock, color: "#1ABE17" },
-    { title: "Take a Quiz", href: "/dashboard/take-quiz", icon: FileText, color: "#A78BFA" },
-    { title: "View Timetable", href: "/dashboard/my-timetable", icon: CalendarDays, color: "#6FCCD8" },
+    {
+      title: "View Courses",
+      href: "/dashboard/my-courses",
+      icon: BookOpen,
+      iconColor: "var(--color-brand-primary)",
+      iconBg: "rgb(var(--color-brand-primary-rgb) / 0.1)",
+    },
+    {
+      title: "My Attendance",
+      href: "/dashboard/my-attendance",
+      icon: Clock,
+      iconColor: "var(--color-system-success)",
+      iconBg: "rgb(var(--color-system-success-rgb) / 0.1)",
+    },
+    {
+      title: "Take a Quiz",
+      href: "/dashboard/take-quiz",
+      icon: FileText,
+      iconColor: "var(--color-data-3)",
+      iconBg: "color-mix(in oklab, var(--color-data-3) 10%, transparent)",
+    },
+    {
+      title: "View Timetable",
+      href: "/dashboard/my-timetable",
+      icon: CalendarDays,
+      iconColor: "var(--color-brand-secondary)",
+      iconBg: "rgb(var(--color-brand-secondary-rgb) / 0.1)",
+    },
   ];
 
   if (loading) {
@@ -163,8 +187,8 @@ export function StudentDashboardHome() {
           trend="N/A"
           trendDirection="up"
           icon={GraduationCap}
-          iconColor="#3D5EE1"
-          iconBg="rgba(61,94,225,0.1)"
+          iconColor="var(--color-brand-primary)"
+          iconBg="rgb(var(--color-brand-primary-rgb) / 0.1)"
         />
         <StatsCard
           title="Attendance"
@@ -172,8 +196,8 @@ export function StudentDashboardHome() {
           trend="N/A"
           trendDirection="up"
           icon={Clock}
-          iconColor="#1ABE17"
-          iconBg="rgba(26,190,23,0.1)"
+          iconColor="var(--color-system-success)"
+          iconBg="rgb(var(--color-system-success-rgb) / 0.1)"
         />
         <StatsCard
           title="Pending Dues"
@@ -181,8 +205,8 @@ export function StudentDashboardHome() {
           trend="N/A"
           trendDirection="up"
           icon={CreditCard}
-          iconColor="#E82646"
-          iconBg="rgba(232,38,70,0.1)"
+          iconColor="var(--color-system-danger)"
+          iconBg="rgb(var(--color-system-danger-rgb) / 0.1)"
         />
         <StatsCard
           title="Enrolled Courses"
@@ -190,8 +214,8 @@ export function StudentDashboardHome() {
           trend="Active"
           trendDirection="up"
           icon={BookOpen}
-          iconColor="#A78BFA"
-          iconBg="rgba(167,139,250,0.1)"
+          iconColor="var(--color-data-3)"
+          iconBg="color-mix(in oklab, var(--color-data-3) 10%, transparent)"
         />
       </motion.div>
 
@@ -332,9 +356,9 @@ export function StudentDashboardHome() {
                 >
                   <div
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-                    style={{ backgroundColor: `${qa.color}15` }}
+                    style={{ backgroundColor: qa.iconBg }}
                   >
-                    <qa.icon className="h-3.5 w-3.5" style={{ color: qa.color }} />
+                    <qa.icon className="h-3.5 w-3.5" style={{ color: qa.iconColor }} />
                   </div>
                   <span className="text-sm font-medium text-foreground flex-1">{qa.title}</span>
                   <ArrowRight className="h-3.5 w-3.5 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { FileText, Clock, CheckCircle, ArrowRight, Trophy, AlertCircle } from "lucide-react";
+import { FileText, Clock, ArrowRight, Trophy, AlertCircle } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
@@ -224,19 +224,17 @@ export default function TakeQuizPage() {
                     <button
                       key={idx}
                       onClick={() => handleAnswer(idx)}
-                      className={`w-full text-left rounded-xl border p-4 transition-all duration-200 ${
-                        answers[currentQ] === idx
+                      className={`w-full text-left rounded-xl border p-4 transition-all duration-200 ${answers[currentQ] === idx
                           ? "border-brand-primary bg-brand-primary/10 ring-1 ring-brand-primary/30"
                           : "border-border bg-card hover:border-brand-primary/30 hover:bg-accent/30"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center gap-3">
                         <div
-                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold ${
-                            answers[currentQ] === idx
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold ${answers[currentQ] === idx
                               ? "border-brand-primary bg-brand-primary text-white"
                               : "border-muted-foreground/30 text-muted-foreground"
-                          }`}
+                            }`}
                         >
                           {String.fromCharCode(65 + idx)}
                         </div>
@@ -273,13 +271,12 @@ export default function TakeQuizPage() {
                 <button
                   key={i}
                   onClick={() => setCurrentQ(i)}
-                  className={`h-10 w-10 rounded-lg text-xs font-bold transition-all ${
-                    i === currentQ
+                  className={`h-10 w-10 rounded-lg text-xs font-bold transition-all ${i === currentQ
                       ? "bg-brand-primary text-white ring-2 ring-brand-primary/30"
                       : answers[i] !== null
-                      ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
-                      : "bg-muted text-muted-foreground hover:bg-accent"
-                  }`}
+                        ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                        : "bg-muted text-muted-foreground hover:bg-accent"
+                    }`}
                 >
                   {i + 1}
                 </button>

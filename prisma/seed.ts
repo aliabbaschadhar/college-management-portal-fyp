@@ -65,7 +65,7 @@ async function main() {
       }
     });
   }
-  
+
   // Iterate faculty
   for (const f of mockFaculty) {
     await prisma.user.create({
@@ -122,23 +122,33 @@ async function main() {
 
   // Attendance
   for (const a of mockAttendance) {
-    await prisma.attendance.upsert({
+    const attendanceDate = new Date(a.date);
+    const existingAttendance = await prisma.attendance.findFirst({
       where: {
-        studentId_courseId_date: {
-          studentId: a.studentId,
-          courseId: a.courseId,
-          date: new Date(a.date),
+        studentId: a.studentId,
+        courseId: a.courseId,
+        date: attendanceDate,
+      },
+      select: { id: true },
+    });
+
+    if (existingAttendance) {
+      await prisma.attendance.update({
+        where: { id: existingAttendance.id },
+        data: {
+          status: a.status as "Present" | "Absent" | "Late",
+          markedBy: a.markedBy,
         },
-      },
-      update: {
-        status: a.status as "Present" | "Absent" | "Late",
-        markedBy: a.markedBy,
-      },
-      create: {
+      });
+      continue;
+    }
+
+    await prisma.attendance.create({
+      data: {
         id: a.id,
         studentId: a.studentId,
         courseId: a.courseId,
-        date: new Date(a.date),
+        date: attendanceDate,
         status: a.status as "Present" | "Absent" | "Late",
         markedBy: a.markedBy,
       },
@@ -227,7 +237,7 @@ async function main() {
     // Find quiz that includes this question
     // Looking at mockQuestions carefully, they actually map directly to a quiz through mockQuizzes questions list.
     const parentQuiz = mockQuizzes.find(qz => qz.questions.includes(q.id));
-    
+
     await prisma.question.create({
       data: {
         id: q.id,
@@ -258,16 +268,16 @@ async function main() {
   for (const g of mockGrades) {
     await prisma.grade.create({
       data: {
-         id: g.id,
-         studentId: g.studentId,
-         courseId: g.courseId,
-         quizMarks: g.quizMarks,
-         assignmentMarks: g.assignmentMarks,
-         midMarks: g.midMarks,
-         finalMarks: g.finalMarks,
-         total: g.total,
-         gpa: g.gpa,
-         locked: g.locked
+        id: g.id,
+        studentId: g.studentId,
+        courseId: g.courseId,
+        quizMarks: g.quizMarks,
+        assignmentMarks: g.assignmentMarks,
+        midMarks: g.midMarks,
+        finalMarks: g.finalMarks,
+        total: g.total,
+        gpa: g.gpa,
+        locked: g.locked
       }
     })
   }
@@ -276,18 +286,18 @@ async function main() {
   for (const a of mockAdmissions) {
     await prisma.admission.create({
       data: {
-         id: a.id,
-         studentName: a.studentName,
-         email: a.email,
-         phone: a.phone,
-         appliedDepartment: a.appliedDepartment,
-         applicationDate: new Date(a.applicationDate),
-         status: a.status,
-         fatherName: a.fatherName,
-         cnic: a.cnic,
-         previousInstitution: a.previousInstitution,
-         marksObtained: a.marksObtained,
-         totalMarks: a.totalMarks
+        id: a.id,
+        studentName: a.studentName,
+        email: a.email,
+        phone: a.phone,
+        appliedDepartment: a.appliedDepartment,
+        applicationDate: new Date(a.applicationDate),
+        status: a.status,
+        fatherName: a.fatherName,
+        cnic: a.cnic,
+        previousInstitution: a.previousInstitution,
+        marksObtained: a.marksObtained,
+        totalMarks: a.totalMarks
       }
     })
   }

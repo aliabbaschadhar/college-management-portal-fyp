@@ -109,6 +109,39 @@ export interface Timetable {
   semester: number;
 }
 
+export type TimetableDay =
+  | "Monday"
+  | "Tuesday"
+  | "Wednesday"
+  | "Thursday"
+  | "Friday";
+
+export interface TimetableCourseSummary {
+  courseCode: string;
+  courseName: string;
+  department: string;
+  semester: number;
+  faculty: { user: { name: string | null } } | null;
+}
+
+export interface TimetableApiEntry {
+  id: string;
+  courseId: string;
+  room: string;
+  day: TimetableDay;
+  startTime: string;
+  endTime: string;
+  course: TimetableCourseSummary;
+}
+
+export interface TimetableMutationInput {
+  courseId: string;
+  room: string;
+  day: TimetableDay;
+  startTime: string;
+  endTime: string;
+}
+
 // ─── Quiz & Question Bank ────────────────────────────────
 
 export interface Question {

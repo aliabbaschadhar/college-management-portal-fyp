@@ -1,20 +1,19 @@
 import { auth } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 import { getStudentDashboardData } from "@/lib/services/student";
+import { errorResponse, handleApiError } from "@/lib/api-errors";
 
 export async function GET() {
   const { userId } = await auth();
-  if (!userId) {
-    return new Response("Unauthorized", { status: 401 });
-  }
+  if (!userId) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
 
   try {
     const data = await getStudentDashboardData(userId);
     if (!data) {
-      return new Response("Student profile not found", { status: 404 });
+      return errorResponse("NOT_FOUND", "Student profile not found", 404);
     }
-    return Response.json(data);
+    return NextResponse.json(data);
   } catch (error) {
-    console.error("Error fetching student dashboard data:", error);
-    return new Response("Internal Server Error", { status: 500 });
+    return handleApiError("GET /api/dashboard/student", error);
   }
 }
