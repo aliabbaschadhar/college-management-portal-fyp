@@ -1,17 +1,55 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BookOpen, Users, ChevronDown, ChevronUp } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { getFacultyClasses, getCourseStudents } from "@/lib/mock-data";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 
-const FACULTY_ID = "f1";
+interface StudentInCourse {
+  id: string;
+  rollNo: string;
+  department: string;
+  semester: number;
+  user: { name: string | null };
+}
+
+interface CourseWithEnrollments {
+  id: string;
+  courseCode: string;
+  courseName: string;
+  creditHours: number;
+  department: string;
+  semester: number;
+  enrollments: { student: StudentInCourse }[];
+}
 
 export default function ClassesPage() {
-  const courses = getFacultyClasses(FACULTY_ID);
+  const [courses, setCourses] = useState<CourseWithEnrollments[]>([]);
+  const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Fetch each course with its enrollments via /api/courses/[id]
+    fetch("/api/courses")
+      .then((r) => r.json())
+      .then(async (list: { id: string }[]) => {
+        const detailed = await Promise.all(
+          list.map((c) => fetch(`/api/courses/${c.id}`).then((r) => r.json()))
+        );
+        setCourses(detailed as CourseWithEnrollments[]);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center p-8">
+        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-6">
@@ -23,7 +61,7 @@ export default function ClassesPage() {
 
       <div className="space-y-4">
         {courses.map((course) => {
-          const students = getCourseStudents(course.id);
+          const students = course.enrollments?.map((e) => e.student) ?? [];
           const isExpanded = expanded === course.id;
 
           return (
@@ -41,7 +79,7 @@ export default function ClassesPage() {
                   <BookOpen className="h-6 w-6 text-brand-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-semibold text-foreground">{course.name}</h3>
+                  <h3 className="text-sm font-semibold text-foreground">{course.courseName}</h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {course.courseCode} • {course.department} • Semester {course.semester}
                   </p>
@@ -88,7 +126,7 @@ export default function ClassesPage() {
                               {students.map((s, i) => (
                                 <tr key={s.id} className="border-b border-border/30 hover:bg-accent/20 transition-colors">
                                   <td className="py-2.5 px-3 text-muted-foreground">{i + 1}</td>
-                                  <td className="py-2.5 px-3 font-medium text-foreground">{s.name}</td>
+                                  <td className="py-2.5 px-3 font-medium text-foreground">{s.user.name ?? "—"}</td>
                                   <td className="py-2.5 px-3 font-mono text-muted-foreground">{s.rollNo}</td>
                                   <td className="py-2.5 px-3 text-muted-foreground">{s.department}</td>
                                   <td className="py-2.5 px-3 text-muted-foreground">Sem {s.semester}</td>
@@ -105,6 +143,12 @@ export default function ClassesPage() {
             </motion.div>
           );
         })}
+        {courses.length === 0 && (
+          <div className="text-center py-16 text-muted-foreground">
+            <BookOpen className="h-12 w-12 mx-auto mb-3 opacity-30" />
+            <p className="text-lg font-medium">No classes assigned</p>
+          </div>
+        )}
       </div>
     </motion.div>
   );

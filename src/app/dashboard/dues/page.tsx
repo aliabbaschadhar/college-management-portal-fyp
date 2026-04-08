@@ -1,12 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DollarSign, CheckCircle2, AlertCircle, Clock } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
-import { mockFees, mockStudents } from "@/lib/mock-data";
-import type { Fee } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -26,48 +24,68 @@ import {
 } from "@/components/ui/dialog";
 import { motion } from "framer-motion";
 
-const statusColors: Record<Fee["status"], string> = {
+interface FeeWithStudent {
+  id: string;
+  studentId: string;
+  type: string;
+  amount: number;
+  status: "Paid" | "Unpaid" | "Overdue";
+  dueDate: string;
+  semester: number;
+  paidDate: string | null;
+  student: { rollNo: string; user: { name: string | null } };
+}
+
+const statusColors: Record<"Paid" | "Unpaid" | "Overdue", string> = {
   Paid: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
   Unpaid: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
   Overdue: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
 };
 
-const statusIcons: Record<Fee["status"], LucideIcon> = {
+const statusIcons: Record<"Paid" | "Unpaid" | "Overdue", LucideIcon> = {
   Paid: CheckCircle2,
   Unpaid: Clock,
   Overdue: AlertCircle,
 };
 
 export default function ManageDuesPage() {
-  const [fees, setFees] = useState<Fee[]>(mockFees);
+  const [fees, setFees] = useState<FeeWithStudent[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [selectedFee, setSelectedFee] = useState<Fee | null>(null);
+  const [selectedFee, setSelectedFee] = useState<FeeWithStudent | null>(null);
   const [payDialogOpen, setPayDialogOpen] = useState(false);
 
-  const filteredFees = filterStatus === "all" 
-    ? fees 
-    : fees.filter((f) => f.status === filterStatus);
+  useEffect(() => {
+    const url = filterStatus === "all" ? "/api/fees" : `/api/fees?status=${filterStatus}`;
+    fetch(url)
+      .then((r) => r.json())
+      .then((d: FeeWithStudent[]) => { setFees(Array.isArray(d) ? d : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [filterStatus]);
 
-  const handleMarkPaid = () => {
-    if (selectedFee) {
-      setFees((prev) => 
-        prev.map((f) => (f.id === selectedFee.id ? { ...f, status: "Paid" } : f))
+  const handleMarkPaid = async () => {
+    if (!selectedFee) return;
+    const res = await fetch(`/api/fees/${selectedFee.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "Paid", paidDate: new Date().toISOString() }),
+    });
+    if (res.ok) {
+      setFees((prev) =>
+        prev.map((f) => (f.id === selectedFee.id ? { ...f, status: "Paid", paidDate: new Date().toISOString() } : f))
       );
       setPayDialogOpen(false);
       setSelectedFee(null);
     }
   };
 
-  const columns: Column<Fee>[] = [
-    { key: "studentId", header: "Student", sortable: true, render: (row) => {
-      const student = mockStudents.find(s => s.id === row.studentId);
-      return (
-        <div>
-          <p className="font-medium text-foreground">{student?.name || row.studentId}</p>
-          <p className="text-xs text-muted-foreground">{student?.rollNo}</p>
-        </div>
-      );
-    }},
+  const columns: Column<FeeWithStudent>[] = [
+    { key: "student", header: "Student", sortable: false, render: (row) => (
+      <div>
+        <p className="font-medium text-foreground">{row.student.user.name ?? "—"}</p>
+        <p className="text-xs text-muted-foreground">{row.student.rollNo}</p>
+      </div>
+    )},
     { key: "type", header: "Fee Type", sortable: true },
     { key: "amount", header: "Amount", sortable: true, render: (row) => (
       <span className="font-semibold text-foreground">Rs. {row.amount.toLocaleString()}</span>
@@ -89,22 +107,30 @@ export default function ManageDuesPage() {
         </Badge>
       );
     }},
-    { key: "actions", header: "Actions", render: (row) => (
-      row.status !== "Paid" && (
-        <Button 
-          variant="outline" 
-          size="sm" 
+    { key: "id", header: "Actions", render: (row) => (
+      row.status !== "Paid" ? (
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => { setSelectedFee(row); setPayDialogOpen(true); }}
           className="h-8 text-xs gap-1 border-brand-primary/20 hover:bg-brand-primary hover:text-white transition-all transform hover:-translate-y-0.5 active:translate-y-0"
         >
           <DollarSign className="h-3 w-3" />
           Mark Paid
         </Button>
-      )
+      ) : null
     )},
   ];
 
-  const totalDues = fees.filter(f => f.status !== "Paid").reduce((acc, f) => acc + f.amount, 0);
+  const totalDues = fees.filter((f) => f.status !== "Paid").reduce((acc, f) => acc + f.amount, 0);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center p-8">
+        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
@@ -128,10 +154,10 @@ export default function ManageDuesPage() {
       />
 
       <DataTable
-        data={filteredFees as unknown as Record<string, unknown>[]}
+        data={fees as unknown as Record<string, unknown>[]}
         columns={columns as unknown as Column<Record<string, unknown>>[]}
         searchPlaceholder="Search by student or type..."
-        searchKeys={["studentId", "type"]}
+        searchKeys={["type"]}
       />
 
       {/* Confirmation Dialog */}
@@ -143,18 +169,18 @@ export default function ManageDuesPage() {
               Are you sure you want to mark this fee record as <strong>Paid</strong>?
             </DialogDescription>
           </DialogHeader>
-          
+
           {selectedFee && (
-             <div className="p-4 rounded-xl bg-accent/30 border border-brand-primary/10 shadow-inner">
-               <div className="flex justify-between items-center mb-1">
-                 <span className="text-sm text-muted-foreground uppercase">Amount Due</span>
-                 <span className="text-lg font-bold text-brand-primary">Rs. {selectedFee.amount.toLocaleString()}</span>
-               </div>
-               <div className="flex justify-between items-center">
-                 <span className="text-sm text-muted-foreground uppercase">Fee Type</span>
-                 <span className="text-sm font-medium">{selectedFee.type}</span>
-               </div>
-             </div>
+            <div className="p-4 rounded-xl bg-accent/30 border border-brand-primary/10 shadow-inner">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-sm text-muted-foreground uppercase">Amount Due</span>
+                <span className="text-lg font-bold text-brand-primary">Rs. {selectedFee.amount.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground uppercase">Fee Type</span>
+                <span className="text-sm font-medium">{selectedFee.type}</span>
+              </div>
+            </div>
           )}
 
           <DialogFooter className="mt-4 gap-2 sm:justify-end">

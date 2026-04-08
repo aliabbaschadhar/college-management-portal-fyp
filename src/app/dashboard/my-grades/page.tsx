@@ -1,8 +1,8 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { GraduationCap, Lock, Unlock, TrendingUp } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { getStudentGrades, getStudentCourses, mockCourses } from "@/lib/mock-data";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -13,7 +13,20 @@ import {
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
-const STUDENT_ID = "s1";
+interface GradeWithCourse {
+  id: string;
+  studentId: string;
+  courseId: string;
+  quizMarks: number;
+  assignmentMarks: number;
+  midMarks: number;
+  finalMarks: number;
+  total: number;
+  gpa: number;
+  locked: boolean;
+  student: { rollNo: string; user: { name: string | null } };
+  course: { courseCode: string; courseName: string };
+}
 
 const chartConfig = {
   quiz: { label: "Quiz", color: "#3D5EE1" },
@@ -23,26 +36,38 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export default function MyGradesPage() {
-  const grades = getStudentGrades(STUDENT_ID);
-  const courses = getStudentCourses(STUDENT_ID);
+  const [grades, setGrades] = useState<GradeWithCourse[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/grades")
+      .then((r) => r.json())
+      .then((d: GradeWithCourse[]) => { setGrades(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
 
   const overallGPA =
     grades.length > 0
       ? +(grades.reduce((sum, g) => sum + g.gpa, 0) / grades.length).toFixed(2)
       : 0;
 
-  const chartData = grades.map((g) => {
-    const course = mockCourses.find((c) => c.id === g.courseId);
-    return {
-      course: course?.courseCode || g.courseId,
-      quiz: g.quizMarks,
-      assignment: g.assignmentMarks,
-      mid: g.midMarks,
-      final: g.finalMarks,
-    };
-  });
+  const chartData = grades.map((g) => ({
+    course: g.course?.courseCode || g.courseId,
+    quiz: g.quizMarks,
+    assignment: g.assignmentMarks,
+    mid: g.midMarks,
+    final: g.finalMarks,
+  }));
 
   const gpaColor = overallGPA >= 3.5 ? "text-emerald-500" : overallGPA >= 3.0 ? "text-amber-500" : "text-rose-500";
+
+  if (loading) {
+    return (
+      <div className="flex justify-center p-8">
+        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-6">
@@ -60,7 +85,7 @@ export default function MyGradesPage() {
         <div>
           <p className="text-sm text-muted-foreground">Overall GPA</p>
           <p className={`text-4xl font-bold tracking-tight ${gpaColor}`}>{overallGPA}</p>
-          <p className="text-xs text-muted-foreground mt-1">Across {courses.length} courses</p>
+          <p className="text-xs text-muted-foreground mt-1">Across {grades.length} courses</p>
         </div>
         <div className="ml-auto flex items-center gap-1 text-sm text-muted-foreground">
           <TrendingUp className="h-4 w-4" />
@@ -103,14 +128,13 @@ export default function MyGradesPage() {
             </thead>
             <tbody>
               {grades.map((g) => {
-                const course = mockCourses.find((c) => c.id === g.courseId);
                 const gpaClass = g.gpa >= 3.5 ? "text-emerald-500" : g.gpa >= 3.0 ? "text-amber-500" : "text-rose-500";
                 return (
                   <tr key={g.id} className="border-b border-border/50 hover:bg-accent/30 transition-colors">
                     <td className="py-3 px-4">
                       <div>
-                        <span className="font-medium text-foreground">{course?.name}</span>
-                        <p className="text-xs text-muted-foreground font-mono">{course?.courseCode}</p>
+                        <span className="font-medium text-foreground">{g.course?.courseName}</span>
+                        <p className="text-xs text-muted-foreground font-mono">{g.course?.courseCode}</p>
                       </div>
                     </td>
                     <td className="text-center py-3 px-3 text-muted-foreground">{g.quizMarks}</td>
@@ -133,6 +157,13 @@ export default function MyGradesPage() {
                   </tr>
                 );
               })}
+              {grades.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="text-center py-12 text-muted-foreground">
+                    No grades available yet.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

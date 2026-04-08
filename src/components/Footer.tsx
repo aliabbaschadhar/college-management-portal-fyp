@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { GraduationCap, Mail, MapPin, Phone, Facebook, Twitter, Linkedin, ArrowRight, Heart } from 'lucide-react'
+import { GraduationCap, Mail, MapPin, Phone, ArrowRight, Heart } from 'lucide-react'
 
 
 const Footer = () => {

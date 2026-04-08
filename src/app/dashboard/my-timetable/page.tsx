@@ -1,12 +1,25 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Clock } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { getStudentTimetable, getStudentCourses } from "@/lib/mock-data";
 import { motion } from "framer-motion";
 
-const STUDENT_ID = "s1";
+interface TimetableEntry {
+  id: string;
+  courseId: string;
+  room: string;
+  day: string;
+  startTime: string;
+  endTime: string;
+  course: {
+    courseCode: string;
+    courseName: string;
+    department: string;
+    semester: number;
+    faculty: { user: { name: string | null } } | null;
+  };
+}
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const TIME_SLOTS = [
@@ -24,17 +37,32 @@ const COLOR_PALETTE = [
 ];
 
 export default function MyTimetablePage() {
-  const timetable = getStudentTimetable(STUDENT_ID);
-  const courses = getStudentCourses(STUDENT_ID);
+  const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Build color map inside the component via useMemo (immutable)
+  useEffect(() => {
+    fetch("/api/timetable")
+      .then((r) => r.json())
+      .then((d: TimetableEntry[]) => { setTimetable(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const uniqueCourses = useMemo(() => {
+    const seen = new Set<string>();
+    return timetable.filter((t) => {
+      if (seen.has(t.course.courseCode)) return false;
+      seen.add(t.course.courseCode);
+      return true;
+    });
+  }, [timetable]);
+
   const courseColors = useMemo(() => {
     const map: Record<string, { bg: string; text: string; border: string }> = {};
-    courses.forEach((c, i) => {
-      map[c.courseCode] = COLOR_PALETTE[i % COLOR_PALETTE.length];
+    uniqueCourses.forEach((t, i) => {
+      map[t.course.courseCode] = COLOR_PALETTE[i % COLOR_PALETTE.length];
     });
     return map;
-  }, [courses]);
+  }, [uniqueCourses]);
 
   const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const todayName = days[new Date().getDay()];
@@ -56,6 +84,14 @@ export default function MyTimetablePage() {
     return now.getHours() === slotHour;
   };
 
+  if (loading) {
+    return (
+      <div className="flex justify-center p-8">
+        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-6">
       <PageHeader
@@ -66,12 +102,12 @@ export default function MyTimetablePage() {
 
       {/* Legend */}
       <div className="flex flex-wrap gap-3">
-        {courses.map((c) => {
-          const colors = courseColors[c.courseCode];
+        {uniqueCourses.map((t) => {
+          const colors = courseColors[t.course.courseCode];
           return (
-            <div key={c.id} className={`flex items-center gap-2 rounded-lg px-3 py-1.5 ${colors?.bg} border ${colors?.border}`}>
+            <div key={t.courseId} className={`flex items-center gap-2 rounded-lg px-3 py-1.5 ${colors?.bg} border ${colors?.border}`}>
               <div className={`h-2.5 w-2.5 rounded-full ${colors?.bg}`} />
-              <span className={`text-xs font-medium ${colors?.text}`}>{c.courseCode}</span>
+              <span className={`text-xs font-medium ${colors?.text}`}>{t.course.courseCode}</span>
             </div>
           );
         })}
@@ -110,14 +146,13 @@ export default function MyTimetablePage() {
                   {DAYS.map((day) => {
                     const cls = getClassForSlot(day, time);
                     const isCurrent = isCurrentSlot(day, time);
-                    const colors = cls ? courseColors[cls.courseCode] : null;
+                    const colors = cls ? courseColors[cls.course.courseCode] : null;
 
-                    // Only render the start of a class (prevent duplicates)
                     if (cls) {
                       const startHour = parseInt(cls.startTime.split(":")[0]);
                       const slotHour = parseInt(time.split(":")[0]);
                       if (slotHour !== startHour) {
-                        return null; // Will be covered by rowSpan
+                        return null;
                       }
                       const endHour = parseInt(cls.endTime.split(":")[0]);
                       const span = endHour - startHour;
@@ -129,7 +164,7 @@ export default function MyTimetablePage() {
                           className={`p-1 ${isCurrent ? "ring-2 ring-brand-primary ring-inset" : ""}`}
                         >
                           <div className={`rounded-lg p-2.5 h-full ${colors?.bg} border ${colors?.border} hover:scale-[1.02] transition-transform`}>
-                            <p className={`text-xs font-semibold ${colors?.text}`}>{cls.courseCode}</p>
+                            <p className={`text-xs font-semibold ${colors?.text}`}>{cls.course.courseCode}</p>
                             <p className="text-[10px] text-muted-foreground mt-0.5">{cls.room}</p>
                             <p className="text-[10px] text-muted-foreground">{cls.startTime}–{cls.endTime}</p>
                           </div>
@@ -137,7 +172,6 @@ export default function MyTimetablePage() {
                       );
                     }
 
-                    // Check if this cell is already covered by a rowSpan
                     const coveredClass = timetable.find((t) => {
                       if (t.day !== day) return false;
                       const startH = parseInt(t.startTime.split(":")[0]);

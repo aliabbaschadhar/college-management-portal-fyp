@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
-import { mockFaculty, DEPARTMENTS } from "@/lib/mock-data";
-import type { Faculty } from "@/types";
+import { DEPARTMENTS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +12,23 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
+
+interface FacultyWithUser {
+  id: string;
+  userId: string;
+  phone: string | null;
+  department: string;
+  specialization: string | null;
+  joinDate: string;
+  avatar: string | null;
+  user: { name: string | null; email: string };
+}
+
+interface FacultyForm {
+  phone: string;
+  department: string;
+  specialization: string;
+}
 
 const deptColors: Record<string, string> = {
   "Computer Science": "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
@@ -25,55 +41,67 @@ const deptColors: Record<string, string> = {
   "Islamic Studies": "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400",
 };
 
-const emptyFaculty: Omit<Faculty, "id"> = {
-  name: "", email: "", phone: "", department: "", specialization: "", joinDate: new Date().toISOString().split("T")[0],
-};
+const emptyForm: FacultyForm = { phone: "", department: "", specialization: "" };
 
 export default function ManageFacultyPage() {
-  const [faculty, setFaculty] = useState<Faculty[]>(mockFaculty);
+  const [faculty, setFaculty] = useState<FacultyWithUser[]>([]);
+  const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [editingFaculty, setEditingFaculty] = useState<Faculty | null>(null);
-  const [deletingFaculty, setDeletingFaculty] = useState<Faculty | null>(null);
-  const [form, setForm] = useState(emptyFaculty);
+  const [editingFaculty, setEditingFaculty] = useState<FacultyWithUser | null>(null);
+  const [deletingFaculty, setDeletingFaculty] = useState<FacultyWithUser | null>(null);
+  const [form, setForm] = useState<FacultyForm>(emptyForm);
   const [filterDept, setFilterDept] = useState<string>("all");
+
+  useEffect(() => {
+    fetch("/api/faculty")
+      .then((r) => r.json())
+      .then((d: FacultyWithUser[]) => { setFaculty(Array.isArray(d) ? d : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
 
   const filtered = filterDept === "all" ? faculty : faculty.filter((f) => f.department === filterDept);
 
-  const openAdd = () => { setEditingFaculty(null); setForm(emptyFaculty); setDialogOpen(true); };
-  const openEdit = (f: Faculty) => {
+  const openEdit = (f: FacultyWithUser) => {
     setEditingFaculty(f);
-    setForm({ name: f.name, email: f.email, phone: f.phone, department: f.department, specialization: f.specialization, joinDate: f.joinDate });
+    setForm({ phone: f.phone ?? "", department: f.department, specialization: f.specialization ?? "" });
     setDialogOpen(true);
   };
 
-  const handleSave = () => {
-    if (!form.name || !form.email || !form.department) return;
-    if (editingFaculty) {
-      setFaculty((prev) => prev.map((f) => (f.id === editingFaculty.id ? { ...f, ...form } : f)));
-    } else {
-      setFaculty((prev) => [{ id: `f${Date.now()}`, ...form }, ...prev]);
+  const handleSave = async () => {
+    if (!editingFaculty || !form.department) return;
+    const res = await fetch(`/api/faculty/${editingFaculty.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+    if (res.ok) {
+      const updated: FacultyWithUser = await res.json();
+      setFaculty((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
+      setDialogOpen(false);
     }
-    setDialogOpen(false);
   };
 
-  const handleDelete = () => {
-    if (deletingFaculty) {
+  const handleDelete = async () => {
+    if (!deletingFaculty) return;
+    const res = await fetch(`/api/faculty/${deletingFaculty.id}`, { method: "DELETE" });
+    if (res.ok) {
       setFaculty((prev) => prev.filter((f) => f.id !== deletingFaculty.id));
       setDeleteDialogOpen(false);
+      setDeletingFaculty(null);
     }
   };
 
-  const columns: Column<Faculty>[] = [
+  const columns: Column<FacultyWithUser>[] = [
     {
-      key: "name", header: "Name", sortable: true, render: (row) => (
+      key: "user", header: "Name", sortable: false, render: (row) => (
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-secondary/10 text-xs font-bold text-brand-secondary">
-            {row.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+            {(row.user.name ?? "?").split(" ").map((n) => n[0]).join("").slice(0, 2)}
           </div>
           <div>
-            <p className="font-medium text-foreground">{row.name}</p>
-            <p className="text-xs text-muted-foreground">{row.email}</p>
+            <p className="font-medium text-foreground">{row.user.name ?? "—"}</p>
+            <p className="text-xs text-muted-foreground">{row.user.email}</p>
           </div>
         </div>
       )
@@ -83,14 +111,16 @@ export default function ManageFacultyPage() {
         <Badge variant="secondary" className={deptColors[row.department] || ""}>{row.department}</Badge>
       )
     },
-    { key: "specialization", header: "Specialization", sortable: true },
+    { key: "specialization", header: "Specialization", sortable: false, render: (row) => (
+      <span>{row.specialization ?? "—"}</span>
+    )},
     {
       key: "joinDate", header: "Joined", sortable: true, render: (row) => (
         <span className="text-muted-foreground">{new Date(row.joinDate).toLocaleDateString("en-PK", { year: "numeric", month: "short" })}</span>
       )
     },
     {
-      key: "actions", header: "Actions", render: (row) => (
+      key: "id", header: "Actions", render: (row) => (
         <div className="flex items-center gap-1">
           <button onClick={() => openEdit(row)} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"><Pencil className="h-4 w-4 text-muted-foreground" /></button>
           <button onClick={() => { setDeletingFaculty(row); setDeleteDialogOpen(true); }} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-destructive/10 transition-colors"><Trash2 className="h-4 w-4 text-destructive" /></button>
@@ -98,6 +128,14 @@ export default function ManageFacultyPage() {
       )
     },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex justify-center p-8">
+        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
@@ -114,7 +152,10 @@ export default function ManageFacultyPage() {
                 {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Button onClick={openAdd} className="bg-brand-primary hover:bg-brand-primary/90 text-white">
+            <Button
+              onClick={() => alert("Faculty are created automatically when they register via the Clerk sign-up flow with the 'faculty' role.")}
+              className="bg-brand-primary hover:bg-brand-primary/90 text-white"
+            >
               <Plus className="h-4 w-4 mr-2" /> Add Faculty
             </Button>
           </div>
@@ -125,20 +166,16 @@ export default function ManageFacultyPage() {
         data={filtered as unknown as Record<string, unknown>[]}
         columns={columns as unknown as Column<Record<string, unknown>>[]}
         searchPlaceholder="Search by name, email, or specialization..."
-        searchKeys={["name", "email", "specialization"]}
+        searchKeys={["userId"]}
       />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>{editingFaculty ? "Edit Faculty" : "Add New Faculty"}</DialogTitle>
-            <DialogDescription>{editingFaculty ? "Update the faculty information." : "Fill in the details for the new faculty member."}</DialogDescription>
+            <DialogTitle>Edit Faculty</DialogTitle>
+            <DialogDescription>Update the faculty information.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label>Full Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Dr. Ahmed Khan" /></div>
-              <div className="space-y-2"><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@gc.edu.pk" /></div>
-            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Phone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="0321-1234567" /></div>
               <div className="space-y-2">
@@ -153,7 +190,7 @@ export default function ManageFacultyPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} className="bg-brand-primary hover:bg-brand-primary/90 text-white">{editingFaculty ? "Update" : "Add Faculty"}</Button>
+            <Button onClick={handleSave} className="bg-brand-primary hover:bg-brand-primary/90 text-white">Update Faculty</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -162,7 +199,7 @@ export default function ManageFacultyPage() {
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle>Delete Faculty</DialogTitle>
-            <DialogDescription>Are you sure you want to delete <strong>{deletingFaculty?.name}</strong>? This action cannot be undone.</DialogDescription>
+            <DialogDescription>Are you sure you want to delete <strong>{deletingFaculty?.user.name}</strong>? This action cannot be undone.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>

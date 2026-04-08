@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-
+import { useState, useEffect, useMemo } from "react";
+import { useUser } from "@clerk/nextjs";
 import {
   GraduationCap,
   Clock,
@@ -14,16 +14,6 @@ import {
 } from "lucide-react";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import {
-  getStudentDashboardStats,
-  getStudentCourses,
-  getStudentTimetable,
-  getStudentQuizzes,
-  mockQuizAttempts,
-  mockAnnouncements,
-  mockCourses,
-
-} from "@/lib/mock-data";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
@@ -35,7 +25,39 @@ import {
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
-const STUDENT_ID = "s1";
+interface TimetableEntry {
+  id: string;
+  day: string;
+  room: string;
+  startTime: string;
+  endTime: string;
+  course: {
+    courseCode: string;
+    courseName: string;
+    department: string;
+    semester: number;
+    faculty: { user: { name: string | null } } | null;
+  };
+}
+
+interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  date: string;
+  audience: string;
+  priority: string;
+}
+
+interface Quiz {
+  id: string;
+  title: string;
+  courseId: string;
+  duration: number;
+  status: string;
+  dueDate: string;
+  questions: string[];
+}
 
 const container = {
   hidden: { opacity: 0 },
@@ -60,50 +82,53 @@ const gradeChartConfig = {
 } satisfies ChartConfig;
 
 export function StudentDashboardHome() {
-  const stats = getStudentDashboardStats(STUDENT_ID);
-  const courses = getStudentCourses(STUDENT_ID);
-  const timetable = getStudentTimetable(STUDENT_ID);
-  const quizzes = getStudentQuizzes(STUDENT_ID);
-  const attemptedQuizIds = mockQuizAttempts
-    .filter((a) => a.studentId === STUDENT_ID)
-    .map((a) => a.quizId);
+  const { user } = useUser();
+  const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const pendingQuizzes = quizzes.filter(
-    (q) => q.status === "Published" && !attemptedQuizIds.includes(q.id)
-  );
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/timetable").then((r) => r.json()).catch(() => []),
+      fetch("/api/announcements?audience=Students").then((r) => r.json()).catch(() => []),
+      fetch("/api/quizzes").then((r) => r.json()).catch(() => []),
+    ]).then(([tt, ann, qz]: [TimetableEntry[], Announcement[], Quiz[]]) => {
+      setTimetable(Array.isArray(tt) ? tt : []);
+      setAnnouncements(Array.isArray(ann) ? ann : []);
+      setQuizzes(Array.isArray(qz) ? qz : []);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
 
-  const studentAnnouncements = mockAnnouncements.filter(
-    (a) => a.audience === "All" || a.audience === "Students"
-  );
+  const pendingQuizzes = quizzes.filter((q) => q.status === "Published");
 
-  // Get today's day name
   const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const today = days[new Date().getDay()];
   const todayClasses = timetable.filter((t) => t.day === today);
 
-  // Attendance chart data — deterministic mock course-wise breakdown
+  // Placeholder chart data (student-specific stats require a dedicated API endpoint)
   const attendanceChartData = useMemo(
     () =>
-      courses.map((c, i) => ({
-        course: c.courseCode,
+      timetable.slice(0, 5).map((t, i) => ({
+        course: t.course.courseCode,
         present: 20 + ((i * 7 + 3) % 5),
         absent: 1 + ((i * 3 + 1) % 3),
         late: (i * 5 + 2) % 3,
       })),
-    [courses]
+    [timetable]
   );
 
-  // Grade chart data — deterministic mock
   const gradeChartData = useMemo(
     () =>
-      courses.map((c, i) => ({
-        course: c.courseCode,
+      timetable.slice(0, 5).map((t, i) => ({
+        course: t.course.courseCode,
         quiz: 12 + ((i * 5 + 2) % 8),
         assignment: 15 + ((i * 7 + 3) % 8),
         mid: 25 + ((i * 11 + 5) % 15),
         final: 30 + ((i * 13 + 7) % 15),
       })),
-    [courses]
+    [timetable]
   );
 
   const quickActions = [
@@ -113,19 +138,29 @@ export function StudentDashboardHome() {
     { title: "View Timetable", href: "/dashboard/my-timetable", icon: CalendarDays, color: "#6FCCD8" },
   ];
 
+  if (loading) {
+    return (
+      <div className="flex justify-center p-8">
+        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  const firstName = user?.firstName ?? "Student";
+
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
       <PageHeader
-        title="Welcome, Ali! 👋"
+        title={`Welcome, ${firstName}! 👋`}
         subtitle="Here's your academic snapshot for today."
       />
 
-      {/* Stats */}
+      {/* Stats — TODO: wire to /api/dashboard/student once endpoint is available */}
       <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatsCard
           title="Current GPA"
-          value={stats.currentGPA}
-          trend="0.2"
+          value="—"
+          trend="N/A"
           trendDirection="up"
           icon={GraduationCap}
           iconColor="#3D5EE1"
@@ -133,8 +168,8 @@ export function StudentDashboardHome() {
         />
         <StatsCard
           title="Attendance"
-          value={`${stats.attendancePercent}%`}
-          trend="3%"
+          value="—"
+          trend="N/A"
           trendDirection="up"
           icon={Clock}
           iconColor="#1ABE17"
@@ -142,16 +177,16 @@ export function StudentDashboardHome() {
         />
         <StatsCard
           title="Pending Dues"
-          value={`PKR ${stats.pendingDues.toLocaleString()}`}
-          trend={stats.pendingDues > 0 ? "Due" : "Clear"}
-          trendDirection={stats.pendingDues > 0 ? "down" : "up"}
+          value="—"
+          trend="N/A"
+          trendDirection="up"
           icon={CreditCard}
-          iconColor={stats.pendingDues > 0 ? "#E82646" : "#1ABE17"}
-          iconBg={stats.pendingDues > 0 ? "rgba(232,38,70,0.1)" : "rgba(26,190,23,0.1)"}
+          iconColor="#E82646"
+          iconBg="rgba(232,38,70,0.1)"
         />
         <StatsCard
           title="Enrolled Courses"
-          value={stats.enrolledCourses}
+          value={timetable.length}
           trend="Active"
           trendDirection="up"
           icon={BookOpen}
@@ -224,7 +259,7 @@ export function StudentDashboardHome() {
                     <BookOpen className="h-4 w-4 text-brand-primary" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground">{cls.courseCode}</p>
+                    <p className="text-sm font-medium text-foreground">{cls.course.courseCode}</p>
                     <p className="text-xs text-muted-foreground">
                       {cls.startTime} - {cls.endTime} • {cls.room}
                     </p>
@@ -248,7 +283,6 @@ export function StudentDashboardHome() {
           ) : (
             <div className="space-y-3">
               {pendingQuizzes.slice(0, 3).map((quiz) => {
-                const course = mockCourses.find((c) => c.id === quiz.courseId);
                 const now = new Date();
                 const daysLeft = Math.ceil(
                   (new Date(quiz.dueDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
@@ -264,7 +298,7 @@ export function StudentDashboardHome() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground">{quiz.title}</p>
                       <p className="text-xs text-muted-foreground">
-                        {course?.courseCode} • {quiz.duration} mins
+                        {quiz.duration} mins
                       </p>
                     </div>
                     <Badge
@@ -316,7 +350,7 @@ export function StudentDashboardHome() {
               <Bell className="h-4 w-4 text-muted-foreground" />
             </div>
             <div className="space-y-2">
-              {studentAnnouncements.slice(0, 3).map((ann) => (
+              {announcements.slice(0, 3).map((ann) => (
                 <div key={ann.id} className="rounded-lg p-2.5 bg-accent/20">
                   <p className="text-sm font-medium text-foreground">{ann.title}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
@@ -327,6 +361,9 @@ export function StudentDashboardHome() {
                   </p>
                 </div>
               ))}
+              {announcements.length === 0 && (
+                <p className="text-sm text-muted-foreground">No announcements.</p>
+              )}
             </div>
           </div>
         </div>

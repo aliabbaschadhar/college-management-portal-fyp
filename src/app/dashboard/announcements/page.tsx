@@ -1,10 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Bell, Trash2, Calendar, Target, Info } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { mockAnnouncements } from "@/lib/mock-data";
-import type { Announcement } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,36 +25,75 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 
-const audienceColors: Record<Announcement["audience"], string> = {
+interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  author: string;
+  date: string;
+  audience: "All" | "Students" | "Faculty";
+  priority: "Low" | "Medium" | "High";
+}
+
+interface AnnouncementForm {
+  title: string;
+  content: string;
+  audience: "All" | "Students" | "Faculty";
+  priority: "Low" | "Medium" | "High";
+}
+
+const audienceColors: Record<"All" | "Students" | "Faculty", string> = {
   All: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
   Students: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
   Faculty: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
 };
 
-const emptyAnnouncement: Omit<Announcement, "id"> = {
-  title: "", content: "", date: new Date().toISOString(), audience: "All", author: "Admin", priority: "Medium",
+const emptyForm: AnnouncementForm = {
+  title: "", content: "", audience: "All", priority: "Medium",
 };
 
 export default function AnnouncementsPage() {
-  const [announcements, setAnnouncements] = useState<Announcement[]>(mockAnnouncements);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState(emptyAnnouncement);
+  const [form, setForm] = useState<AnnouncementForm>(emptyForm);
 
-  const handleSave = () => {
+  useEffect(() => {
+    fetch("/api/announcements")
+      .then((r) => r.json())
+      .then((d: Announcement[]) => { setAnnouncements(Array.isArray(d) ? d : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const handleSave = async () => {
     if (!form.title || !form.content) return;
-    const newAnnouncement: Announcement = {
-      id: `a${Date.now()}`,
-      ...form,
-      date: new Date().toISOString(),
-    };
-    setAnnouncements((prev) => [newAnnouncement, ...prev]);
-    setDialogOpen(false);
-    setForm(emptyAnnouncement);
+    const res = await fetch("/api/announcements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+    if (res.ok) {
+      const created: Announcement = await res.json();
+      setAnnouncements((prev) => [created, ...prev]);
+      setDialogOpen(false);
+      setForm(emptyForm);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+  const handleDelete = async (id: string) => {
+    const res = await fetch(`/api/announcements/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center p-8">
+        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
@@ -87,18 +124,18 @@ export default function AnnouncementsPage() {
                 <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
                   <div className="space-y-1 flex-1 min-w-[200px]">
                     <div className="flex items-center gap-2">
-                       <Badge variant="secondary" className={`${audienceColors[a.audience]} text-[10px] uppercase tracking-wider font-bold`}>
+                      <Badge variant="secondary" className={`${audienceColors[a.audience]} text-[10px] uppercase tracking-wider font-bold`}>
                         {a.audience}
                       </Badge>
                       <span className="flex items-center text-xs text-muted-foreground">
                         <Calendar className="h-3 w-3 mr-1" />
-                        {new Date(a.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {new Date(a.date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
                       </span>
                     </div>
                     <h3 className="text-xl font-bold text-foreground group-hover:text-brand-primary transition-colors line-clamp-1">{a.title}</h3>
                   </div>
-                  
-                  <button 
+
+                  <button
                     onClick={() => handleDelete(a.id)}
                     className="opacity-0 group-hover:opacity-100 p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all"
                     title="Delete announcement"
@@ -112,13 +149,13 @@ export default function AnnouncementsPage() {
                 </p>
 
                 <div className="mt-6 pt-4 border-t border-dashed flex items-center justify-between text-xs text-muted-foreground">
-                   <div className="flex items-center gap-4">
-                     <span className="flex items-center"><Target className="h-3 w-3 mr-1 text-brand-secondary" /> Targeting: {a.audience}</span>
-                     <span className="flex items-center"><Info className="h-3 w-3 mr-1 text-brand-primary" /> ID: {a.id}</span>
-                   </div>
+                  <div className="flex items-center gap-4">
+                    <span className="flex items-center"><Target className="h-3 w-3 mr-1 text-brand-secondary" /> Targeting: {a.audience}</span>
+                    <span className="flex items-center"><Info className="h-3 w-3 mr-1 text-brand-primary" /> {a.priority} Priority</span>
+                  </div>
                 </div>
               </div>
-              
+
               {/* Decorative accent */}
               <div className="absolute top-0 left-0 w-1 h-full bg-brand-primary opacity-50 group-hover:opacity-100 transition-opacity" />
             </motion.div>
@@ -155,19 +192,19 @@ export default function AnnouncementsPage() {
           <div className="grid gap-6 py-6 px-1">
             <div className="grid gap-2">
               <Label htmlFor="title" className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Announcement Title</Label>
-              <Input 
-                id="title" 
-                value={form.title} 
-                onChange={(e) => setForm({ ...form, title: e.target.value })} 
+              <Input
+                id="title"
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
                 placeholder="e.g., Midterm Exam Schedule Released"
                 className="h-12 text-lg font-medium ring-brand-primary focus-visible:ring-2 rounded-xl"
               />
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Target Audience</Label>
-                <Select value={form.audience} onValueChange={(v) => setForm({ ...form, audience: v as Announcement["audience"] })}>
+                <Select value={form.audience} onValueChange={(v) => setForm({ ...form, audience: v as "All" | "Students" | "Faculty" })}>
                   <SelectTrigger className="h-12 rounded-xl">
                     <SelectValue placeholder="Who is this for?" />
                   </SelectTrigger>
@@ -179,19 +216,26 @@ export default function AnnouncementsPage() {
                 </Select>
               </div>
               <div className="grid gap-2">
-                <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground text-opacity-0">Placeholder</Label>
-                <div className="h-12 flex items-center px-4 rounded-xl bg-accent/50 border text-xs text-muted-foreground italic">
-                  Will be posted: {new Date().toLocaleDateString()}
-                </div>
+                <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Priority</Label>
+                <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v as "Low" | "Medium" | "High" })}>
+                  <SelectTrigger className="h-12 rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Low">Low</SelectItem>
+                    <SelectItem value="Medium">Medium</SelectItem>
+                    <SelectItem value="High">High</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
             <div className="grid gap-2">
               <Label htmlFor="content" className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Message Content</Label>
-              <Textarea 
-                id="content" 
-                value={form.content} 
-                onChange={(e) => setForm({ ...form, content: e.target.value })} 
+              <Textarea
+                id="content"
+                value={form.content}
+                onChange={(e) => setForm({ ...form, content: e.target.value })}
                 placeholder="Detailed information goes here..."
                 className="min-h-[150px] resize-none ring-brand-primary focus-visible:ring-2 rounded-3xl p-6"
               />

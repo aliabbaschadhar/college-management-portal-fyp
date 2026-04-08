@@ -18,4 +18,4 @@ interface Question {
   timestamp?: string // ISO 8601 string format
 }
 
-type Roles = 'admin' | 'student' | 'faculty' | 'staff'w
+type Roles = 'admin' | 'student' | 'faculty' | 'staff'

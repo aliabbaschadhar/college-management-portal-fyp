@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Lock, Unlock, Save, CheckCircle } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { getFacultyClasses, getCourseStudents, mockGrades } from "@/lib/mock-data";
-import type { Grade } from "@/types";
+import { useUser } from "@clerk/nextjs";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,55 +16,88 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const FACULTY_ID = "f1";
+interface CourseOption {
+  id: string;
+  courseCode: string;
+  courseName: string;
+}
+
+interface GradeEntry {
+  id: string;
+  studentId: string;
+  courseId: string;
+  quizMarks: number;
+  assignmentMarks: number;
+  midMarks: number;
+  finalMarks: number;
+  total: number;
+  gpa: number;
+  locked: boolean;
+  student: { rollNo: string; user: { name: string | null } };
+}
 
 export default function FacultyGradesPage() {
-  const courses = getFacultyClasses(FACULTY_ID);
+  useUser();
+  const [courses, setCourses] = useState<CourseOption[]>([]);
   const [selectedCourse, setSelectedCourse] = useState("");
-  const [grades, setGrades] = useState<Grade[]>([]);
+  const [grades, setGrades] = useState<GradeEntry[]>([]);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/courses")
+      .then((r) => r.json())
+      .then((d: CourseOption[]) => setCourses(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, []);
 
   const handleCourseChange = (courseId: string) => {
     setSelectedCourse(courseId);
     setSaved(false);
-    const students = getCourseStudents(courseId);
-    const existingGrades = students.map((s) => {
-      const existing = mockGrades.find((g) => g.studentId === s.id && g.courseId === courseId);
-      return existing || {
-        id: `new-${s.id}-${courseId}`,
-        studentId: s.id,
-        courseId,
-        quizMarks: 0,
-        assignmentMarks: 0,
-        midMarks: 0,
-        finalMarks: 0,
-        total: 0,
-        gpa: 0,
-        locked: false,
-      };
-    });
-    setGrades(existingGrades);
+    fetch(`/api/grades?courseId=${courseId}`)
+      .then((r) => r.json())
+      .then((d: GradeEntry[]) => setGrades(Array.isArray(d) ? d : []))
+      .catch(() => setGrades([]));
   };
 
-  const updateGrade = (gradeId: string, field: keyof Grade, value: number) => {
+  const updateGrade = (gradeId: string, field: keyof Pick<GradeEntry, "quizMarks" | "assignmentMarks" | "midMarks" | "finalMarks">, value: number) => {
     setGrades((prev) =>
       prev.map((g) => {
         if (g.id !== gradeId || g.locked) return g;
         const updated = { ...g, [field]: value };
         updated.total = updated.quizMarks + updated.assignmentMarks + updated.midMarks + updated.finalMarks;
-        // Simple GPA calc: total/max * 4.0
         updated.gpa = +(Math.min(4.0, (updated.total / 150) * 4.0)).toFixed(2);
         return updated;
       })
     );
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    setSaving(true);
+    await Promise.all(
+      grades
+        .filter((g) => !g.locked)
+        .map((g) =>
+          fetch("/api/grades", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              studentId: g.studentId,
+              courseId: g.courseId,
+              quizMarks: g.quizMarks,
+              assignmentMarks: g.assignmentMarks,
+              midMarks: g.midMarks,
+              finalMarks: g.finalMarks,
+              total: g.total,
+              gpa: g.gpa,
+            }),
+          })
+        )
+    );
+    setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
-
-  const students = selectedCourse ? getCourseStudents(selectedCourse) : [];
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-6">
@@ -81,7 +113,7 @@ export default function FacultyGradesPage() {
             <SelectContent>
               {courses.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
-                  {c.courseCode} — {c.name}
+                  {c.courseCode} — {c.courseName}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -109,56 +141,22 @@ export default function FacultyGradesPage() {
                 </thead>
                 <tbody>
                   {grades.map((g) => {
-                    const student = students.find((s) => s.id === g.studentId);
                     const gpaColor = g.gpa >= 3.5 ? "text-emerald-500" : g.gpa >= 3.0 ? "text-amber-500" : "text-rose-500";
-
                     return (
                       <tr key={g.id} className="border-b border-border/50 hover:bg-accent/20 transition-colors">
-                        <td className="py-3 px-4 font-medium text-foreground">{student?.name}</td>
-                        <td className="py-3 px-3 font-mono text-muted-foreground text-xs">{student?.rollNo}</td>
+                        <td className="py-3 px-4 font-medium text-foreground">{g.student.user.name ?? "—"}</td>
+                        <td className="py-3 px-3 font-mono text-muted-foreground text-xs">{g.student.rollNo}</td>
                         <td className="py-2 px-2">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={25}
-                            value={g.quizMarks}
-                            onChange={(e) => updateGrade(g.id, "quizMarks", +e.target.value)}
-                            disabled={g.locked}
-                            className="text-center h-8 w-16 mx-auto"
-                          />
+                          <Input type="number" min={0} max={25} value={g.quizMarks} onChange={(e) => updateGrade(g.id, "quizMarks", +e.target.value)} disabled={g.locked} className="text-center h-8 w-16 mx-auto" />
                         </td>
                         <td className="py-2 px-2">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={25}
-                            value={g.assignmentMarks}
-                            onChange={(e) => updateGrade(g.id, "assignmentMarks", +e.target.value)}
-                            disabled={g.locked}
-                            className="text-center h-8 w-16 mx-auto"
-                          />
+                          <Input type="number" min={0} max={25} value={g.assignmentMarks} onChange={(e) => updateGrade(g.id, "assignmentMarks", +e.target.value)} disabled={g.locked} className="text-center h-8 w-16 mx-auto" />
                         </td>
                         <td className="py-2 px-2">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={50}
-                            value={g.midMarks}
-                            onChange={(e) => updateGrade(g.id, "midMarks", +e.target.value)}
-                            disabled={g.locked}
-                            className="text-center h-8 w-16 mx-auto"
-                          />
+                          <Input type="number" min={0} max={50} value={g.midMarks} onChange={(e) => updateGrade(g.id, "midMarks", +e.target.value)} disabled={g.locked} className="text-center h-8 w-16 mx-auto" />
                         </td>
                         <td className="py-2 px-2">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={50}
-                            value={g.finalMarks}
-                            onChange={(e) => updateGrade(g.id, "finalMarks", +e.target.value)}
-                            disabled={g.locked}
-                            className="text-center h-8 w-16 mx-auto"
-                          />
+                          <Input type="number" min={0} max={50} value={g.finalMarks} onChange={(e) => updateGrade(g.id, "finalMarks", +e.target.value)} disabled={g.locked} className="text-center h-8 w-16 mx-auto" />
                         </td>
                         <td className="py-3 px-3 text-center font-bold text-foreground">{g.total}</td>
                         <td className={`py-3 px-3 text-center font-bold ${gpaColor}`}>{g.gpa}</td>
@@ -188,12 +186,19 @@ export default function FacultyGradesPage() {
                 <span className="text-sm font-medium">Grades saved successfully!</span>
               </div>
             ) : (
-              <Button onClick={handleSave} className="gap-2">
-                <Save className="h-4 w-4" /> Save Grades
+              <Button onClick={handleSave} disabled={saving} className="gap-2">
+                <Save className="h-4 w-4" />
+                {saving ? "Saving..." : "Save Grades"}
               </Button>
             )}
           </div>
         </>
+      )}
+
+      {selectedCourse && grades.length === 0 && (
+        <div className="text-center py-16 text-muted-foreground">
+          <p className="text-lg font-medium">No grade records found for this course.</p>
+        </div>
       )}
     </motion.div>
   );

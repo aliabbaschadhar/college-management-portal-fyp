@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
-import { mockStudents, DEPARTMENTS, mockFaculty, mockTeaches, mockEnrollments } from "@/lib/mock-data";
-import type { Student, UserRole } from "@/types";
+import { DEPARTMENTS } from "@/lib/constants";
+import type { UserRole } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +29,19 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 
+interface StudentWithUser {
+  id: string;
+  userId: string;
+  rollNo: string;
+  phone: string | null;
+  department: string;
+  semester: number;
+  enrollmentDate: string;
+  avatar: string | null;
+  user: { name: string | null; email: string };
+  _count: { enrollments: number };
+}
+
 const deptColors: Record<string, string> = {
   "Computer Science": "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
   Mathematics: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
@@ -40,8 +53,15 @@ const deptColors: Record<string, string> = {
   "Islamic Studies": "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400",
 };
 
-const emptyStudent: Omit<Student, "id"> = {
-  name: "", rollNo: "", email: "", phone: "", department: "", semester: 1, enrollmentDate: new Date().toISOString().split("T")[0],
+interface EditForm {
+  rollNo: string;
+  phone: string;
+  department: string;
+  semester: number;
+}
+
+const emptyForm: EditForm = {
+  rollNo: "", phone: "", department: "", semester: 1,
 };
 
 export default function ManageStudentsPage() {
@@ -57,105 +77,100 @@ export default function ManageStudentsPage() {
   }, [user?.publicMetadata?.role]);
 
   const isAdmin = role === "admin";
-  const isFaculty = role === "faculty";
 
-  const baseStudents = useMemo<Student[]>(() => {
-    if (isAdmin) {
-      return mockStudents;
-    }
-
-    if (!isFaculty) {
-      return [];
-    }
-
-    const facultyEmail = user?.primaryEmailAddress?.emailAddress?.toLowerCase();
-    const facultyRecord = mockFaculty.find(
-      (faculty) => faculty.email.toLowerCase() === facultyEmail,
-    );
-
-    if (!facultyRecord) {
-      return [];
-    }
-
-    const taughtCourseIds = new Set(
-      mockTeaches
-        .filter((teach) => teach.facultyId === facultyRecord.id)
-        .map((teach) => teach.courseId),
-    );
-
-    const enrolledStudentIds = new Set(
-      mockEnrollments
-        .filter((enrollment) => taughtCourseIds.has(enrollment.courseId))
-        .map((enrollment) => enrollment.studentId),
-    );
-
-    return mockStudents.filter((student) => enrolledStudentIds.has(student.id));
-  }, [isAdmin, isFaculty, user?.primaryEmailAddress?.emailAddress]);
-
-  const [students, setStudents] = useState<Student[]>(mockStudents);
+  const [students, setStudents] = useState<StudentWithUser[]>([]);
+  const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
-  const [deletingStudent, setDeletingStudent] = useState<Student | null>(null);
-  const [form, setForm] = useState(emptyStudent);
+  const [editingStudent, setEditingStudent] = useState<StudentWithUser | null>(null);
+  const [deletingStudent, setDeletingStudent] = useState<StudentWithUser | null>(null);
+  const [form, setForm] = useState<EditForm>(emptyForm);
   const [filterDept, setFilterDept] = useState<string>("all");
 
   useEffect(() => {
-    setStudents(baseStudents);
-  }, [baseStudents]);
-
-  useEffect(() => {
-    if (!isLoaded) {
-      return;
-    }
-
+    if (!isLoaded) return;
     if (role === "student") {
       router.replace("/dashboard");
+      return;
     }
-  }, [isLoaded, role, router]);
+    const url = filterDept === "all" ? "/api/students" : `/api/students?department=${encodeURIComponent(filterDept)}`;
+    fetch(url)
+      .then((r) => r.json())
+      .then((d) => {
+        // Normalize API response to match UI shape
+        const normalized = Array.isArray(d) ? d.map((item: unknown) => {
+          const s = item as Record<string, unknown>;
+          return {
+            ...s,
+            user: {
+              name: s.user && typeof s.user === "object" && "name" in s.user ? s.user.name : s.name ?? null,
+              email: s.user && typeof s.user === "object" && "email" in s.user ? s.user.email : s.email ?? "",
+            },
+            _count: s._count ?? { enrollments: 0 },
+          };
+        }) : [];
+        setStudents(normalized as StudentWithUser[]);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [isLoaded, role, router, filterDept]);
 
-  const filteredStudents = filterDept === "all" ? students : students.filter((s) => s.department === filterDept);
-
-  const openAdd = () => {
-    setEditingStudent(null);
-    setForm(emptyStudent);
-    setDialogOpen(true);
-  };
-
-  const openEdit = (s: Student) => {
+  const openEdit = (s: StudentWithUser) => {
     setEditingStudent(s);
-    setForm({ name: s.name, rollNo: s.rollNo, email: s.email, phone: s.phone, department: s.department, semester: s.semester, enrollmentDate: s.enrollmentDate });
+    setForm({ rollNo: s.rollNo, phone: s.phone ?? "", department: s.department, semester: s.semester });
     setDialogOpen(true);
   };
 
-  const handleSave = () => {
-    if (!form.name || !form.rollNo || !form.email || !form.department) return;
-    if (editingStudent) {
-      setStudents((prev) => prev.map((s) => (s.id === editingStudent.id ? { ...s, ...form } : s)));
+  const handleSave = async () => {
+    if (!editingStudent || !form.rollNo || !form.department) return;
+    const res = await fetch(`/api/students/${editingStudent.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      // Normalize response shape to match UI expectations
+      const normalized: StudentWithUser = {
+        ...updated,
+        user: {
+          name: updated.user?.name ?? updated.name ?? null,
+          email: updated.user?.email ?? updated.email ?? "",
+        },
+        _count: updated._count ?? { enrollments: 0 },
+      };
+      setStudents((prev) => prev.map((s) => (s.id === normalized.id ? normalized : s)));
+      setDialogOpen(false);
     } else {
-      const newStudent: Student = { id: `s${Date.now()}`, ...form };
-      setStudents((prev) => [newStudent, ...prev]);
+      const errorData = await res.json().catch(() => ({ error: "Unknown error" }));
+      alert(`Failed to update student: ${errorData.error}`);
     }
-    setDialogOpen(false);
   };
 
-  const handleDelete = () => {
-    if (deletingStudent) {
+  const handleDelete = async () => {
+    if (!deletingStudent) return;
+    const res = await fetch(`/api/students/${deletingStudent.id}`, { method: "DELETE" });
+    if (res.ok) {
       setStudents((prev) => prev.filter((s) => s.id !== deletingStudent.id));
+      setDeleteDialogOpen(false);
+      setDeletingStudent(null);
+    } else {
+      const errorData = await res.json().catch(() => ({ error: "Unknown error" }));
+      alert(`Failed to delete student: ${errorData.error}`);
       setDeleteDialogOpen(false);
       setDeletingStudent(null);
     }
   };
 
-  const columns: Column<Student>[] = [
-    { key: "name", header: "Name", sortable: true, render: (row) => (
+  const columns: Column<StudentWithUser>[] = [
+    { key: "user", header: "Name", sortable: true, render: (row) => (
       <div className="flex items-center gap-3">
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-primary/10 text-xs font-bold text-brand-primary">
-          {row.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+          {(row.user.name ?? "?").split(" ").map((n) => n[0]).join("").slice(0, 2)}
         </div>
         <div>
-          <p className="font-medium text-foreground">{row.name}</p>
-          <p className="text-xs text-muted-foreground">{row.email}</p>
+          <p className="font-medium text-foreground">{row.user.name ?? "—"}</p>
+          <p className="text-xs text-muted-foreground">{row.user.email}</p>
         </div>
       </div>
     )},
@@ -170,9 +185,9 @@ export default function ManageStudentsPage() {
     )},
     ...(isAdmin
       ? [{
-          key: "actions",
+          key: "actions" as keyof StudentWithUser,
           header: "Actions",
-          render: (row: Student) => (
+          render: (row: StudentWithUser) => (
             <div className="flex items-center gap-1">
               <button onClick={() => openEdit(row)} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors" title="Edit">
                 <Pencil className="h-4 w-4 text-muted-foreground" />
@@ -186,19 +201,21 @@ export default function ManageStudentsPage() {
       : []),
   ];
 
-  if (!isLoaded) {
-    return null;
+  if (!isLoaded || loading) {
+    return (
+      <div className="flex justify-center p-8">
+        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      </div>
+    );
   }
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
       <PageHeader
         title="Manage Students"
-        subtitle={isAdmin
-          ? `${students.length} students enrolled across all departments`
-          : `${students.length} students enrolled in your classes`}
+        subtitle={`${students.length} students enrolled across all departments`}
         breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Manage Students" }]}
-        action={isAdmin ? (
+        action={
           <div className="flex items-center gap-3">
             <Select value={filterDept} onValueChange={setFilterDept}>
               <SelectTrigger className="w-[180px] h-9">
@@ -209,56 +226,39 @@ export default function ManageStudentsPage() {
                 {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Button onClick={openAdd} className="bg-brand-primary hover:bg-brand-primary/90 text-white">
-              <Plus className="h-4 w-4 mr-2" /> Add Student
-            </Button>
+            {isAdmin && (
+              <Button
+                onClick={() => alert("Students are created automatically when they register via the Clerk sign-up flow with the 'student' role.")}
+                className="bg-brand-primary hover:bg-brand-primary/90 text-white"
+              >
+                <Plus className="h-4 w-4 mr-2" /> Add Student
+              </Button>
+            )}
           </div>
-        ) : (
-          <div className="flex items-center gap-3">
-            <Select value={filterDept} onValueChange={setFilterDept}>
-              <SelectTrigger className="w-[180px] h-9">
-                <SelectValue placeholder="All Departments" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Departments</SelectItem>
-                {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+        }
       />
 
       <DataTable
-        data={filteredStudents as unknown as Record<string, unknown>[]}
+        data={students as unknown as Record<string, unknown>[]}
         columns={columns as unknown as Column<Record<string, unknown>>[]}
-        searchPlaceholder="Search by name, roll no, or email..."
-        searchKeys={["name", "rollNo", "email"]}
+        searchPlaceholder="Search by roll no..."
+        searchKeys={["rollNo"]}
       />
 
       {isAdmin && (
         <>
-          {/* Add/Edit Dialog */}
+          {/* Edit Dialog */}
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
-                <DialogTitle>{editingStudent ? "Edit Student" : "Add New Student"}</DialogTitle>
-                <DialogDescription>{editingStudent ? "Update the student information below." : "Fill in the details for the new student."}</DialogDescription>
+                <DialogTitle>Edit Student</DialogTitle>
+                <DialogDescription>Update the student information below.</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
-                    <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ali Abbas" />
-                  </div>
-                  <div className="space-y-2">
                     <Label htmlFor="rollNo">Roll Number</Label>
                     <Input id="rollNo" value={form.rollNo} onChange={(e) => setForm({ ...form, rollNo: e.target.value })} placeholder="CS-2022-001" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input id="email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@gc.edu.pk" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone">Phone</Label>
@@ -289,7 +289,7 @@ export default function ManageStudentsPage() {
               <DialogFooter>
                 <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
                 <Button onClick={handleSave} className="bg-brand-primary hover:bg-brand-primary/90 text-white">
-                  {editingStudent ? "Update Student" : "Add Student"}
+                  Update Student
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -301,7 +301,7 @@ export default function ManageStudentsPage() {
               <DialogHeader>
                 <DialogTitle>Delete Student</DialogTitle>
                 <DialogDescription>
-                  Are you sure you want to delete <strong>{deletingStudent?.name}</strong> ({deletingStudent?.rollNo})? This action cannot be undone.
+                  Are you sure you want to delete <strong>{deletingStudent?.user.name}</strong> ({deletingStudent?.rollNo})? This action cannot be undone.
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>

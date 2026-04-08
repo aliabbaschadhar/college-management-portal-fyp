@@ -1,12 +1,22 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { BookOpen, Users, Clock, GraduationCap } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { getStudentCourses, mockFaculty, mockEnrollments, mockTeaches } from "@/lib/mock-data";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 
-const STUDENT_ID = "s1";
+interface CourseWithDetails {
+  id: string;
+  courseCode: string;
+  courseName: string;
+  creditHours: number;
+  department: string;
+  semester: number;
+  assignedFaculty: string | null;
+  faculty: { user: { name: string | null } } | null;
+  _count: { enrollments: number };
+}
 
 const COURSE_COLORS = [
   "from-blue-500/10 to-indigo-500/10 border-blue-500/20",
@@ -20,7 +30,23 @@ const COURSE_COLORS = [
 const ICON_COLORS = ["#3D5EE1", "#1ABE17", "#A78BFA", "#F59E0B", "#E82646", "#6FCCD8"];
 
 export default function MyCoursesPage() {
-  const courses = getStudentCourses(STUDENT_ID);
+  const [courses, setCourses] = useState<CourseWithDetails[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/courses")
+      .then((r) => r.json())
+      .then((d: CourseWithDetails[]) => { setCourses(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center p-8">
+        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
@@ -32,12 +58,8 @@ export default function MyCoursesPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mt-6">
         {courses.map((course, idx) => {
-          // Find faculty
-          const teachEntry = mockTeaches.find((t) => t.courseId === course.id);
-          const faculty = teachEntry
-            ? mockFaculty.find((f) => f.id === teachEntry.facultyId)
-            : null;
-          const studentCount = mockEnrollments.filter((e) => e.courseId === course.id).length;
+          const facultyName = course.faculty?.user?.name ?? "TBA";
+          const studentCount = course._count.enrollments;
 
           return (
             <motion.div
@@ -58,7 +80,7 @@ export default function MyCoursesPage() {
               {/* Course Info */}
               <div className="space-y-2">
                 <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-base font-semibold text-foreground leading-tight">{course.name}</h3>
+                  <h3 className="text-base font-semibold text-foreground leading-tight">{course.courseName}</h3>
                   <Badge variant="secondary" className="shrink-0 text-xs font-mono">
                     {course.courseCode}
                   </Badge>
@@ -69,7 +91,7 @@ export default function MyCoursesPage() {
                 <div className="flex flex-wrap gap-2 mt-3">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <GraduationCap className="h-3.5 w-3.5" />
-                    <span>{faculty?.name || "TBA"}</span>
+                    <span>{facultyName}</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Users className="h-3.5 w-3.5" />

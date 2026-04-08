@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2, UserPlus } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
-import { mockCourses, mockFaculty, DEPARTMENTS } from "@/lib/mock-data";
-import type { Course } from "@/types";
+import { DEPARTMENTS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,57 +13,124 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 
-const emptyCourse: Omit<Course, "id"> = {
-  courseCode: "", courseName: "", name: "", creditHours: 3, department: "", assignedFaculty: null, enrolledCount: 0, semester: 1,
+interface CourseWithDetails {
+  id: string;
+  courseCode: string;
+  courseName: string;
+  creditHours: number;
+  department: string;
+  semester: number;
+  assignedFaculty: string | null;
+  faculty: { user: { name: string | null } } | null;
+  _count: { enrollments: number };
+}
+
+interface FacultyOption {
+  id: string;
+  name: string | null;
+  department: string;
+}
+
+interface CourseForm {
+  courseCode: string;
+  courseName: string;
+  creditHours: number;
+  department: string;
+  semester: number;
+}
+
+const emptyCourse: CourseForm = {
+  courseCode: "", courseName: "", creditHours: 3, department: "", semester: 1,
 };
 
 export default function ManageCoursesPage() {
-  const [courses, setCourses] = useState<Course[]>(mockCourses);
+  const [courses, setCourses] = useState<CourseWithDetails[]>([]);
+  const [facultyList, setFacultyList] = useState<FacultyOption[]>([]);
+  const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
-  const [deletingCourse, setDeletingCourse] = useState<Course | null>(null);
-  const [assigningCourse, setAssigningCourse] = useState<Course | null>(null);
-  const [form, setForm] = useState(emptyCourse);
+  const [editingCourse, setEditingCourse] = useState<CourseWithDetails | null>(null);
+  const [deletingCourse, setDeletingCourse] = useState<CourseWithDetails | null>(null);
+  const [assigningCourse, setAssigningCourse] = useState<CourseWithDetails | null>(null);
+  const [form, setForm] = useState<CourseForm>(emptyCourse);
   const [selectedFaculty, setSelectedFaculty] = useState<string>("");
   const [filterDept, setFilterDept] = useState<string>("all");
 
-  const filtered = filterDept === "all" ? courses : courses.filter((c) => c.department === filterDept);
+  useEffect(() => {
+    const url = filterDept === "all" ? "/api/courses" : `/api/courses?department=${encodeURIComponent(filterDept)}`;
+    Promise.all([
+      fetch(url).then((r) => r.json()),
+      fetch("/api/faculty").then((r) => r.json()),
+    ])
+      .then(([c, f]: [CourseWithDetails[], FacultyOption[]]) => {
+        setCourses(Array.isArray(c) ? c : []);
+        setFacultyList(Array.isArray(f) ? f : []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [filterDept]);
 
   const openAdd = () => { setEditingCourse(null); setForm(emptyCourse); setDialogOpen(true); };
-  const openEdit = (c: Course) => {
+  const openEdit = (c: CourseWithDetails) => {
     setEditingCourse(c);
-    setForm({ courseCode: c.courseCode, courseName: c.courseName, name: c.courseName, creditHours: c.creditHours, department: c.department, assignedFaculty: c.assignedFaculty, enrolledCount: c.enrolledCount, semester: c.semester });
+    setForm({ courseCode: c.courseCode, courseName: c.courseName, creditHours: c.creditHours, department: c.department, semester: c.semester });
     setDialogOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.courseCode || !form.courseName || !form.department) return;
     if (editingCourse) {
-      setCourses((prev) => prev.map((c) => (c.id === editingCourse.id ? { ...c, ...form } : c)));
+      const res = await fetch(`/api/courses/${editingCourse.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (res.ok) {
+        const updated: CourseWithDetails = await res.json();
+        setCourses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+        setDialogOpen(false);
+      }
     } else {
-      setCourses((prev) => [{ id: `c${Date.now()}`, ...form }, ...prev]);
+      const res = await fetch("/api/courses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (res.ok) {
+        const created: CourseWithDetails = await res.json();
+        setCourses((prev) => [created, ...prev]);
+        setDialogOpen(false);
+      }
     }
-    setDialogOpen(false);
   };
 
-  const handleDelete = () => {
-    if (deletingCourse) {
+  const handleDelete = async () => {
+    if (!deletingCourse) return;
+    const res = await fetch(`/api/courses/${deletingCourse.id}`, { method: "DELETE" });
+    if (res.ok) {
       setCourses((prev) => prev.filter((c) => c.id !== deletingCourse.id));
       setDeleteDialogOpen(false);
+      setDeletingCourse(null);
     }
   };
 
-  const handleAssign = () => {
-    if (assigningCourse && selectedFaculty) {
-      setCourses((prev) => prev.map((c) => (c.id === assigningCourse.id ? { ...c, assignedFaculty: selectedFaculty } : c)));
+  const handleAssign = async () => {
+    if (!assigningCourse || !selectedFaculty) return;
+    const res = await fetch(`/api/courses/${assigningCourse.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assignedFaculty: selectedFaculty }),
+    });
+    if (res.ok) {
+      const updated: CourseWithDetails = await res.json();
+      setCourses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
       setAssignDialogOpen(false);
       setSelectedFaculty("");
     }
   };
 
-  const columns: Column<Course>[] = [
+  const columns: Column<CourseWithDetails>[] = [
     { key: "courseCode", header: "Code", sortable: true, render: (row) => (
       <span className="font-mono font-semibold text-brand-primary">{row.courseCode}</span>
     )},
@@ -75,15 +141,15 @@ export default function ManageCoursesPage() {
       <Badge variant="outline">{row.creditHours} CH</Badge>
     )},
     { key: "department", header: "Department", sortable: true },
-    { key: "assignedFaculty", header: "Faculty", render: (row) => (
-      row.assignedFaculty
-        ? <span className="text-sm">{row.assignedFaculty}</span>
+    { key: "faculty", header: "Faculty", render: (row) => (
+      row.faculty?.user.name
+        ? <span className="text-sm">{row.faculty.user.name}</span>
         : <span className="text-xs text-muted-foreground italic">Unassigned</span>
     )},
-    { key: "enrolledCount", header: "Enrolled", sortable: true, render: (row) => (
-      <span className="font-medium">{row.enrolledCount}</span>
+    { key: "_count", header: "Enrolled", sortable: false, render: (row) => (
+      <span className="font-medium">{row._count.enrollments}</span>
     )},
-    { key: "actions", header: "Actions", render: (row) => (
+    { key: "id", header: "Actions", render: (row) => (
       <div className="flex items-center gap-1">
         <button onClick={() => { setAssigningCourse(row); setSelectedFaculty(row.assignedFaculty || ""); setAssignDialogOpen(true); }} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors" title="Assign Faculty">
           <UserPlus className="h-4 w-4 text-brand-secondary" />
@@ -97,6 +163,14 @@ export default function ManageCoursesPage() {
       </div>
     )},
   ];
+
+  if (loading) {
+    return (
+      <div className="flex justify-center p-8">
+        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
@@ -121,10 +195,10 @@ export default function ManageCoursesPage() {
       />
 
       <DataTable
-        data={filtered as unknown as Record<string, unknown>[]}
+        data={courses as unknown as Record<string, unknown>[]}
         columns={columns as unknown as Column<Record<string, unknown>>[]}
-        searchPlaceholder="Search by code, name, or faculty..."
-        searchKeys={["courseCode", "courseName", "assignedFaculty"]}
+        searchPlaceholder="Search by code or name..."
+        searchKeys={["courseCode", "courseName"]}
       />
 
       {/* Add/Edit */}
@@ -181,7 +255,11 @@ export default function ManageCoursesPage() {
             <Select value={selectedFaculty} onValueChange={setSelectedFaculty}>
               <SelectTrigger><SelectValue placeholder="Select faculty member" /></SelectTrigger>
               <SelectContent>
-                {mockFaculty.map((f) => <SelectItem key={f.id} value={f.name}>{f.name} — {f.department}</SelectItem>)}
+                {facultyList.map((f) => (
+                  <SelectItem key={f.id} value={f.id}>
+                    {f.name ?? "—"} — {f.department}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
