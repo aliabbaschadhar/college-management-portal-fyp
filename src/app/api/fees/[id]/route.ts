@@ -1,14 +1,14 @@
-import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { FeeStatus } from "@prisma/client";
+import { requireRole } from "@/lib/auth-guard";
+import { FeeStatus, Prisma } from "@prisma/client";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const denied = await requireRole(["ADMIN"]);
+  if (denied) return denied;
 
   try {
     const { id } = await params;
@@ -24,6 +24,9 @@ export async function PATCH(
 
     return NextResponse.json(fee);
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return NextResponse.json({ error: "Fee record not found" }, { status: 404 });
+    }
     console.error("PATCH /api/fees/[id] error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }

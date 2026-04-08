@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Clock, User, MapPin, Sparkles, RefreshCw, Download } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { DEPARTMENTS } from "@/lib/mock-data";
+import { DEPARTMENTS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {

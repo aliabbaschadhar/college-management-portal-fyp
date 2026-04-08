@@ -41,20 +41,32 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = (await request.json()) as {
-      studentId: string;
       type: FeedbackType;
       targetId: string;
       rating: number;
-      comment: string;
+      comment?: string;
     };
+
+    // Resolve the student DB record from the authenticated Clerk user
+    const student = await prisma.student.findFirst({
+      where: { user: { clerkId: userId } },
+      select: { id: true },
+    });
+
+    if (!student) {
+      return NextResponse.json(
+        { error: "Only students can submit feedback" },
+        { status: 403 }
+      );
+    }
 
     const feedback = await prisma.feedback.create({
       data: {
-        studentId: body.studentId,
+        studentId: student.id,
         type: body.type,
         targetId: body.targetId,
         rating: body.rating,
-        comment: body.comment,
+        comment: body.comment ?? "",
       },
       select: {
         id: true,

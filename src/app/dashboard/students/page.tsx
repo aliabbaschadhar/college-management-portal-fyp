@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
-import { DEPARTMENTS } from "@/lib/mock-data";
+import { DEPARTMENTS } from "@/lib/constants";
 import type { UserRole } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

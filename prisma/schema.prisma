@@ -110,6 +110,8 @@ model Attendance {
 
   student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
   course  Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, courseId, date])
 }
 
 enum FeeStatus {

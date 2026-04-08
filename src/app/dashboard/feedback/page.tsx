@@ -143,19 +143,18 @@ export default function FacultyFeedbackPage() {
           {feedback.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">No feedback received yet.</p>
           ) : (
-            feedback.map((f) => {
-              const student = mockStudents.find((s) => s.id === f.submittedBy);
+            {feedback.map((f) => {
               return (
                 <div
                   key={f.id}
                   className="flex items-start gap-4 rounded-lg p-4 bg-accent/20 hover:bg-accent/40 transition-colors"
                 >
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-primary/10 text-sm font-bold text-brand-primary">
-                    {student?.name?.charAt(0) || "?"}
+                    ?
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium text-foreground">{student?.name || "Anonymous"}</span>
+                      <span className="text-sm font-medium text-foreground">Anonymous</span>
                       <div className="flex items-center gap-0.5">
                         {[1, 2, 3, 4, 5].map((s) => (
                           <Star

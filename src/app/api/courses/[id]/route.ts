@@ -1,6 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { requireRole } from "@/lib/auth-guard";
+import { Prisma } from "@prisma/client";
 
 export async function GET(
   _request: NextRequest,
@@ -31,8 +33,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const denied = await requireRole(["ADMIN", "FACULTY"]);
+  if (denied) return denied;
 
   try {
     const { id } = await params;
@@ -59,6 +61,14 @@ export async function PATCH(
 
     return NextResponse.json(course);
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2002") {
+        return NextResponse.json({ error: "Course code already exists" }, { status: 409 });
+      }
+      if (error.code === "P2025") {
+        return NextResponse.json({ error: "Course not found" }, { status: 404 });
+      }
+    }
     console.error("PATCH /api/courses/[id] error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
@@ -68,14 +78,17 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const denied = await requireRole(["ADMIN"]);
+  if (denied) return denied;
 
   try {
     const { id } = await params;
     await prisma.course.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return NextResponse.json({ error: "Course not found" }, { status: 404 });
+    }
     console.error("DELETE /api/courses/[id] error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }

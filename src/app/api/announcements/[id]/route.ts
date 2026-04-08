@@ -1,14 +1,14 @@
-import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { AnnouncementAudience, Priority } from "@prisma/client";
+import { requireRole } from "@/lib/auth-guard";
+import { AnnouncementAudience, Priority, Prisma } from "@prisma/client";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const denied = await requireRole(["ADMIN", "FACULTY"]);
+  if (denied) return denied;
 
   try {
     const { id } = await params;
@@ -33,6 +33,9 @@ export async function PATCH(
 
     return NextResponse.json(announcement);
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return NextResponse.json({ error: "Announcement not found" }, { status: 404 });
+    }
     console.error("PATCH /api/announcements/[id] error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
@@ -42,14 +45,17 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const denied = await requireRole(["ADMIN", "FACULTY"]);
+  if (denied) return denied;
 
   try {
     const { id } = await params;
     await prisma.announcement.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return NextResponse.json({ error: "Announcement not found" }, { status: 404 });
+    }
     console.error("DELETE /api/announcements/[id] error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }

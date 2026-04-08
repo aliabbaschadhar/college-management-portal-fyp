@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 export async function GET(_request: NextRequest) {
   const { userId } = await auth();
@@ -62,6 +63,15 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(course, { status: 201 });
   } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return NextResponse.json(
+        { error: "A course with this code already exists" },
+        { status: 409 }
+      );
+    }
     console.error("POST /api/courses error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }

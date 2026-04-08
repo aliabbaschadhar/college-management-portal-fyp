@@ -51,32 +51,25 @@ export async function POST(request: NextRequest) {
     }
 
     const results = await Promise.all(
-      body.records.map(async (record) => {
-        const existing = await prisma.attendance.findFirst({
+      body.records.map((record) =>
+        prisma.attendance.upsert({
           where: {
-            studentId: record.studentId,
-            courseId: body.courseId,
-            date: attendanceDate,
+            studentId_courseId_date: {
+              studentId: record.studentId,
+              courseId: body.courseId,
+              date: attendanceDate,
+            },
           },
-        });
-
-        if (existing) {
-          return prisma.attendance.update({
-            where: { id: existing.id },
-            data: { status: record.status, markedBy: userId },
-          });
-        }
-
-        return prisma.attendance.create({
-          data: {
+          update: { status: record.status, markedBy: userId },
+          create: {
             studentId: record.studentId,
             courseId: body.courseId,
             date: attendanceDate,
             status: record.status,
             markedBy: userId,
           },
-        });
-      })
+        })
+      )
     );
 
     return NextResponse.json(results, { status: 201 });
