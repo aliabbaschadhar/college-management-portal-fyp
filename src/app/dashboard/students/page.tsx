@@ -127,6 +127,9 @@ export default function ManageStudentsPage() {
       setStudents((prev) => prev.filter((s) => s.id !== deletingStudent.id));
       setDeleteDialogOpen(false);
       setDeletingStudent(null);
+    } else {
+      setDeleteDialogOpen(false);
+      setDeletingStudent(null);
     }
   };
 
