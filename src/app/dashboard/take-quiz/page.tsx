@@ -3,45 +3,63 @@
 import { useState, useEffect, useCallback } from "react";
 import { FileText, Clock, CheckCircle, ArrowRight, Trophy, AlertCircle } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import {
-  getStudentQuizzes,
-  mockQuizAttempts,
-  mockQuestions,
-  mockCourses,
-} from "@/lib/mock-data";
-import type { Quiz, Question } from "@/types";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-const STUDENT_ID = "s1";
+interface QuizQuestion {
+  id: string;
+  text: string;
+  options: string[];
+  correctOption: number;
+}
+
+interface QuizWithDetails {
+  id: string;
+  title: string;
+  courseId: string;
+  createdBy: string;
+  duration: number;
+  totalMarks: number;
+  status: "Draft" | "Published" | "Closed";
+  dueDate: string;
+  questions: QuizQuestion[];
+  course?: { courseCode: string; courseName: string };
+}
 
 type QuizView = "list" | "attempt" | "result";
 
 export default function TakeQuizPage() {
-  const quizzes = getStudentQuizzes(STUDENT_ID);
+  const [quizzes, setQuizzes] = useState<QuizWithDetails[]>([]);
+  const [loading, setLoading] = useState(true);
   const [view, setView] = useState<QuizView>("list");
-  const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const [activeQuiz, setActiveQuiz] = useState<QuizWithDetails | null>(null);
+  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [currentQ, setCurrentQ] = useState(0);
   const [answers, setAnswers] = useState<(number | null)[]>([]);
   const [timeLeft, setTimeLeft] = useState(0);
   const [score, setScore] = useState(0);
 
-  const attemptedQuizIds = mockQuizAttempts
-    .filter((a) => a.studentId === STUDENT_ID)
-    .map((a) => a.quizId);
+  useEffect(() => {
+    fetch("/api/quizzes?status=Published")
+      .then((r) => r.json())
+      .then((d: QuizWithDetails[]) => { setQuizzes(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
 
-  const startQuiz = useCallback((quiz: Quiz) => {
-    const qs = quiz.questions
-      .map((qId) => mockQuestions.find((q) => q.id === qId))
-      .filter(Boolean) as Question[];
-    setActiveQuiz(quiz);
-    setQuestions(qs);
-    setCurrentQ(0);
-    setAnswers(new Array(qs.length).fill(null));
-    setTimeLeft(quiz.duration * 60);
-    setView("attempt");
+  const startQuiz = useCallback(async (quiz: QuizWithDetails) => {
+    try {
+      const res = await fetch(`/api/quizzes/${quiz.id}`);
+      const fullQuiz: QuizWithDetails = await res.json();
+      setActiveQuiz(fullQuiz);
+      setQuestions(fullQuiz.questions || []);
+      setCurrentQ(0);
+      setAnswers(new Array((fullQuiz.questions || []).length).fill(null));
+      setTimeLeft(fullQuiz.duration * 60);
+      setView("attempt");
+    } catch {
+      // silent fail
+    }
   }, []);
 
   // Countdown timer
@@ -51,15 +69,20 @@ export default function TakeQuizPage() {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          handleSubmit();
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, timeLeft]);
+
+  useEffect(() => {
+    if (view === "attempt" && timeLeft === 0 && activeQuiz) {
+      handleSubmit();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLeft, view]);
 
   const handleAnswer = (optionIdx: number) => {
     const newAnswers = [...answers];
@@ -84,9 +107,13 @@ export default function TakeQuizPage() {
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  const getAttemptForQuiz = (quizId: string) => {
-    return mockQuizAttempts.find((a) => a.quizId === quizId && a.studentId === STUDENT_ID);
-  };
+  if (loading) {
+    return (
+      <div className="flex justify-center p-8">
+        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   // ─── LIST VIEW ───────────────────────────────────────────
   if (view === "list") {
@@ -99,10 +126,7 @@ export default function TakeQuizPage() {
         />
 
         <div className="space-y-4">
-          {quizzes.map((quiz) => {
-            const course = mockCourses.find((c) => c.id === quiz.courseId);
-            const attempted = attemptedQuizIds.includes(quiz.id);
-            const attempt = getAttemptForQuiz(quiz.id);
+          {quizzes.filter((q) => q.status === "Published").map((quiz) => {
             const daysLeft = Math.ceil(
               (new Date(quiz.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
             );
@@ -120,50 +144,37 @@ export default function TakeQuizPage() {
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-semibold text-foreground">{quiz.title}</h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {course?.courseCode} • {quiz.questions.length} questions • {quiz.duration} mins • {quiz.totalMarks} marks
+                    {quiz.course?.courseCode} • {quiz.questions?.length || 0} questions • {quiz.duration} mins • {quiz.totalMarks} marks
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     Due: {new Date(quiz.dueDate).toLocaleDateString()}
                   </p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  {quiz.status === "Closed" ? (
-                    <Badge variant="secondary" className="bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                      Closed
-                    </Badge>
-                  ) : attempted ? (
-                    <div className="text-right">
-                      <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Submitted
-                      </Badge>
-                      {attempt && (
-                        <p className="text-xs font-semibold text-foreground mt-1">
-                          Score: {attempt.score}/{attempt.totalMarks}
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <>
-                      <Badge
-                        variant="secondary"
-                        className={
-                          daysLeft <= 2
-                            ? "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
-                            : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                        }
-                      >
-                        {daysLeft}d left
-                      </Badge>
-                      <Button size="sm" onClick={() => startQuiz(quiz)} className="gap-1">
-                        Start <ArrowRight className="h-3.5 w-3.5" />
-                      </Button>
-                    </>
-                  )}
+                  <Badge
+                    variant="secondary"
+                    className={
+                      daysLeft <= 2
+                        ? "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+                        : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                    }
+                  >
+                    {daysLeft}d left
+                  </Badge>
+                  <Button size="sm" onClick={() => startQuiz(quiz)} className="gap-1">
+                    Start <ArrowRight className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
               </motion.div>
             );
           })}
+          {quizzes.filter((q) => q.status === "Published").length === 0 && (
+            <div className="text-center py-16 text-muted-foreground">
+              <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
+              <p className="text-lg font-medium">No quizzes available</p>
+              <p className="text-sm mt-1">Check back later for new quizzes.</p>
+            </div>
+          )}
         </div>
       </motion.div>
     );
@@ -239,11 +250,7 @@ export default function TakeQuizPage() {
 
             {/* Navigation Buttons */}
             <div className="flex items-center justify-between">
-              <Button
-                variant="outline"
-                onClick={() => setCurrentQ((p) => Math.max(0, p - 1))}
-                disabled={currentQ === 0}
-              >
+              <Button variant="outline" onClick={() => setCurrentQ((p) => Math.max(0, p - 1))} disabled={currentQ === 0}>
                 Previous
               </Button>
               {currentQ < questions.length - 1 ? (
@@ -279,29 +286,13 @@ export default function TakeQuizPage() {
               ))}
             </div>
             <div className="mt-4 space-y-2 text-xs">
-              <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded bg-brand-primary" />
-                <span className="text-muted-foreground">Current</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded bg-emerald-500/20 border border-emerald-500/30" />
-                <span className="text-muted-foreground">Answered</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded bg-muted" />
-                <span className="text-muted-foreground">Not answered</span>
-              </div>
+              <div className="flex items-center gap-2"><div className="h-3 w-3 rounded bg-brand-primary" /><span className="text-muted-foreground">Current</span></div>
+              <div className="flex items-center gap-2"><div className="h-3 w-3 rounded bg-emerald-500/20 border border-emerald-500/30" /><span className="text-muted-foreground">Answered</span></div>
+              <div className="flex items-center gap-2"><div className="h-3 w-3 rounded bg-muted" /><span className="text-muted-foreground">Not answered</span></div>
             </div>
-
             <div className="mt-4 pt-3 border-t border-border">
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20"
-                onClick={handleSubmit}
-              >
-                <AlertCircle className="h-3.5 w-3.5 mr-1" />
-                End Quiz
+              <Button variant="outline" size="sm" className="w-full text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20" onClick={handleSubmit}>
+                <AlertCircle className="h-3.5 w-3.5 mr-1" /> End Quiz
               </Button>
             </div>
           </div>
@@ -322,37 +313,14 @@ export default function TakeQuizPage() {
           <div className={`flex h-20 w-20 mx-auto items-center justify-center rounded-2xl ${isPassing ? "bg-emerald-500/10" : "bg-rose-500/10"}`}>
             <Trophy className={`h-10 w-10 ${isPassing ? "text-emerald-500" : "text-rose-500"}`} />
           </div>
-          <h2 className="text-xl font-bold text-foreground mt-4">
-            {isPassing ? "Great Job! 🎉" : "Keep Trying! 💪"}
-          </h2>
+          <h2 className="text-xl font-bold text-foreground mt-4">{isPassing ? "Great Job! 🎉" : "Keep Trying! 💪"}</h2>
           <p className="text-sm text-muted-foreground mt-1">{activeQuiz.title}</p>
-
           <div className="mt-6 grid grid-cols-3 gap-4">
-            <div className="rounded-xl bg-muted/50 p-3">
-              <p className="text-2xl font-bold text-foreground">{score}</p>
-              <p className="text-xs text-muted-foreground">Score</p>
-            </div>
-            <div className="rounded-xl bg-muted/50 p-3">
-              <p className="text-2xl font-bold text-foreground">{totalMarks}</p>
-              <p className="text-xs text-muted-foreground">Total</p>
-            </div>
-            <div className="rounded-xl bg-muted/50 p-3">
-              <p className={`text-2xl font-bold ${isPassing ? "text-emerald-500" : "text-rose-500"}`}>
-                {percentage}%
-              </p>
-              <p className="text-xs text-muted-foreground">Percentage</p>
-            </div>
+            <div className="rounded-xl bg-muted/50 p-3"><p className="text-2xl font-bold text-foreground">{score}</p><p className="text-xs text-muted-foreground">Score</p></div>
+            <div className="rounded-xl bg-muted/50 p-3"><p className="text-2xl font-bold text-foreground">{totalMarks}</p><p className="text-xs text-muted-foreground">Total</p></div>
+            <div className="rounded-xl bg-muted/50 p-3"><p className={`text-2xl font-bold ${isPassing ? "text-emerald-500" : "text-rose-500"}`}>{percentage}%</p><p className="text-xs text-muted-foreground">Percentage</p></div>
           </div>
-
-          <Button
-            className="mt-6"
-            onClick={() => {
-              setView("list");
-              setActiveQuiz(null);
-            }}
-          >
-            Back to Quizzes
-          </Button>
+          <Button className="mt-6" onClick={() => { setView("list"); setActiveQuiz(null); }}>Back to Quizzes</Button>
         </div>
       </motion.div>
     );

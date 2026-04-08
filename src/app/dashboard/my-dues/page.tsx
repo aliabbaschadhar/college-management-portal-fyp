@@ -1,13 +1,23 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { CreditCard, CheckCircle, AlertTriangle, XCircle } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { StatsCard } from "@/components/dashboard/StatsCard";
-import { getStudentFees } from "@/lib/mock-data";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 
-const STUDENT_ID = "s1";
+interface FeeRecord {
+  id: string;
+  studentId: string;
+  type: string;
+  amount: number;
+  status: "Paid" | "Unpaid" | "Overdue";
+  dueDate: string;
+  semester: number;
+  paidDate: string | null;
+  student: { rollNo: string; user: { name: string | null } };
+}
 
 const statusColors: Record<string, string> = {
   Paid: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
@@ -22,17 +32,33 @@ const statusIcons: Record<string, React.ComponentType<{ className?: string }>> =
 };
 
 export default function MyDuesPage() {
-  const fees = getStudentFees(STUDENT_ID);
+  const [fees, setFees] = useState<FeeRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/fees")
+      .then((r) => r.json())
+      .then((d: FeeRecord[]) => { setFees(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
 
   const totalAmount = fees.reduce((sum, f) => sum + f.amount, 0);
   const paidAmount = fees.filter((f) => f.status === "Paid").reduce((sum, f) => sum + f.amount, 0);
   const pendingAmount = fees.filter((f) => f.status !== "Paid").reduce((sum, f) => sum + f.amount, 0);
   const overdueCount = fees.filter((f) => f.status === "Overdue").length;
 
+  if (loading) {
+    return (
+      <div className="flex justify-center p-8">
+        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-6">
       <PageHeader
-        title="My Dues & Fees"
+        title="My Dues &amp; Fees"
         subtitle="Track your fee payments and pending dues"
         breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "My Dues" }]}
       />
@@ -80,7 +106,7 @@ export default function MyDuesPage() {
                 const StatusIcon = statusIcons[fee.status] || AlertTriangle;
                 return (
                   <tr key={fee.id} className="border-b border-border/50 hover:bg-accent/30 transition-colors">
-                    <td className="py-3 px-4 font-medium text-foreground">{fee.feeType}</td>
+                    <td className="py-3 px-4 font-medium text-foreground">{fee.type}</td>
                     <td className="py-3 px-4 text-muted-foreground">Sem {fee.semester}</td>
                     <td className="py-3 px-4 text-right font-mono font-semibold text-foreground">
                       PKR {fee.amount.toLocaleString()}
@@ -100,6 +126,13 @@ export default function MyDuesPage() {
                   </tr>
                 );
               })}
+              {fees.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="text-center py-12 text-muted-foreground">
+                    No fee records found.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

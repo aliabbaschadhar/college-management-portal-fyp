@@ -1,9 +1,9 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Star, MessageSquare, TrendingUp } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { StatsCard } from "@/components/dashboard/StatsCard";
-import { getFacultyFeedback, mockStudents } from "@/lib/mock-data";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -14,12 +14,27 @@ import {
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from "recharts";
 
-const FACULTY_ID = "f1";
+interface FeedbackItem {
+  id: string;
+  type: "Faculty" | "Course";
+  targetId: string;
+  rating: number;
+  comment: string;
+  date: string;
+}
 
 const STAR_COLORS = ["#E82646", "#F97316", "#EAB300", "#84CC16", "#1ABE17"];
 
 export default function FacultyFeedbackPage() {
-  const feedback = getFacultyFeedback(FACULTY_ID);
+  const [feedback, setFeedback] = useState<FeedbackItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/feedback")
+      .then((r) => r.json())
+      .then((d: FeedbackItem[]) => { setFeedback(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
 
   const avgRating = feedback.length > 0
     ? +(feedback.reduce((sum, f) => sum + f.rating, 0) / feedback.length).toFixed(1)
@@ -41,6 +56,14 @@ export default function FacultyFeedbackPage() {
       { label: `${s} Star`, color: STAR_COLORS[s - 1] },
     ])
   );
+
+  if (loading) {
+    return (
+      <div className="flex justify-center p-8">
+        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-6">
