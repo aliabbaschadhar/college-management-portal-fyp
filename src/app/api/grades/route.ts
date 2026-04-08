@@ -54,7 +54,9 @@ export async function POST(request: NextRequest) {
     }
 
     const total = body.quizMarks + body.assignmentMarks + body.midMarks + body.finalMarks;
-    const gpa = +Math.min(4.0, (total / 150) * 4.0).toFixed(2);
+    // Max marks: quiz(25) + assignment(25) + mid(50) + final(50) = 150
+    const MAX_MARKS = 150;
+    const gpa = +Math.min(4.0, (total / MAX_MARKS) * 4.0).toFixed(2);
 
     const data = {
       quizMarks: body.quizMarks,
