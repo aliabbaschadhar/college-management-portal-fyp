@@ -31,7 +31,10 @@ export default function FacultyFeedbackPage() {
 
   useEffect(() => {
     fetch("/api/feedback")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to fetch feedback");
+        return r.json();
+      })
       .then((d: FeedbackItem[]) => { setFeedback(d); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
@@ -143,7 +146,7 @@ export default function FacultyFeedbackPage() {
           {feedback.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">No feedback received yet.</p>
           ) : (
-            {feedback.map((f) => {
+            feedback.map((f) => {
               return (
                 <div
                   key={f.id}

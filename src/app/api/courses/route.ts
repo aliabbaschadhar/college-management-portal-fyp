@@ -8,7 +8,22 @@ export async function GET(_request: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
+    // Load user to determine filtering
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true, faculty: { select: { id: true } } },
+    });
+
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // Faculty users only see courses assigned to them
+    const whereClause: { assignedFaculty?: string } = {};
+    if (user.role === "FACULTY" && user.faculty) {
+      whereClause.assignedFaculty = user.faculty.id;
+    }
+
     const courses = await prisma.course.findMany({
+      where: whereClause,
       include: {
         faculty: {
           include: { user: { select: { name: true } } },
@@ -41,6 +56,16 @@ export async function POST(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
+    // Check user role
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true },
+    });
+
+    if (!user || user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const body = (await request.json()) as {
       courseCode: string;
       courseName: string;
@@ -50,6 +75,21 @@ export async function POST(request: NextRequest) {
       assignedFaculty?: string;
     };
 
+    // If assignedFaculty is provided, validate it exists and has FACULTY role
+    if (body.assignedFaculty) {
+      const faculty = await prisma.faculty.findUnique({
+        where: { id: body.assignedFaculty },
+        include: { user: { select: { role: true } } },
+      });
+
+      if (!faculty || faculty.user.role !== "FACULTY") {
+        return NextResponse.json(
+          { error: "Invalid faculty assignment: faculty not found or user is not FACULTY" },
+          { status: 400 }
+        );
+      }
+    }
+
     const course = await prisma.course.create({
       data: {
         courseCode: body.courseCode,
@@ -58,6 +98,10 @@ export async function POST(request: NextRequest) {
         department: body.department,
         semester: body.semester ?? 1,
         assignedFaculty: body.assignedFaculty ?? null,
+      },
+      include: {
+        faculty: { include: { user: { select: { name: true } } } },
+        _count: { select: { enrollments: true } },
       },
     });
 

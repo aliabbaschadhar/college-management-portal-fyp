@@ -14,6 +14,14 @@ export async function PATCH(
     const { id } = await params;
     const body = (await request.json()) as { status: "Approved" | "Rejected" | "Pending" };
 
+    // Validate status
+    if (!body.status || !["Approved", "Rejected", "Pending"].includes(body.status)) {
+      return NextResponse.json(
+        { error: "Invalid status. Must be Approved, Rejected, or Pending" },
+        { status: 400 }
+      );
+    }
+
     const admission = await prisma.admission.update({
       where: { id },
       data: { status: body.status },

@@ -17,7 +17,41 @@ export async function PATCH(
       correctOption?: number;
     };
 
-    const question = await prisma.question.update({
+    // Load user role and faculty info
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true, clerkId: true, faculty: { select: { id: true } } },
+    });
+
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // Load question with parent quiz and course info
+    const question = await prisma.question.findUnique({
+      where: { id },
+      include: {
+        quiz: {
+          include: {
+            course: { select: { assignedFaculty: true } },
+          },
+        },
+      },
+    });
+
+    if (!question) {
+      return NextResponse.json({ error: "Question not found" }, { status: 404 });
+    }
+
+    // Verify authorization: admin or faculty assigned to course or quiz creator
+    const isAdmin = user.role === "ADMIN";
+    const isFacultyAssignedToCourse =
+      user.faculty && question.quiz.course?.assignedFaculty === user.faculty.id;
+    const isQuizCreator = question.quiz.createdBy === user.clerkId;
+
+    if (!isAdmin && !isFacultyAssignedToCourse && !isQuizCreator) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const updated = await prisma.question.update({
       where: { id },
       data: {
         ...(body.text !== undefined ? { text: body.text } : {}),
@@ -26,7 +60,7 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json(question);
+    return NextResponse.json(updated);
   } catch (error) {
     console.error("PATCH /api/questions/[id] error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
@@ -42,6 +76,41 @@ export async function DELETE(
 
   try {
     const { id } = await params;
+
+    // Load user role and faculty info
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true, clerkId: true, faculty: { select: { id: true } } },
+    });
+
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // Load question with parent quiz and course info
+    const question = await prisma.question.findUnique({
+      where: { id },
+      include: {
+        quiz: {
+          include: {
+            course: { select: { assignedFaculty: true } },
+          },
+        },
+      },
+    });
+
+    if (!question) {
+      return NextResponse.json({ error: "Question not found" }, { status: 404 });
+    }
+
+    // Verify authorization: admin or faculty assigned to course or quiz creator
+    const isAdmin = user.role === "ADMIN";
+    const isFacultyAssignedToCourse =
+      user.faculty && question.quiz.course?.assignedFaculty === user.faculty.id;
+    const isQuizCreator = question.quiz.createdBy === user.clerkId;
+
+    if (!isAdmin && !isFacultyAssignedToCourse && !isQuizCreator) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     await prisma.question.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error) {

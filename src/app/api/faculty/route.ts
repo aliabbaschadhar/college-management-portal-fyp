@@ -43,6 +43,22 @@ export async function POST(request: NextRequest) {
       specialization: string;
     };
 
+    // Load authenticated user
+    const authUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true, id: true },
+    });
+
+    if (!authUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // Verify authorization: admin OR user creating their own record
+    const isAdmin = authUser.role === "ADMIN";
+    const isSelfCreation = authUser.id === body.userId;
+
+    if (!isAdmin && !isSelfCreation) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const user = await prisma.user.findUnique({ where: { id: body.userId } });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
     if (user.role !== "FACULTY")

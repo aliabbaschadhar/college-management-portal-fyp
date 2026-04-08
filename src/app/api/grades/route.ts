@@ -7,14 +7,59 @@ export async function GET(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
+    // Load user with role and faculty/student info
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: {
+        role: true,
+        faculty: { select: { id: true } },
+        student: { select: { id: true } },
+      },
+    });
+
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const { searchParams } = request.nextUrl;
     const courseId = searchParams.get("courseId");
     const studentId = searchParams.get("studentId");
+
+    // Verify authorization
+    const isAdmin = user.role === "ADMIN";
+    const isFaculty = user.role === "FACULTY";
+
+    if (!isAdmin && !isFaculty) {
+      // Students can only see their own grades
+      if (!user.student) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      if (studentId && studentId !== user.student.id) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+
+    // If faculty and courseId specified, verify they're assigned to it
+    if (isFaculty && courseId && user.faculty) {
+      const course = await prisma.course.findUnique({
+        where: { id: courseId },
+        select: { assignedFaculty: true },
+      });
+      if (!course || course.assignedFaculty !== user.faculty.id) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+
+    // If studentId is provided, ensure only authorized users can view
+    if (studentId && !isAdmin && !isFaculty) {
+      if (!user.student || user.student.id !== studentId) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
 
     const grades = await prisma.grade.findMany({
       where: {
         ...(courseId ? { courseId } : {}),
         ...(studentId ? { studentId } : {}),
+        ...(!isAdmin && !isFaculty && user.student ? { studentId: user.student.id } : {}),
       },
       include: {
         student: {
@@ -36,6 +81,16 @@ export async function POST(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
+    // Check user role - only admin/faculty can create/update grades
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true, faculty: { select: { id: true } } },
+    });
+
+    if (!user || !["ADMIN", "FACULTY"].includes(user.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const body = (await request.json()) as {
       studentId: string;
       courseId: string;
@@ -44,6 +99,17 @@ export async function POST(request: NextRequest) {
       midMarks: number;
       finalMarks: number;
     };
+
+    // If faculty, verify they're assigned to the course
+    if (user.role === "FACULTY" && user.faculty) {
+      const course = await prisma.course.findUnique({
+        where: { id: body.courseId },
+        select: { assignedFaculty: true },
+      });
+      if (!course || course.assignedFaculty !== user.faculty.id) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
 
     const existing = await prisma.grade.findFirst({
       where: { studentId: body.studentId, courseId: body.courseId },

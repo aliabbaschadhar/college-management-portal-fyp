@@ -16,7 +16,13 @@ export async function GET(request: NextRequest) {
         ...(quizId ? { quizId } : {}),
         ...(courseId ? { quiz: { courseId } } : {}),
       },
-      include: { quiz: { select: { courseId: true, title: true } } },
+      select: {
+        id: true,
+        text: true,
+        options: true,
+        quizId: true,
+        quiz: { select: { courseId: true, title: true, course: { select: { courseCode: true } } } },
+      },
     });
 
     return NextResponse.json(questions);
@@ -31,12 +37,40 @@ export async function POST(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
+    // Load user role and faculty info
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true, clerkId: true, faculty: { select: { id: true } } },
+    });
+
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const body = (await request.json()) as {
       text: string;
       options: string[];
       correctOption: number;
       quizId: string;
     };
+
+    // Load parent quiz with course info
+    const quiz = await prisma.quiz.findUnique({
+      where: { id: body.quizId },
+      include: { course: { select: { assignedFaculty: true } } },
+    });
+
+    if (!quiz) {
+      return NextResponse.json({ error: "Quiz not found" }, { status: 404 });
+    }
+
+    // Verify authorization: admin or faculty assigned to course or quiz creator
+    const isAdmin = user.role === "ADMIN";
+    const isFacultyAssignedToCourse =
+      user.faculty && quiz.course?.assignedFaculty === user.faculty.id;
+    const isQuizCreator = quiz.createdBy === user.clerkId;
+
+    if (!isAdmin && !isFacultyAssignedToCourse && !isQuizCreator) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const question = await prisma.question.create({
       data: {

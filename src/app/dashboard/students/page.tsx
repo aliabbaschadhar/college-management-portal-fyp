@@ -96,7 +96,22 @@ export default function ManageStudentsPage() {
     const url = filterDept === "all" ? "/api/students" : `/api/students?department=${encodeURIComponent(filterDept)}`;
     fetch(url)
       .then((r) => r.json())
-      .then((d: StudentWithUser[]) => { setStudents(Array.isArray(d) ? d : []); setLoading(false); })
+      .then((d) => {
+        // Normalize API response to match UI shape
+        const normalized = Array.isArray(d) ? d.map((item: unknown) => {
+          const s = item as Record<string, unknown>;
+          return {
+            ...s,
+            user: {
+              name: s.user && typeof s.user === "object" && "name" in s.user ? s.user.name : s.name ?? null,
+              email: s.user && typeof s.user === "object" && "email" in s.user ? s.user.email : s.email ?? "",
+            },
+            _count: s._count ?? { enrollments: 0 },
+          };
+        }) : [];
+        setStudents(normalized as StudentWithUser[]);
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
   }, [isLoaded, role, router, filterDept]);
 
@@ -114,9 +129,21 @@ export default function ManageStudentsPage() {
       body: JSON.stringify(form),
     });
     if (res.ok) {
-      const updated: StudentWithUser = await res.json();
-      setStudents((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      const updated = await res.json();
+      // Normalize response shape to match UI expectations
+      const normalized: StudentWithUser = {
+        ...updated,
+        user: {
+          name: updated.user?.name ?? updated.name ?? null,
+          email: updated.user?.email ?? updated.email ?? "",
+        },
+        _count: updated._count ?? { enrollments: 0 },
+      };
+      setStudents((prev) => prev.map((s) => (s.id === normalized.id ? normalized : s)));
       setDialogOpen(false);
+    } else {
+      const errorData = await res.json().catch(() => ({ error: "Unknown error" }));
+      alert(`Failed to update student: ${errorData.error}`);
     }
   };
 
@@ -128,6 +155,8 @@ export default function ManageStudentsPage() {
       setDeleteDialogOpen(false);
       setDeletingStudent(null);
     } else {
+      const errorData = await res.json().catch(() => ({ error: "Unknown error" }));
+      alert(`Failed to delete student: ${errorData.error}`);
       setDeleteDialogOpen(false);
       setDeletingStudent(null);
     }
@@ -212,7 +241,7 @@ export default function ManageStudentsPage() {
       <DataTable
         data={students as unknown as Record<string, unknown>[]}
         columns={columns as unknown as Column<Record<string, unknown>>[]}
-        searchPlaceholder="Search by name, roll no, or email..."
+        searchPlaceholder="Search by roll no..."
         searchKeys={["rollNo"]}
       />
 

@@ -13,11 +13,36 @@ export async function GET(
 
   try {
     const { id } = await params;
+
+    // Load user role to check authorization
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true, faculty: { select: { id: true } }, student: { select: { id: true } } },
+    });
+
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // Determine if user should see enrollments
+    const isAdmin = user.role === "ADMIN";
+    const isFaculty = user.role === "FACULTY";
+
+    // If faculty, verify they're assigned to this course
+    let canSeeEnrollments = isAdmin;
+    if (isFaculty && user.faculty) {
+      const courseCheck = await prisma.course.findUnique({
+        where: { id },
+        select: { assignedFaculty: true },
+      });
+      canSeeEnrollments = courseCheck?.assignedFaculty === user.faculty.id;
+    }
+
     const course = await prisma.course.findUnique({
       where: { id },
       include: {
         faculty: { include: { user: { select: { name: true } } } },
-        enrollments: { include: { student: { include: { user: { select: { name: true } } } } } },
+        ...(canSeeEnrollments
+          ? { enrollments: { include: { student: { include: { user: { select: { name: true } } } } } } }
+          : {}),
       },
     });
 
@@ -56,6 +81,10 @@ export async function PATCH(
         ...(body.department !== undefined ? { department: body.department } : {}),
         ...(body.semester !== undefined ? { semester: body.semester } : {}),
         ...(body.assignedFaculty !== undefined ? { assignedFaculty: body.assignedFaculty } : {}),
+      },
+      include: {
+        faculty: { include: { user: { select: { name: true } } } },
+        _count: { select: { enrollments: true } },
       },
     });
 

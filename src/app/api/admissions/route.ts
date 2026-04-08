@@ -7,12 +7,39 @@ export async function GET(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
+    // Check user role
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true },
+    });
+
+    if (!user || !["ADMIN", "FACULTY"].includes(user.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { searchParams } = request.nextUrl;
     const status = searchParams.get("status");
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "20");
+    const skip = (page - 1) * limit;
 
     const admissions = await prisma.admission.findMany({
       where: { ...(status ? { status } : {}) },
       orderBy: { applicationDate: "desc" },
+      select: {
+        id: true,
+        studentName: true,
+        email: true,
+        phone: true,
+        appliedDepartment: true,
+        applicationDate: true,
+        status: true,
+        previousInstitution: true,
+        marksObtained: true,
+        totalMarks: true,
+      },
+      skip,
+      take: limit,
     });
 
     return NextResponse.json(admissions);

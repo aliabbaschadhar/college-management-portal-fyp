@@ -1,22 +1,49 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { FeedbackType } from "@prisma/client";
+import { FeedbackType, Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
+    // Load user with role and associated records
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: {
+        role: true,
+        student: { select: { id: true } },
+        faculty: { select: { id: true } },
+      },
+    });
+
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const { searchParams } = request.nextUrl;
     const targetId = searchParams.get("targetId");
     const type = searchParams.get("type") as FeedbackType | null;
 
+    // Build where clause with authorization checks
+    const isAdmin = user.role === "ADMIN";
+    const isFaculty = user.role === "FACULTY";
+
+    // Admin and faculty can see feedback, students can only see their own
+    let whereClause: Prisma.FeedbackWhereInput = {
+      ...(targetId ? { targetId } : {}),
+      ...(type ? { type } : {}),
+    };
+
+    if (!isAdmin && !isFaculty) {
+      // Students can only see their own feedback
+      if (!user.student) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      whereClause = { ...whereClause, studentId: user.student.id };
+    }
+
     const feedbacks = await prisma.feedback.findMany({
-      where: {
-        ...(targetId ? { targetId } : {}),
-        ...(type ? { type } : {}),
-      },
+      where: whereClause,
       select: {
         id: true,
         type: true,

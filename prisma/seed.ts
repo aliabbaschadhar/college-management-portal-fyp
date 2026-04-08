@@ -122,15 +122,26 @@ async function main() {
 
   // Attendance
   for (const a of mockAttendance) {
-    await prisma.attendance.create({
-      data: {
+    await prisma.attendance.upsert({
+      where: {
+        studentId_courseId_date: {
+          studentId: a.studentId,
+          courseId: a.courseId,
+          date: new Date(a.date),
+        },
+      },
+      update: {
+        status: a.status as "Present" | "Absent" | "Late",
+        markedBy: a.markedBy,
+      },
+      create: {
         id: a.id,
         studentId: a.studentId,
         courseId: a.courseId,
         date: new Date(a.date),
         status: a.status as "Present" | "Absent" | "Late",
-        markedBy: a.markedBy
-      }
+        markedBy: a.markedBy,
+      },
     });
   }
   console.log("Attendance seeded.");

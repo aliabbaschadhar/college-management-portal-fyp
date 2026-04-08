@@ -8,9 +8,23 @@ export async function GET(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
+    // Load user role
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true },
+    });
+
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // Only admin and faculty can list students
+    if (!["ADMIN", "FACULTY"].includes(user.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { searchParams } = request.nextUrl;
     const department = searchParams.get("department");
     const search = searchParams.get("search");
+    const courseId = searchParams.get("courseId");
 
     const students = await prisma.student.findMany({
       where: {
@@ -23,24 +37,30 @@ export async function GET(request: NextRequest) {
               ],
             }
           : {}),
+        ...(courseId ? { enrollments: { some: { courseId } } } : {}),
       },
       include: {
         user: { select: { name: true, email: true } },
-        enrollments: true,
+        _count: { select: { enrollments: true } },
       },
     });
 
     const result = students.map((s) => ({
       id: s.id,
-      name: s.user.name,
-      email: s.user.email,
+      userId: s.userId,
       rollNo: s.rollNo,
       phone: s.phone,
       department: s.department,
       semester: s.semester,
       enrollmentDate: s.enrollmentDate.toISOString(),
       avatar: s.avatar,
-      enrollments: s.enrollments,
+      user: {
+        name: s.user.name,
+        email: s.user.email,
+      },
+      _count: {
+        enrollments: s._count.enrollments,
+      },
     }));
 
     return NextResponse.json(result);
@@ -55,6 +75,19 @@ export async function POST(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
+    // Load authenticated user role
+    const authUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true, id: true },
+    });
+
+    if (!authUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // Only admin can create student records
+    if (authUser.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const body = (await request.json()) as {
       userId: string;
       rollNo: string;
