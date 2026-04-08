@@ -1,12 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CheckCircle, XCircle, Clock, Eye } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
-import { mockAdmissions } from "@/lib/mock-data";
-import type { Admission } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -26,34 +24,61 @@ import {
 } from "@/components/ui/select";
 import { motion } from "framer-motion";
 
-const statusColors: Record<Admission["status"], string> = {
+interface Admission {
+  id: string;
+  studentName: string;
+  email: string;
+  phone: string;
+  appliedDepartment: string;
+  applicationDate: string;
+  status: "Pending" | "Approved" | "Rejected";
+  fatherName: string | null;
+  cnic: string | null;
+  previousInstitution: string | null;
+  marksObtained: number;
+  totalMarks: number;
+}
+
+const statusColors: Record<"Pending" | "Approved" | "Rejected", string> = {
   Pending: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
   Approved: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
   Rejected: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
 };
 
-const statusIcons: Record<Admission["status"], LucideIcon> = {
+const statusIcons: Record<"Pending" | "Approved" | "Rejected", LucideIcon> = {
   Pending: Clock,
   Approved: CheckCircle,
   Rejected: XCircle,
 };
 
 export default function ManageAdmissionsPage() {
-  const [admissions, setAdmissions] = useState<Admission[]>(mockAdmissions);
+  const [admissions, setAdmissions] = useState<Admission[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedAdmission, setSelectedAdmission] = useState<Admission | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
-  const filteredAdmissions = filterStatus === "all" 
-    ? admissions 
-    : admissions.filter((a) => a.status === filterStatus);
+  useEffect(() => {
+    const url = filterStatus === "all" ? "/api/admissions" : `/api/admissions?status=${filterStatus}`;
+    fetch(url)
+      .then((r) => r.json())
+      .then((d: Admission[]) => { setAdmissions(Array.isArray(d) ? d : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [filterStatus]);
 
-  const handleStatusChange = (id: string, newStatus: Admission["status"]) => {
-    setAdmissions((prev) => 
-      prev.map((a) => (a.id === id ? { ...a, status: newStatus } : a))
-    );
-    if (selectedAdmission?.id === id) {
-      setSelectedAdmission({ ...selectedAdmission, status: newStatus });
+  const handleStatusChange = async (id: string, newStatus: "Pending" | "Approved" | "Rejected") => {
+    const res = await fetch(`/api/admissions/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    if (res.ok) {
+      setAdmissions((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, status: newStatus } : a))
+      );
+      if (selectedAdmission?.id === id) {
+        setSelectedAdmission({ ...selectedAdmission, status: newStatus });
+      }
     }
   };
 
@@ -77,9 +102,9 @@ export default function ManageAdmissionsPage() {
         </Badge>
       );
     }},
-    { key: "actions", header: "Actions", render: (row) => (
+    { key: "id", header: "Actions", render: (row) => (
       <div className="flex items-center gap-1">
-        <button 
+        <button
           onClick={() => { setSelectedAdmission(row); setViewDialogOpen(true); }}
           className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"
           title="View Details"
@@ -88,14 +113,14 @@ export default function ManageAdmissionsPage() {
         </button>
         {row.status === "Pending" && (
           <>
-            <button 
+            <button
               onClick={() => handleStatusChange(row.id, "Approved")}
               className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
               title="Approve"
             >
               <CheckCircle className="h-4 w-4 text-emerald-600" />
             </button>
-            <button 
+            <button
               onClick={() => handleStatusChange(row.id, "Rejected")}
               className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
               title="Reject"
@@ -108,11 +133,19 @@ export default function ManageAdmissionsPage() {
     )},
   ];
 
+  if (loading) {
+    return (
+      <div className="flex justify-center p-8">
+        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
       <PageHeader
         title="Manage Admissions"
-        subtitle={`${admissions.filter(a => a.status === 'Pending').length} pending applications require review`}
+        subtitle={`${admissions.filter((a) => a.status === "Pending").length} pending applications require review`}
         breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Admissions" }]}
         action={
           <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -130,7 +163,7 @@ export default function ManageAdmissionsPage() {
       />
 
       <DataTable
-        data={filteredAdmissions as unknown as Record<string, unknown>[]}
+        data={admissions as unknown as Record<string, unknown>[]}
         columns={columns as unknown as Column<Record<string, unknown>>[]}
         searchPlaceholder="Search applicants..."
         searchKeys={["studentName", "email", "appliedDepartment"]}
@@ -143,7 +176,7 @@ export default function ManageAdmissionsPage() {
             <DialogTitle>Application Details</DialogTitle>
             <DialogDescription>Reviewing admission request for {selectedAdmission?.studentName}</DialogDescription>
           </DialogHeader>
-          
+
           {selectedAdmission && (
             <div className="grid gap-6 py-4">
               <div className="grid grid-cols-2 gap-4">
@@ -182,13 +215,13 @@ export default function ManageAdmissionsPage() {
           <DialogFooter className="flex gap-2 sm:justify-start">
             {selectedAdmission?.status === "Pending" ? (
               <>
-                <Button 
+                <Button
                   onClick={() => handleStatusChange(selectedAdmission.id, "Approved")}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white flex-1"
                 >
                   <CheckCircle className="h-4 w-4 mr-2" /> Approve
                 </Button>
-                <Button 
+                <Button
                   onClick={() => handleStatusChange(selectedAdmission.id, "Rejected")}
                   variant="destructive"
                   className="flex-1"

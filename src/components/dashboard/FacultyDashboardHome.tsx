@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   BookOpen,
   Users,
@@ -13,15 +14,7 @@ import {
 } from "lucide-react";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import {
-  getFacultyDashboardStats,
-  getFacultyClasses,
-  getFacultyTimetable,
-  getFacultyFeedback,
-  getCourseStudents,
-  mockAnnouncements,
-  mockQuizzes,
-} from "@/lib/mock-data";
+import { useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
@@ -33,7 +26,50 @@ import {
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Pie, PieChart, Cell } from "recharts";
 
-const FACULTY_ID = "f1";
+interface FacultyCourse {
+  id: string;
+  courseCode: string;
+  courseName: string;
+  enrolledCount: number;
+}
+
+interface FacultyTimetableEntry {
+  id: string;
+  day: string;
+  courseCode: string;
+  courseName: string;
+  startTime: string;
+  endTime: string;
+  room: string;
+}
+
+interface FacultyAnnouncement {
+  id: string;
+  title: string;
+  priority: string;
+  date: string;
+}
+
+interface FacultyDashboardData {
+  stats: {
+    totalCourses: number;
+    totalStudents: number;
+    avgRating: number;
+    pendingQuizReviews: number;
+  };
+  courses: FacultyCourse[];
+  timetable: FacultyTimetableEntry[];
+  announcements: FacultyAnnouncement[];
+}
+
+interface Quiz {
+  id: string;
+  title: string;
+  courseId: string;
+  status: string;
+  duration: number;
+  questions: string[];
+}
 
 const container = {
   hidden: { opacity: 0 },
@@ -46,48 +82,60 @@ const item = {
 
 const CHART_COLORS = ["#3D5EE1", "#6FCCD8", "#A78BFA", "#F59E0B", "#1ABE17", "#E82646"];
 
+const attendancePieData = [
+  { name: "Present", value: 78, fill: "#1ABE17" },
+  { name: "Late", value: 12, fill: "#EAB300" },
+  { name: "Absent", value: 10, fill: "#E82646" },
+];
+
+const attendancePieConfig: ChartConfig = {
+  present: { label: "Present", color: "#1ABE17" },
+  late: { label: "Late", color: "#EAB300" },
+  absent: { label: "Absent", color: "#E82646" },
+};
+
+const defaultData: FacultyDashboardData = {
+  stats: { totalCourses: 0, totalStudents: 0, avgRating: 0, pendingQuizReviews: 0 },
+  courses: [],
+  timetable: [],
+  announcements: [],
+};
+
 export function FacultyDashboardHome() {
-  const stats = getFacultyDashboardStats(FACULTY_ID);
-  const courses = getFacultyClasses(FACULTY_ID);
-  const timetable = getFacultyTimetable(FACULTY_ID);
-  const feedback = getFacultyFeedback(FACULTY_ID);
+  useUser(); // Ensure user is authenticated
+  const [data, setData] = useState<FacultyDashboardData>(defaultData);
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/dashboard/faculty").then((r) => r.json()),
+      fetch("/api/quizzes").then((r) => r.json()).catch(() => []),
+    ])
+      .then(([dashData, quizData]: [FacultyDashboardData, Quiz[]]) => {
+        setData(dashData);
+        setQuizzes(Array.isArray(quizData) ? quizData : []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
 
   const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const today = days[new Date().getDay()];
-  const todayClasses = timetable.filter((t) => t.day === today);
+  const todayClasses = data.timetable.filter((t) => t.day === today);
 
-  const facultyAnnouncements = mockAnnouncements.filter(
-    (a) => a.audience === "All" || a.audience === "Faculty"
-  );
-
-  const myQuizzes = mockQuizzes.filter((q) => q.createdBy === FACULTY_ID);
-
-  // Course enrollment chart
-  const enrollmentData = courses.map((c, i) => ({
+  const enrollmentData = data.courses.map((c, i) => ({
     course: c.courseCode,
-    students: getCourseStudents(c.id).length,
+    students: c.enrolledCount,
     fill: CHART_COLORS[i % CHART_COLORS.length],
   }));
 
   const enrollmentConfig: ChartConfig = Object.fromEntries(
-    courses.map((c, i) => [
+    data.courses.map((c, i) => [
       c.courseCode,
-      { label: c.name, color: CHART_COLORS[i % CHART_COLORS.length] },
+      { label: c.courseName, color: CHART_COLORS[i % CHART_COLORS.length] },
     ])
   );
-
-  // Attendance pie chart data
-  const attendancePieData = [
-    { name: "Present", value: 78, fill: "#1ABE17" },
-    { name: "Late", value: 12, fill: "#EAB300" },
-    { name: "Absent", value: 10, fill: "#E82646" },
-  ];
-
-  const attendancePieConfig: ChartConfig = {
-    present: { label: "Present", color: "#1ABE17" },
-    late: { label: "Late", color: "#EAB300" },
-    absent: { label: "Absent", color: "#E82646" },
-  };
 
   const quickActions = [
     { title: "Mark Attendance", href: "/dashboard/mark-attendance", icon: ClipboardCheck, color: "#1ABE17" },
@@ -95,6 +143,14 @@ export function FacultyDashboardHome() {
     { title: "Create Quiz", href: "/dashboard/quizzes", icon: FileText, color: "#A78BFA" },
     { title: "Question Bank", href: "/dashboard/question-bank", icon: BookOpen, color: "#F59E0B" },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex justify-center p-8">
+        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
@@ -107,7 +163,7 @@ export function FacultyDashboardHome() {
       <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatsCard
           title="My Courses"
-          value={stats.totalCourses}
+          value={data.stats.totalCourses}
           trend="Active"
           trendDirection="up"
           icon={BookOpen}
@@ -116,7 +172,7 @@ export function FacultyDashboardHome() {
         />
         <StatsCard
           title="Total Students"
-          value={stats.totalStudents}
+          value={data.stats.totalStudents}
           trend="Across courses"
           trendDirection="up"
           icon={Users}
@@ -125,8 +181,8 @@ export function FacultyDashboardHome() {
         />
         <StatsCard
           title="Avg Feedback"
-          value={`${stats.avgRating}/5`}
-          trend={stats.avgRating >= 4 ? "Excellent" : "Good"}
+          value={`${data.stats.avgRating}/5`}
+          trend={data.stats.avgRating >= 4 ? "Excellent" : "Good"}
           trendDirection="up"
           icon={Star}
           iconColor="#F59E0B"
@@ -134,7 +190,7 @@ export function FacultyDashboardHome() {
         />
         <StatsCard
           title="Active Quizzes"
-          value={stats.pendingQuizReviews}
+          value={data.stats.pendingQuizReviews}
           trend="Published"
           trendDirection="up"
           icon={FileText}
@@ -228,11 +284,11 @@ export function FacultyDashboardHome() {
               Manage
             </Link>
           </div>
-          {myQuizzes.length === 0 ? (
+          {quizzes.length === 0 ? (
             <p className="text-sm text-muted-foreground">No quizzes created yet.</p>
           ) : (
             <div className="space-y-3">
-              {myQuizzes.slice(0, 4).map((quiz) => {
+              {quizzes.slice(0, 4).map((quiz) => {
                 const statusColors: Record<string, string> = {
                   Draft: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
                   Published: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
@@ -252,7 +308,7 @@ export function FacultyDashboardHome() {
                         {quiz.questions.length} questions • {quiz.duration} mins
                       </p>
                     </div>
-                    <Badge variant="secondary" className={statusColors[quiz.status]}>
+                    <Badge variant="secondary" className={statusColors[quiz.status] ?? ""}>
                       {quiz.status}
                     </Badge>
                   </div>
@@ -293,7 +349,7 @@ export function FacultyDashboardHome() {
               <Bell className="h-4 w-4 text-muted-foreground" />
             </div>
             <div className="space-y-2">
-              {facultyAnnouncements.slice(0, 3).map((ann) => (
+              {data.announcements.slice(0, 3).map((ann) => (
                 <div key={ann.id} className="rounded-lg p-2.5 bg-accent/20">
                   <p className="text-sm font-medium text-foreground">{ann.title}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
@@ -304,6 +360,9 @@ export function FacultyDashboardHome() {
                   </p>
                 </div>
               ))}
+              {data.announcements.length === 0 && (
+                <p className="text-sm text-muted-foreground">No announcements.</p>
+              )}
             </div>
           </div>
         </div>

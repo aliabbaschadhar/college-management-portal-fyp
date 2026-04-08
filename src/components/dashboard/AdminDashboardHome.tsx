@@ -1,9 +1,9 @@
 "use client";
 
-import { Users, GraduationCap, BookOpen, UserPlus, ClipboardCheck, CreditCard, MessageSquare, Calendar, ArrowRight, UserCheck, DollarSign, Bell } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Users, GraduationCap, BookOpen, UserPlus, ClipboardCheck, Calendar, ArrowRight, DollarSign, Bell } from "lucide-react";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { adminDashboardStats, studentsPerDepartment, attendanceOverview, recentActivity } from "@/lib/mock-data";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -25,21 +25,27 @@ const item = {
   show: { opacity: 1, y: 0 },
 };
 
+interface AdminDashboardData {
+  stats: {
+    totalStudents: number;
+    totalFaculty: number;
+    activeCourses: number;
+    pendingAdmissions: number;
+    totalFeeCollected: number;
+    totalFeePending: number;
+    attendanceRate: number;
+  };
+  studentsPerDepartment: { department: string; students: number }[];
+  attendanceOverview: { name: string; value: number }[];
+  recentAnnouncements: { id: string; title: string; priority: string; date: string }[];
+}
+
 const quickActions = [
   { title: "Add Student", href: "/dashboard/students", icon: UserPlus, color: "#3D5EE1" },
   { title: "Mark Attendance", href: "/dashboard/attendance", icon: ClipboardCheck, color: "#1ABE17" },
-  { title: "Create Announcement", href: "/dashboard/announcements", icon: MessageSquare, color: "#EAB300" },
+  { title: "Create Announcement", href: "/dashboard/announcements", icon: Bell, color: "#EAB300" },
   { title: "Generate Timetable", href: "/dashboard/timetable", icon: Calendar, color: "#6FCCD8" },
 ];
-
-const activityIcons: Record<string, React.ComponentType<{ className?: string }>> = {
-  admission: UserPlus,
-  attendance: ClipboardCheck,
-  fee: DollarSign,
-  announcement: Bell,
-  course: BookOpen,
-  student: UserCheck,
-};
 
 const DEPT_COLORS = ["#3D5EE1", "#6FCCD8", "#A78BFA", "#F59E0B", "#10B981", "#EF4444", "#8B5CF6", "#EC4899"];
 
@@ -53,18 +59,43 @@ const doughnutConfig: ChartConfig = {
   late: { label: "Late", color: "#EAB300" },
 };
 
+const defaultData: AdminDashboardData = {
+  stats: { totalStudents: 0, totalFaculty: 0, activeCourses: 0, pendingAdmissions: 0, totalFeeCollected: 0, totalFeePending: 0, attendanceRate: 0 },
+  studentsPerDepartment: [],
+  attendanceOverview: [],
+  recentAnnouncements: [],
+};
+
 export default function AdminDashboardHome() {
-  const barChartData = studentsPerDepartment.labels.map((label, i) => ({
-    department: label.length > 12 ? label.slice(0, 10) + "…" : label,
-    students: studentsPerDepartment.data[i],
+  const [data, setData] = useState<AdminDashboardData>(defaultData);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/dashboard/admin")
+      .then((r) => r.json())
+      .then((d: AdminDashboardData) => { setData(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const barChartData = data.studentsPerDepartment.map((item, i) => ({
+    department: item.department.length > 12 ? item.department.slice(0, 10) + "…" : item.department,
+    students: item.students,
     fill: DEPT_COLORS[i % DEPT_COLORS.length],
   }));
 
-  const pieData = attendanceOverview.labels.map((label, i) => ({
-    name: label,
-    value: attendanceOverview.data[i],
-    fill: ["#1ABE17", "#E82646", "#EAB300"][i],
+  const pieData = data.attendanceOverview.map((item, i) => ({
+    name: item.name,
+    value: item.value,
+    fill: ["#1ABE17", "#E82646", "#EAB300"][i] ?? "#6FCCD8",
   }));
+
+  if (loading) {
+    return (
+      <div className="flex justify-center p-8">
+        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
@@ -77,7 +108,7 @@ export default function AdminDashboardHome() {
       <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatsCard
           title="Total Students"
-          value={adminDashboardStats.totalStudents}
+          value={data.stats.totalStudents}
           trend="12%"
           trendDirection="up"
           icon={Users}
@@ -86,7 +117,7 @@ export default function AdminDashboardHome() {
         />
         <StatsCard
           title="Total Faculty"
-          value={adminDashboardStats.totalFaculty}
+          value={data.stats.totalFaculty}
           trend="3%"
           trendDirection="up"
           icon={GraduationCap}
@@ -95,7 +126,7 @@ export default function AdminDashboardHome() {
         />
         <StatsCard
           title="Active Courses"
-          value={adminDashboardStats.activeCourses}
+          value={data.stats.activeCourses}
           trend="5%"
           trendDirection="up"
           icon={BookOpen}
@@ -104,7 +135,7 @@ export default function AdminDashboardHome() {
         />
         <StatsCard
           title="Pending Admissions"
-          value={adminDashboardStats.pendingAdmissions}
+          value={data.stats.pendingAdmissions}
           trend="2"
           trendDirection="down"
           icon={UserPlus}
@@ -164,30 +195,33 @@ export default function AdminDashboardHome() {
         </div>
       </motion.div>
 
-      {/* Bottom section: Activity + Quick Actions */}
+      {/* Bottom section: Recent Announcements + Quick Actions */}
       <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Recent Activity */}
+        {/* Recent Announcements */}
         <div className="lg:col-span-2 rounded-xl border border-border bg-card p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">Recent Activity</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-4">Recent Announcements</h3>
           <div className="space-y-3">
-            {recentActivity.map((act) => {
-              const ActIcon = activityIcons[act.type] || Bell;
-              return (
+            {data.recentAnnouncements.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No recent announcements.</p>
+            ) : (
+              data.recentAnnouncements.map((ann) => (
                 <div
-                  key={act.id}
+                  key={ann.id}
                   className="flex items-start gap-3 rounded-lg p-3 hover:bg-accent/50 transition-colors"
                 >
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-primary/10">
-                    <ActIcon className="h-4 w-4 text-brand-primary" />
+                    <Bell className="h-4 w-4 text-brand-primary" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-foreground">{act.action}</p>
-                    <p className="text-xs text-muted-foreground">{act.user}</p>
+                    <p className="text-sm text-foreground">{ann.title}</p>
+                    <p className="text-xs text-muted-foreground">{ann.priority} priority</p>
                   </div>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">{act.timestamp}</span>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {new Date(ann.date).toLocaleDateString()}
+                  </span>
                 </div>
-              );
-            })}
+              ))
+            )}
           </div>
         </div>
 
@@ -220,13 +254,13 @@ export default function AdminDashboardHome() {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Collected</span>
                 <span className="text-sm font-semibold text-system-success">
-                  PKR {adminDashboardStats.totalFeeCollected.toLocaleString()}
+                  PKR {data.stats.totalFeeCollected.toLocaleString()}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Pending</span>
                 <span className="text-sm font-semibold text-system-danger">
-                  PKR {adminDashboardStats.totalFeePending.toLocaleString()}
+                  PKR {data.stats.totalFeePending.toLocaleString()}
                 </span>
               </div>
             </div>

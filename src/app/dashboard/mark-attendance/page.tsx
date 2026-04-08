@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ClipboardCheck, CheckCircle, Users } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { getFacultyClasses, getCourseStudents } from "@/lib/mock-data";
-import type { Student } from "@/types";
+import { useUser } from "@clerk/nextjs";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,12 +16,22 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 
-const FACULTY_ID = "f1";
+interface CourseOption {
+  id: string;
+  courseCode: string;
+  courseName: string;
+}
+
+interface StudentOption {
+  id: string;
+  rollNo: string;
+  user: { name: string | null };
+}
 
 type AttendanceStatus = "Present" | "Absent" | "Late";
 
 interface StudentAttendance {
-  student: Student;
+  student: StudentOption;
   status: AttendanceStatus;
 }
 
@@ -33,24 +42,37 @@ const statusStyles: Record<AttendanceStatus, { bg: string; active: string }> = {
 };
 
 export default function MarkAttendancePage() {
-  const courses = getFacultyClasses(FACULTY_ID);
+  useUser();
+  const [courses, setCourses] = useState<CourseOption[]>([]);
   const [selectedCourse, setSelectedCourse] = useState("");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [attendanceData, setAttendanceData] = useState<StudentAttendance[]>([]);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/courses")
+      .then((r) => r.json())
+      .then((d: CourseOption[]) => setCourses(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, []);
 
   const handleCourseChange = (courseId: string) => {
     setSelectedCourse(courseId);
     setSubmitted(false);
-    const students = getCourseStudents(courseId);
-    setAttendanceData(students.map((s) => ({ student: s, status: "Present" as AttendanceStatus })));
+    fetch("/api/students")
+      .then((r) => r.json())
+      .then((students: StudentOption[]) => {
+        setAttendanceData(
+          (Array.isArray(students) ? students : []).map((s) => ({ student: s, status: "Present" as AttendanceStatus }))
+        );
+      })
+      .catch(() => setAttendanceData([]));
   };
 
   const toggleStatus = (studentId: string, status: AttendanceStatus) => {
     setAttendanceData((prev) =>
-      prev.map((item) =>
-        item.student.id === studentId ? { ...item, status } : item
-      )
+      prev.map((item) => (item.student.id === studentId ? { ...item, status } : item))
     );
   };
 
@@ -58,9 +80,23 @@ export default function MarkAttendancePage() {
     setAttendanceData((prev) => prev.map((item) => ({ ...item, status })));
   };
 
-  const handleSubmit = () => {
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 3000);
+  const handleSubmit = async () => {
+    if (!selectedCourse || attendanceData.length === 0) return;
+    setSubmitting(true);
+    const res = await fetch("/api/attendance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        courseId: selectedCourse,
+        date: selectedDate,
+        records: attendanceData.map((a) => ({ studentId: a.student.id, status: a.status })),
+      }),
+    });
+    setSubmitting(false);
+    if (res.ok) {
+      setSubmitted(true);
+      setTimeout(() => setSubmitted(false), 3000);
+    }
   };
 
   const presentCount = attendanceData.filter((a) => a.status === "Present").length;
@@ -87,7 +123,7 @@ export default function MarkAttendancePage() {
               <SelectContent>
                 {courses.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
-                    {c.courseCode} — {c.name}
+                    {c.courseCode} — {c.courseName}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -145,7 +181,7 @@ export default function MarkAttendancePage() {
                   {attendanceData.map((item, i) => (
                     <tr key={item.student.id} className="border-b border-border/50 hover:bg-accent/20 transition-colors">
                       <td className="py-3 px-4 text-muted-foreground">{i + 1}</td>
-                      <td className="py-3 px-4 font-medium text-foreground">{item.student.name}</td>
+                      <td className="py-3 px-4 font-medium text-foreground">{item.student.user.name ?? "—"}</td>
                       <td className="py-3 px-4 font-mono text-muted-foreground">{item.student.rollNo}</td>
                       <td className="py-3 px-4">
                         <div className="flex items-center justify-center gap-1.5">
@@ -179,8 +215,9 @@ export default function MarkAttendancePage() {
                 <span className="text-sm font-medium">Attendance saved successfully!</span>
               </div>
             ) : (
-              <Button onClick={handleSubmit} className="gap-2">
-                <ClipboardCheck className="h-4 w-4" /> Save Attendance
+              <Button onClick={handleSubmit} disabled={submitting} className="gap-2">
+                <ClipboardCheck className="h-4 w-4" />
+                {submitting ? "Saving..." : "Save Attendance"}
               </Button>
             )}
           </div>
