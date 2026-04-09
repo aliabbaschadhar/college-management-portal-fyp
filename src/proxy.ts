@@ -1,7 +1,13 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
 
-const isAuthRoute = createRouteMatcher(['/sign-in(.*)', '/sign-up(.*)', '/api/webhooks(.*)'])
+const isAuthRoute = createRouteMatcher([
+  '/sign-in(.*)',
+  '/sign-up(.*)',
+  '/api/webhooks(.*)',
+  '/verify(.*)',      // Public QR verification page — no login required
+  '/api/verify(.*)', // Public QR verification API  — no login required
+])
 
 const FACULTY_ALLOWED_ROUTES = [
   '/dashboard',
