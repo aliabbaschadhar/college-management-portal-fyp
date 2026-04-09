@@ -27,7 +27,7 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  const ADMIN_CLERK_ID = "user_3C2LSDHDmFumunWPbbfbSscufzR";
+  const ADMIN_CLERK_ID = "user_3C8Chi5YoOK5RqlXuf8wFez9Rwm";
   const STUDENT_CLERK_ID = "user_3C23w8tZsKY3eOaCRzoJCwMaVsH"; // Ali Abbas (s1)
   const FACULTY_CLERK_ID = "user_3C2ojvMaV4o8skmTWwtpaPri2lR"; // Dr. Khalid Mahmood (f1)
 

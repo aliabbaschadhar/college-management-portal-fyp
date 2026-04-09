@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link'
-import { GraduationCap, Mail, MapPin, Moon, Phone, Sun } from 'lucide-react'
+import Image from 'next/image'
+import { Mail, MapPin, Moon, Phone, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useSyncExternalStore } from 'react'
 
@@ -69,8 +70,14 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 lg:gap-8 mb-14">
           <div className="lg:col-span-2">
             <Link href="/" className="flex items-center gap-3 group mb-5 relative">
-              <div className="h-10 w-10 rounded-xl flex items-center justify-center bg-linear-to-br from-brand-primary to-brand-secondary text-brand-white transition-all duration-300 group-hover:rotate-[5deg]">
-                <GraduationCap className="h-6 w-6" />
+              <div className="h-10 w-10 overflow-hidden transition-all duration-300 group-hover:rotate-[3deg]">
+                <Image
+                  src="/logo.svg"
+                  alt="College Management Portal logo"
+                  width={146}
+                  height={108}
+                  className="h-full w-full object-contain"
+                />
               </div>
               <span className="text-xl font-black tracking-tight text-brand-dark dark:text-foreground">College Portal</span>
             </Link>

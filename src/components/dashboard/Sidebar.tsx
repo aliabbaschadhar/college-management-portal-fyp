@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { GraduationCap, PanelLeftClose, PanelLeft } from "lucide-react";
+import { PanelLeftClose, PanelLeft } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { NavItem } from "@/lib/sidebar-config";
@@ -50,8 +51,15 @@ export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose }: Si
       >
         {/* Logo */}
         <div className="flex h-16 items-center gap-3 border-b border-border px-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-brand-primary to-brand-secondary">
-            <GraduationCap className="h-5 w-5 text-white" />
+          <div className="h-9 w-9 shrink-0 overflow-hidden">
+            <Image
+              src="/logo.svg"
+              alt="College Management Portal logo"
+              width={146}
+              height={108}
+              className="h-full w-full object-contain"
+              priority
+            />
           </div>
           {!collapsed && (
             <div className="flex flex-col overflow-hidden">
@@ -107,19 +115,19 @@ export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose }: Si
 
           {/* Collapse toggle (desktop) */}
           <div className="hidden lg:flex">
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-          >
-            {collapsed ? (
-              <PanelLeft className="h-4 w-4" />
-            ) : (
-              <>
-                <PanelLeftClose className="h-4 w-4" />
-                <span>Collapse</span>
-              </>
-            )}
-          </button>
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+            >
+              {collapsed ? (
+                <PanelLeft className="h-4 w-4" />
+              ) : (
+                <>
+                  <PanelLeftClose className="h-4 w-4" />
+                  <span>Collapse</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
       </aside>

@@ -2,7 +2,7 @@
 
 import { SignIn } from "@clerk/nextjs";
 import Link from "next/link";
-import { GraduationCap } from "lucide-react";
+import Image from "next/image";
 
 export default function SignInPage() {
   return (
@@ -11,9 +11,14 @@ export default function SignInPage() {
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-center items-center bg-primary-navy text-white p-12">
         <div className="max-w-md text-center space-y-6">
           <div className="flex justify-center">
-            <div className="rounded-full bg-white/10 p-4">
-              <GraduationCap className="h-16 w-16 text-secondary-cyan" />
-            </div>
+            <Image
+              src="/logo.svg"
+              alt="College Management Portal logo"
+              width={146}
+              height={108}
+              className="h-16 w-16 object-contain"
+              priority
+            />
           </div>
           <h1 className="text-4xl font-bold tracking-tight">
             College Management Portal
@@ -45,7 +50,14 @@ export default function SignInPage() {
       <div className="flex w-full lg:w-1/2 flex-col items-center justify-center bg-light-blue px-4 py-12">
         {/* Mobile Logo */}
         <div className="mb-8 flex flex-col items-center lg:hidden">
-          <GraduationCap className="h-10 w-10 text-primary-navy mb-2" />
+          <Image
+            src="/logo.svg"
+            alt="College Management Portal logo"
+            width={146}
+            height={108}
+            className="mb-2 h-10 w-10 object-contain"
+            priority
+          />
           <h1 className="text-2xl font-bold text-primary-navy">
             College Management Portal
           </h1>

@@ -1,10 +1,11 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
-import { GraduationCap, Menu, X, ChevronRight } from 'lucide-react'
+import { Menu, X, ChevronRight } from 'lucide-react'
 import { motion, AnimatePresence, useScroll, useSpring } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 
@@ -12,7 +13,7 @@ const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const pathname = usePathname()
-  
+
   const { scrollYProgress } = useScroll()
   const scaleX = useSpring(scrollYProgress, {
     stiffness: 100,
@@ -38,16 +39,15 @@ const Header = () => {
       initial={{ y: -100 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-        scrolled
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrolled
           ? 'border-b border-brand-primary/10 bg-brand-light/90 backdrop-blur-xl py-3 dark:bg-background/90'
           : 'bg-transparent py-5'
-      }`}
+        }`}
     >
       {/* Scroll Progress Bar */}
       <motion.div
         className="absolute top-0 left-0 right-0 h-0.5 origin-left z-50"
-        style={{ 
+        style={{
           scaleX,
           background: 'linear-gradient(90deg, var(--color-brand-primary), var(--color-brand-secondary), var(--color-brand-primary))'
         }}
@@ -57,10 +57,15 @@ const Header = () => {
         <div className="flex items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group relative">
-            <div
-              className="h-9 w-9 rounded-xl flex items-center justify-center bg-linear-to-br from-brand-primary to-brand-secondary text-brand-white transition-all duration-500 group-hover:rotate-10 group-hover:scale-110"
-            >
-              <GraduationCap className="h-5 w-5" />
+            <div className="h-10 w-10 overflow-hidden transition-all duration-500 group-hover:rotate-3 group-hover:scale-105">
+              <Image
+                src="/logo.svg"
+                alt="College Management Portal logo"
+                width={146}
+                height={108}
+                className="h-full w-full object-contain"
+                priority
+              />
             </div>
             <div className="flex flex-col">
               <span className="text-sm font-black tracking-tighter text-brand-dark dark:text-foreground uppercase leading-none">
@@ -70,7 +75,7 @@ const Header = () => {
                 Portal
               </span>
             </div>
-            
+
             {/* Logo Glow */}
             <div className="absolute -inset-2 bg-brand-primary/15 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           </Link>
@@ -81,9 +86,8 @@ const Header = () => {
               <Link
                 key={link.label}
                 href={link.href}
-                className={`relative px-4 py-2 text-sm font-semibold transition-colors group/nav ${
-                  pathname === '/' ? 'text-brand-dark/80 hover:text-brand-dark dark:text-foreground/80 dark:hover:text-foreground' : 'text-brand-dark/70 hover:text-brand-dark dark:text-foreground/70 dark:hover:text-foreground'
-                }`}
+                className={`relative px-4 py-2 text-sm font-semibold transition-colors group/nav ${pathname === '/' ? 'text-brand-dark/80 hover:text-brand-dark dark:text-foreground/80 dark:hover:text-foreground' : 'text-brand-dark/70 hover:text-brand-dark dark:text-foreground/70 dark:hover:text-foreground'
+                  }`}
               >
                 {link.label}
                 <span className="absolute bottom-0 left-4 right-4 h-0.5 bg-linear-to-r from-brand-primary to-brand-secondary origin-left scale-x-0 group-hover/nav:scale-x-100 transition-transform duration-300" />
@@ -127,11 +131,10 @@ const Header = () => {
 
           {/* Mobile Menu Toggle */}
           <button
-            className={`md:hidden p-2.5 rounded-xl transition-all ${
-              mobileMenuOpen 
-                ? 'bg-brand-primary text-brand-white' 
+            className={`md:hidden p-2.5 rounded-xl transition-all ${mobileMenuOpen
+                ? 'bg-brand-primary text-brand-white'
                 : 'text-brand-dark/70 hover:text-brand-dark hover:bg-brand-white/70 dark:text-foreground/70 dark:hover:text-foreground dark:hover:bg-card/70'
-            }`}
+              }`}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label="Toggle menu"
             aria-expanded={mobileMenuOpen}

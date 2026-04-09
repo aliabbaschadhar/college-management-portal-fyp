@@ -14,6 +14,11 @@ export const metadata: Metadata = {
   title: 'College Management Portal',
   description:
     'A centralized web-based platform to streamline administrative and academic tasks for students, faculty, and administrators.',
+  icons: {
+    icon: '/logo.svg',
+    shortcut: '/logo.svg',
+    apple: '/logo.svg',
+  },
 }
 
 export default function RootLayout({

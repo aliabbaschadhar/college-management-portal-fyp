@@ -1,29 +1,63 @@
 import prisma from "@/lib/prisma";
 
-export async function getStudentDashboardData(clerkId: string) {
-  const user = await prisma.user.findUnique({
-    where: { clerkId },
-    include: {
-      student: {
-        include: {
-          enrollments: {
-            include: {
-              course: {
-                include: {
-                  timetables: true,
-                  quizzes: true,
-                },
+async function resolveDashboardUser(clerkId: string, email?: string | null) {
+  const include = {
+    student: {
+      include: {
+        enrollments: {
+          include: {
+            course: {
+              include: {
+                timetables: true,
+                quizzes: true,
+                faculty: { include: { user: { select: { name: true } } } },
               },
             },
           },
-          attendances: { include: { course: true } },
-          fees: true,
-          grades: { include: { course: true } },
-          quizAttempts: true,
         },
+        attendances: { include: { course: true } },
+        fees: true,
+        grades: { include: { course: true } },
+        quizAttempts: true,
       },
     },
+  } as const;
+
+  const userByClerkId = await prisma.user.findUnique({
+    where: { clerkId },
+    include,
   });
+
+  if (userByClerkId) {
+    return userByClerkId;
+  }
+
+  if (!email) {
+    return null;
+  }
+
+  const userByEmail = await prisma.user.findUnique({
+    where: { email },
+    include,
+  });
+
+  if (!userByEmail) {
+    return null;
+  }
+
+  if (userByEmail.clerkId === clerkId) {
+    return userByEmail;
+  }
+
+  return prisma.user.update({
+    where: { id: userByEmail.id },
+    data: { clerkId },
+    include,
+  });
+}
+
+export async function getStudentDashboardData(clerkId: string, email?: string | null) {
+  const user = await resolveDashboardUser(clerkId, email);
 
   if (!user || user.role?.toUpperCase() !== "STUDENT" || !user.student) {
     return null;
@@ -53,23 +87,33 @@ export async function getStudentDashboardData(clerkId: string) {
   const enrolledCourses = student.enrollments.map((e) => e.course);
 
   const stats = {
+    currentGpa: avgGpa,
     currentGPA: avgGpa,
+    attendanceRate: attendancePercent,
     attendancePercent,
+    totalDues: pendingDues,
     pendingDues,
+    totalCourses: enrolledCourses.length,
     enrolledCourses: enrolledCourses.length,
     totalPaid,
   };
 
   // Timetable
-  const timetable = enrolledCourses.flatMap((c) => 
+  const timetable = enrolledCourses.flatMap((c) =>
     c.timetables.map((t) => ({
       id: t.id,
       day: t.day,
-      courseCode: c.courseCode,
-      courseName: c.courseName,
+      courseId: c.id,
       startTime: t.startTime,
       endTime: t.endTime,
       room: t.room,
+      course: {
+        courseCode: c.courseCode,
+        courseName: c.courseName,
+        department: c.department,
+        semester: c.semester,
+        faculty: c.faculty ? { user: { name: c.faculty.user.name } } : null,
+      },
     }))
   );
 
@@ -99,6 +143,7 @@ export async function getStudentDashboardData(clerkId: string) {
   const studentAnnouncements = announcements.map((a) => ({
     id: a.id,
     title: a.title,
+    content: a.content,
     priority: a.priority,
     date: a.date.toISOString(),
   }));

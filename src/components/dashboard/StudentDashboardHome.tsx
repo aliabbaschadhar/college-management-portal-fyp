@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import {
   GraduationCap,
@@ -59,6 +59,35 @@ interface Quiz {
   questions: string[];
 }
 
+interface StudentDashboardResponse {
+  stats?: {
+    currentGpa?: number;
+    currentGPA?: number;
+    attendanceRate?: number;
+    attendancePercent?: number;
+    totalDues?: number;
+    pendingDues?: number;
+    totalCourses?: number;
+    enrolledCourses?: number;
+  };
+  timetable?: TimetableEntry[];
+  studentAnnouncements?: Announcement[];
+  pendingQuizzes?: Quiz[];
+  attendanceChartData?: Array<{
+    course: string;
+    present: number;
+    absent: number;
+    late: number;
+  }>;
+  gradeChartData?: Array<{
+    course: string;
+    quiz: number;
+    assignment: number;
+    mid: number;
+    final: number;
+  }>;
+}
+
 const container = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: { staggerChildren: 0.08 } },
@@ -87,7 +116,7 @@ export function StudentDashboardHome() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [dashboardData, setDashboardData] = useState<StudentDashboardResponse | null>(null);
 
   useEffect(() => {
     fetch("/api/dashboard/student")
@@ -112,6 +141,11 @@ export function StudentDashboardHome() {
 
   const attendanceChartData = dashboardData?.attendanceChartData || [];
   const gradeChartData = dashboardData?.gradeChartData || [];
+  const stats = dashboardData?.stats;
+  const currentGpa = stats?.currentGpa ?? stats?.currentGPA;
+  const attendanceRate = stats?.attendanceRate ?? stats?.attendancePercent;
+  const totalDues = stats?.totalDues ?? stats?.pendingDues;
+  const totalCourses = stats?.totalCourses ?? stats?.enrolledCourses;
 
   const quickActions = [
     {
@@ -165,7 +199,7 @@ export function StudentDashboardHome() {
       <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatsCard
           title="Current GPA"
-          value={dashboardData?.stats?.currentGpa === undefined ? "—" : dashboardData.stats.currentGpa.toFixed(2)}
+          value={currentGpa === undefined ? "—" : currentGpa.toFixed(2)}
           trend="N/A"
           trendDirection="up"
           icon={GraduationCap}
@@ -174,7 +208,7 @@ export function StudentDashboardHome() {
         />
         <StatsCard
           title="Attendance"
-          value={dashboardData?.stats?.attendanceRate !== undefined ? `${dashboardData.stats.attendanceRate}%` : "—"}
+          value={attendanceRate !== undefined ? `${attendanceRate}%` : "—"}
           trend="N/A"
           trendDirection="up"
           icon={Clock}
@@ -183,7 +217,7 @@ export function StudentDashboardHome() {
         />
         <StatsCard
           title="Pending Dues"
-          value={dashboardData?.stats?.totalDues !== undefined ? `$${dashboardData.stats.totalDues}` : "—"}
+          value={totalDues !== undefined ? `$${totalDues}` : "—"}
           trend="N/A"
           trendDirection="up"
           icon={CreditCard}
@@ -192,7 +226,7 @@ export function StudentDashboardHome() {
         />
         <StatsCard
           title="Enrolled Courses"
-          value={dashboardData?.stats?.totalCourses ?? timetable.length}
+          value={totalCourses ?? timetable.length}
           trend="Active"
           trendDirection="up"
           icon={BookOpen}

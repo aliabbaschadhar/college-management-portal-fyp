@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   const { userId } = await auth();
@@ -10,7 +11,7 @@ export async function GET(request: NextRequest) {
     // Load user to determine filtering
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { role: true, clerkId: true },
+      select: { role: true, clerkId: true, student: { select: { id: true } } },
     });
 
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -19,14 +20,23 @@ export async function GET(request: NextRequest) {
     const courseId = searchParams.get("courseId");
     const status = searchParams.get("status");
 
-    // Non-staff users only see quizzes they created
-    const whereClause: { courseId?: string; status?: string; createdBy?: string } = {
+    const whereClause: Prisma.QuizWhereInput = {
       ...(courseId ? { courseId } : {}),
       ...(status ? { status } : {}),
     };
 
-    if (!["ADMIN", "FACULTY"].includes(user.role)) {
-      whereClause.createdBy = user.clerkId;
+    if (user.role === "STUDENT") {
+      if (!user.student?.id) {
+        return NextResponse.json([]);
+      }
+
+      whereClause.course = {
+        enrollments: {
+          some: {
+            studentId: user.student.id,
+          },
+        },
+      };
     } else if (user.role === "FACULTY") {
       // Faculty only see quizzes they created
       whereClause.createdBy = user.clerkId;

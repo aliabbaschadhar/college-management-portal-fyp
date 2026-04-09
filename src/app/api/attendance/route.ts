@@ -11,18 +11,29 @@ export async function GET(request: NextRequest) {
     // Load user with role and faculty info
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { role: true, faculty: { select: { id: true } } },
+      select: {
+        role: true,
+        faculty: { select: { id: true } },
+        student: { select: { id: true } },
+      },
     });
 
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { searchParams } = request.nextUrl;
     const courseId = searchParams.get("courseId");
-    const studentId = searchParams.get("studentId");
+    const requestedStudentId = searchParams.get("studentId");
     const date = searchParams.get("date");
 
-    // Verify authorization: admin or instructor for the specific course
-    if (!["ADMIN", "FACULTY"].includes(user.role)) {
+    let studentId: string | null = requestedStudentId;
+
+    // Students can only access their own attendance records.
+    if (user.role === "STUDENT") {
+      if (!user.student?.id) {
+        return NextResponse.json({ error: "Student profile not found" }, { status: 403 });
+      }
+      studentId = user.student.id;
+    } else if (!["ADMIN", "FACULTY"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
