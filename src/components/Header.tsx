@@ -40,8 +40,8 @@ const Header = () => {
       animate={{ y: 0 }}
       transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrolled
-          ? 'border-b border-brand-primary/10 bg-brand-light/90 backdrop-blur-xl py-3 dark:bg-background/90'
-          : 'bg-transparent py-5'
+        ? 'border-b border-brand-primary/10 bg-brand-light/90 backdrop-blur-xl py-3 dark:bg-background/90'
+        : 'bg-transparent py-5'
         }`}
     >
       {/* Scroll Progress Bar */}
@@ -132,8 +132,8 @@ const Header = () => {
           {/* Mobile Menu Toggle */}
           <button
             className={`md:hidden p-2.5 rounded-xl transition-all ${mobileMenuOpen
-                ? 'bg-brand-primary text-brand-white'
-                : 'text-brand-dark/70 hover:text-brand-dark hover:bg-brand-white/70 dark:text-foreground/70 dark:hover:text-foreground dark:hover:bg-card/70'
+              ? 'bg-brand-primary text-brand-white'
+              : 'text-brand-dark/70 hover:text-brand-dark hover:bg-brand-white/70 dark:text-foreground/70 dark:hover:text-foreground dark:hover:bg-card/70'
               }`}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label="Toggle menu"
