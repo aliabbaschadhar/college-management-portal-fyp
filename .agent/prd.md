@@ -59,7 +59,7 @@ A role-based, web-based platform connecting **Students**, **Faculty**, and **Adm
 The system follows a unified Next.js architecture:
 
 ```
-[ Presentation Layer ]   →   Next.js (React) + ShadCN + Chart.js
+[ Presentation Layer ]   →   Next.js (React) + ShadCN + Recharts (via ShadCN Charts)
         ↓
 [ Application Logic ]    →   Next.js API Routes + Server Actions
         ↓
@@ -75,7 +75,7 @@ The system follows a unified Next.js architecture:
 | Programming Language | TypeScript | Primary language for all layers |
 | Frontend Framework | Next.js (App Router) | UI framework |
 | UI Components | ShadCN, TailwindCSS | Pre-styled, responsive components |
-| Data Visualization | Chart.js | Analytics charts and graphs |
+| Data Visualization | Recharts (via ShadCN Charts) | Analytics charts and graphs |
 | Backend API | Next.js API Routes | REST API endpoints & webhooks |
 | Authentication | Clerk | Identity, Sign-in, User Management |
 | ORM | Prisma | Database abstraction layer |
@@ -94,15 +94,17 @@ The system follows a unified Next.js architecture:
 
 ## 6. Functional Requirements
 
-* **FR-01 — User Login & Authentication:** Register, log in, recover passwords securely via **Clerk**.
-* **FR-02 — Role-Based Access Control (RBAC):** Strict access boundaries based on user role (checking Clerk publicMetadata).
-* **FR-03 — Smart Attendance Tracking:** Faculty digital attendance marking, auto-calculated percentages.
-* **FR-04 — Automated Timetable Generation:** Conflict-free weekly schedule generation.
-* **FR-05 — Online Quiz & Question Bank:** Centralized question bank, auto-graded online quizzes.
-* **FR-06 — Dues & Fee Management:** Admin manages fees, students view dues status.
-* **FR-07 — Grading & Results Management:** Faculty inputs marks -> auto calculation of GPA/percentage.
-* **FR-08 — Digital Admission System:** Admins process new student applications (Registration IDs & CSV imports).
-* **FR-09 — Student QR Verification:** QR code scanned reveals basic public profile without login.
+| Requirement | Description | Status (2026-04-09) |
+|---|---|---|
+| **FR-01 — User Login & Authentication** | Register, log in, recover passwords securely via **Clerk**. | **Implemented** |
+| **FR-02 — Role-Based Access Control (RBAC)** | Strict access boundaries based on user role (Clerk session + app role checks). | **Implemented** |
+| **FR-03 — Smart Attendance Tracking** | Faculty digital attendance marking, auto-calculated percentages. | **Implemented (core)** |
+| **FR-04 — Automated Timetable Generation** | Conflict-free weekly schedule generation. | **Partially Implemented** (conflict checks exist; auto-generation workflow not finalized) |
+| **FR-05 — Online Quiz & Question Bank** | Centralized question bank, auto-graded online quizzes. | **Implemented (core)** |
+| **FR-06 — Dues & Fee Management** | Admin manages fees, students view dues status. | **Implemented (core)** |
+| **FR-07 — Grading & Results Management** | Faculty inputs marks -> auto calculation of GPA/percentage. | **Implemented (core)** |
+| **FR-08 — Digital Admission System** | Admins process new student applications (Registration IDs & CSV imports). | **Partially Implemented** (admissions API present; CSV import backlog) |
+| **FR-09 — Student QR Verification** | QR code scanned reveals basic public profile without login. | **Implemented** |
 
 ---
 
@@ -118,11 +120,11 @@ The system follows a unified Next.js architecture:
 
 ## 8. Database Entities (PostgreSQL via Prisma)
 
-* **User**: id, clerk_id, name, email, role. (Identity synced from Clerk)
-* **Student**, **Faculty**, **Admin**: link to User by user_id.
-* **Course**, **Enrollment**, **Teaches**: Manage academics and links.
-* **Attendance**, **Grade**, **FeeRecord**, **TimeTable**: Academic records.
-* **Quiz**, **Questions**, **QuizAttempt**: Assessments.
+* **User**: id, clerkId, name, email, role. (Identity synced from Clerk)
+* **Student**, **Faculty**, **Admin**: linked to User by userId.
+* **Course**, **Enrollment**: Manage academics and student-course links.
+* **Attendance**, **Grade**, **Fee**, **Timetable**: Academic records.
+* **Quiz**, **Question**, **QuizAttempt**: Assessments.
 * **Feedback**, **Announcement**, **Admission**: Ecosystem tools.
 
 ---
@@ -133,7 +135,7 @@ The system follows a unified Next.js architecture:
 * RBAC enforced in Next middleware and server actions.
 * Arithmetic calculations for GPA, attendance auto-executed accurately.
 * Timetable conflicting saves rejected with `409 Conflict`.
-* Student public QR route fetches basic non-sensitive data via `/verify/:registrationId`.
+* Student public QR route (`/verify/:registrationId`) is planned/backlog and not yet implemented.
 
 ---
 

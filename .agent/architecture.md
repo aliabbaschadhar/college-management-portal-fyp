@@ -40,16 +40,15 @@ Security is handled via Clerk.
 * **Student:** Links to User (student_id [PK], user_id [FK], roll_no [Unique], department).
 * **Faculty:** Links to User (faculty_id [PK], user_id [FK], specialization, department).
 * **Admin:** Links to User (admin_id [PK], user_id [FK]).
-* **Course:** (course_id, course_name, course_code [Unique], credit_hours, department, admin_id).
+* **Course:** (course_id, course_name, course_code [Unique], credit_hours, department, assignedFaculty).
 * **Enrollment:** Maps Students to Courses (student_id, course_id, semester).
-* **Teaches:** Maps Faculty to Courses (faculty_id, course_id).
-* **Attendance:** (attendance_id, student_id, course_id, date, status [Present/Absent/Late], faculty_id).
+* **Attendance:** (attendance_id, student_id, course_id, date, status [Present/Absent/Late], markedBy).
 * **Grade:** (grade_id, student_id, course_id, quiz_marks, assignment_marks, mid_marks, final_marks, total, faculty_id, locked_status).
 * **Quiz & Question Bank:** Quizzes link to Courses. Questions belong to Quizzes. QuizAttempts track student scores.
-* **TimeTable:** (timetable_id, course_id, day, time_slot, room).
-* **FeeRecord:** (fee_id, student_id, total_fee, paid, pending, status [Paid/Unpaid/Pending], admin_id).
+* **Timetable:** (timetable_id, course_id, day, start_time, end_time, room).
+* **Fee:** (fee_id, student_id, type, amount, status [Paid/Unpaid/Overdue], dueDate, semester).
 * **Admission:** Tracks new student applications and generates Registration IDs.
-* **Feedback:** Anonymized ratings and comments for Faculty (no student_id stored).
+* **Feedback:** Ratings/comments submitted by students for a target (faculty/course).
 * **Announcement:** System notices targeted by role.
 
 ## 5. Critical Business Rules & Logic
@@ -57,7 +56,7 @@ Security is handled via Clerk.
 When writing backend logic in Next.js, strictly enforce these rules:
 
 ### Clerk Syncing (Webhooks)
-* When a new user is created in Clerk, a webhook must trigger an API route (`/api/webhooks/clerk`) to sync the `clerk_id` to the Postgres `User` table.
+* Clerk webhook route (`/api/webhooks/clerk`) syncs `user.created`, `user.updated`, and `user.deleted` events to the Postgres `User` table.
 
 ### Security & Validations
 * API routes must verify the Clerk session (`auth()`) and check permissions.
@@ -72,16 +71,21 @@ When writing backend logic in Next.js, strictly enforce these rules:
 * **Rule B:** A room cannot be booked for two different classes at the same time slot.
 
 ### Grading Constraints
-* Grade revision logging must be maintained.
-* Lock Grade functionality (by Admin) must prevent any Faculty modification.
+* Lock Grade functionality must prevent any Faculty modification after lock.
+* Grade revision/audit logging is planned backlog and not yet formalized.
 
 ### Quizzes
-* Timers are enforced server-side.
-* Quizzes must automatically submit current saved answers when the time limit expires.
+* Role-based authorization is enforced for quiz and question management routes.
+* Fully server-enforced timer expiry auto-submit is planned backlog.
 
-### QR Verification (Public Route)
-* The endpoint handling QR scans (`GET /verify/:registrationId`) is public.
-* It must only return safe data: Name, Roll No, Department, Dues Status, and Current Lecture.
+### QR Verification (Public Route) — Implemented
+* Public page `GET /verify/[userId]` (Server Component) — renders a branded profile card for any user by their Postgres `User.id`. No login required.
+* Public API `GET /api/verify/[userId]` — JSON endpoint returning the same safe data for external consumers.
+* Each user can view and download (PNG) their personal QR code from **Dashboard → Settings**.
+* **Safe data exposed:** Name, Role, Department, Roll No (student), Semester (student), Enrollment Date (student), Dues Status (student — Clear or Outstanding), Specialization (faculty), Join Date (faculty), Current Lecture (from timetable, if active), Institution Name.
+* **Never exposed:** Email, phone, CNIC, grade details, attendance percentages, or financial amounts.
+* Both `/verify/*` and `/api/verify/*` routes are explicitly excluded from Clerk auth in `src/proxy.ts`.
 
 ### Feedback Anonymization
-* Feedback submissions must strip all identifiers before saving to the database. Prevent duplicate submissions via a temporary tracking mechanism.
+* Current schema stores `studentId` for authorization/ownership checks.
+* Anonymous display policy and duplicate-submission prevention are planned backlog items.
