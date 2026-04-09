@@ -27,7 +27,7 @@ interface CourseWithDetails {
 
 interface FacultyOption {
   id: string;
-  name: string | null;
+  user: { name: string | null };
   department: string;
 }
 
@@ -257,7 +257,7 @@ export default function ManageCoursesPage() {
               <SelectContent>
                 {facultyList.map((f) => (
                   <SelectItem key={f.id} value={f.id}>
-                    {f.name ?? "—"} — {f.department}
+                    {f.user.name ?? "—"} — {f.department}
                   </SelectItem>
                 ))}
               </SelectContent>

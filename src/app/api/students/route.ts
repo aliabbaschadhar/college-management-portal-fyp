@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     if (!authUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     // Only admin can create student records
-    if (authUser.role !== "ADMIN") {
+    if (authUser.role?.toUpperCase() !== "ADMIN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
 
     const user = await prisma.user.findUnique({ where: { id: body.userId } });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
-    if (user.role !== "STUDENT")
+    if (user.role?.toUpperCase() !== "STUDENT")
       return NextResponse.json({ error: "User is not a STUDENT" }, { status: 400 });
 
     const student = await prisma.student.create({

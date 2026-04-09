@@ -1,19 +1,21 @@
 # Project Status
 
 ## Overview
-The Admin, Faculty, and Student Dashboards (Frontend) are now fully implemented with mock data, a unified design system, and responsive architecture. We have transitioned into database integration and authentication.
+As of 2026-04-09, the project is running on Next.js App Router with Clerk auth, Prisma/PostgreSQL data models, and role-based API routes. Core dashboard modules and most backend domains are implemented, with selective areas still in backlog.
 
 ## What's Done
-- Formalized project documentation (`prd.md`, `architecture.md`, `design.md`, etc.).
-- Initialized Next.js project with Tailwind CSS (v4), ShadCN UI, ShadCN Charts, and light/dark mode support.
-- Fully implemented all Admin, Faculty, and Student Dashboard modules using standardized UI components.
-- Established `DashboardShell` for layout and connected all routing.
-- Configured a strong centralized mock data layer (`src/lib/mock-data.ts`) with strict TypeScript typing.
-- Migrated to `bun` package manager.
-- Integrated Clerk for authentication and route protection (`/dashboard` routes now require sign-in).
+- Formalized project documentation baseline in `.agent/`.
+- Initialized Next.js with Tailwind CSS v4, ShadCN UI, Recharts (via ShadCN Charts), and theme support.
+- Implemented unified dashboard shell and role-aware dashboard routes.
+- Integrated Clerk authentication and protected dashboard access.
+- Implemented Prisma singleton and PostgreSQL-backed schema/models.
+- Implemented Clerk webhook user sync (`user.created`, `user.updated`, `user.deleted`) to Postgres.
+- Implemented API route groups for attendance, courses, fees, grades, quizzes/questions, timetable, admissions, announcements, feedback, and user profile.
+- Implemented timetable conflict prevention with `409 Conflict` responses for room/faculty overlaps.
 
 ## Pending Tasks (Next Steps)
-- Complete Prisma ORM setup (currently evaluating schema) and connect the database.
-- Hook up webhook sync between Clerk and our Postgres database.
-- Begin wiring the dashboard modules to actual database endpoints, replacing the mock local state.
+- Complete remaining mock-data replacements in dashboard pages/components where still present.
+- Implement FR-09 public QR verification route (`/verify/:registrationId`) with safe-response policy.
+- Add/complete admissions CSV import workflow (currently standard admissions create/list is available).
+- Clarify and enforce feedback anonymization policy end-to-end (schema currently links feedback to student).
 

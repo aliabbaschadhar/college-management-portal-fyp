@@ -92,9 +92,9 @@ When generating UI components, adhere to these standard practices based on the c
 
 ## 5. Tailwind Configuration
 
-**Crucial Setup Note:** The application extends the default Tailwind config. 
+**Crucial Setup Note:** The application uses Tailwind CSS v4 token configuration via `src/app/globals.css`. 
 1. The font `Roboto` is injected via a CSS variable (`--font-roboto`) and mapped to `font-sans`.
-2. The custom font sizes and colors detailed above are mapped to the `theme.extend` object in `tailwind.config.ts`.
+2. Custom color/theme tokens are declared in the `@theme` block in `src/app/globals.css` and consumed via utility classes.
 3. Do not hardcode hex values in the JSX/TSX files. Always use the predefined utility classes (e.g., use `text-brand-primary`, not `text-[#3D5EE1]`).
 
 ---

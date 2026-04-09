@@ -12,7 +12,7 @@ export default async function DashboardPage() {
     redirect("/sign-in");
   }
 
-  const role = (user.publicMetadata?.role as UserRole) || "student";
+  const role = ((user.publicMetadata?.role as string) || "student").toLowerCase();
 
   if (role === "faculty") {
     return <FacultyDashboardHome />;

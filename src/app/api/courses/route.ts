@@ -40,8 +40,8 @@ export async function GET() {
       department: c.department,
       semester: c.semester,
       assignedFaculty: c.assignedFaculty,
-      facultyName: c.faculty?.user.name ?? null,
-      enrolledCount: c._count.enrollments,
+      faculty: c.faculty ? { user: { name: c.faculty.user.name } } : null,
+      _count: { enrollments: c._count.enrollments },
     }));
 
     return NextResponse.json(result);
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
       select: { role: true },
     });
 
-    if (!user || user.role !== "ADMIN") {
+    if (!user || user.role?.toUpperCase() !== "ADMIN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
         include: { user: { select: { role: true } } },
       });
 
-      if (!faculty || faculty.user.role !== "FACULTY") {
+      if (!faculty || faculty.user.role?.toUpperCase() !== "FACULTY") {
         return NextResponse.json(
           { error: "Invalid faculty assignment: faculty not found or user is not FACULTY" },
           { status: 400 }

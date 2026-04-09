@@ -87,49 +87,31 @@ export function StudentDashboardHome() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState<any>(null);
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/timetable").then((r) => r.json()).catch(() => []),
-      fetch("/api/announcements?audience=Students").then((r) => r.json()).catch(() => []),
-      fetch("/api/quizzes").then((r) => r.json()).catch(() => []),
-    ]).then(([tt, ann, qz]: [TimetableEntry[], Announcement[], Quiz[]]) => {
-      setTimetable(Array.isArray(tt) ? tt : []);
-      setAnnouncements(Array.isArray(ann) ? ann : []);
-      setQuizzes(Array.isArray(qz) ? qz : []);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    fetch("/api/dashboard/student")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.error) {
+          setTimetable(Array.isArray(data.timetable) ? data.timetable : []);
+          setAnnouncements(Array.isArray(data.studentAnnouncements) ? data.studentAnnouncements : []);
+          setQuizzes(Array.isArray(data.pendingQuizzes) ? data.pendingQuizzes : []);
+          setDashboardData(data);
+        }
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, []);
 
-  const pendingQuizzes = quizzes.filter((q) => q.status === "Published");
+  const pendingQuizzes = quizzes; // The API already filters for pending and published quizzes
 
   const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const today = days[new Date().getDay()];
   const todayClasses = timetable.filter((t) => t.day === today);
 
-  // Placeholder chart data (student-specific stats require a dedicated API endpoint)
-  const attendanceChartData = useMemo(
-    () =>
-      timetable.slice(0, 5).map((t, i) => ({
-        course: t.course.courseCode,
-        present: 20 + ((i * 7 + 3) % 5),
-        absent: 1 + ((i * 3 + 1) % 3),
-        late: (i * 5 + 2) % 3,
-      })),
-    [timetable]
-  );
-
-  const gradeChartData = useMemo(
-    () =>
-      timetable.slice(0, 5).map((t, i) => ({
-        course: t.course.courseCode,
-        quiz: 12 + ((i * 5 + 2) % 8),
-        assignment: 15 + ((i * 7 + 3) % 8),
-        mid: 25 + ((i * 11 + 5) % 15),
-        final: 30 + ((i * 13 + 7) % 15),
-      })),
-    [timetable]
-  );
+  const attendanceChartData = dashboardData?.attendanceChartData || [];
+  const gradeChartData = dashboardData?.gradeChartData || [];
 
   const quickActions = [
     {
@@ -183,7 +165,7 @@ export function StudentDashboardHome() {
       <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatsCard
           title="Current GPA"
-          value="—"
+          value={dashboardData?.stats?.currentGpa === undefined ? "—" : dashboardData.stats.currentGpa.toFixed(2)}
           trend="N/A"
           trendDirection="up"
           icon={GraduationCap}
@@ -192,7 +174,7 @@ export function StudentDashboardHome() {
         />
         <StatsCard
           title="Attendance"
-          value="—"
+          value={dashboardData?.stats?.attendanceRate !== undefined ? `${dashboardData.stats.attendanceRate}%` : "—"}
           trend="N/A"
           trendDirection="up"
           icon={Clock}
@@ -201,7 +183,7 @@ export function StudentDashboardHome() {
         />
         <StatsCard
           title="Pending Dues"
-          value="—"
+          value={dashboardData?.stats?.totalDues !== undefined ? `$${dashboardData.stats.totalDues}` : "—"}
           trend="N/A"
           trendDirection="up"
           icon={CreditCard}
@@ -210,7 +192,7 @@ export function StudentDashboardHome() {
         />
         <StatsCard
           title="Enrolled Courses"
-          value={timetable.length}
+          value={dashboardData?.stats?.totalCourses ?? timetable.length}
           trend="Active"
           trendDirection="up"
           icon={BookOpen}

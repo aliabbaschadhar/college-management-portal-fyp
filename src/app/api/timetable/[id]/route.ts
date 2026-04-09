@@ -18,7 +18,7 @@ async function requireAdmin() {
     select: { role: true },
   });
 
-  if (!user || user.role !== "ADMIN") {
+  if (!user || user.role?.toUpperCase() !== "ADMIN") {
     return {
       denied: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
       userId,

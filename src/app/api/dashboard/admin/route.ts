@@ -9,7 +9,7 @@ export async function GET() {
   try {
     const clerkUser = await currentUser();
     const role = clerkUser?.publicMetadata?.role as string | undefined;
-    if (role !== "ADMIN") {
+    if (role?.toUpperCase() !== "ADMIN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

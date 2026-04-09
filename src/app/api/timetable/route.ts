@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const appUser = await getAuthenticatedAppUser(userId);
-    if (!appUser || appUser.role !== "ADMIN") {
+    if (!appUser || appUser.role?.toUpperCase() !== "ADMIN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

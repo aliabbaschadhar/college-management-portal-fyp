@@ -15,8 +15,8 @@ export async function GET() {
 
     const result = faculty.map((f) => ({
       id: f.id,
-      name: f.user.name,
-      email: f.user.email,
+      userId: f.userId,
+      user: { name: f.user.name, email: f.user.email },
       phone: f.phone,
       department: f.department,
       specialization: f.specialization,
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
 
     const user = await prisma.user.findUnique({ where: { id: body.userId } });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
-    if (user.role !== "FACULTY")
+    if (user.role?.toUpperCase() !== "FACULTY")
       return NextResponse.json({ error: "User is not a FACULTY" }, { status: 400 });
 
     const faculty = await prisma.faculty.create({

@@ -3,5 +3,6 @@
     "allow": [
       "Bash(bunx *)"
     ]
-  }
+  },
+  "$version": 3
 }

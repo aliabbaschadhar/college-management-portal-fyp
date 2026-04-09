@@ -27,13 +27,17 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
+  const ADMIN_CLERK_ID = "user_3C2LSDHDmFumunWPbbfbSscufzR";
+  const STUDENT_CLERK_ID = "user_3C23w8tZsKY3eOaCRzoJCwMaVsH"; // Ali Abbas (s1)
+  const FACULTY_CLERK_ID = "user_3C2ojvMaV4o8skmTWwtpaPri2lR"; // Dr. Khalid Mahmood (f1)
+
   console.log("Seeding database...");
 
   // Create Admins
   await prisma.user.create({
     data: {
-      clerkId: "mock_clerk_admin_1",
-      email: "test@gamil.com",
+      clerkId: ADMIN_CLERK_ID,
+      email: "admin@college.edu.pk",
       name: "Admin Tester",
       role: "ADMIN",
       admin: {
@@ -45,9 +49,10 @@ async function main() {
 
   // Iterate students
   for (const s of mockStudents) {
+    const clerkId = s.id === "s1" ? STUDENT_CLERK_ID : "mock_clerk_" + s.id;
     await prisma.user.create({
       data: {
-        clerkId: "mock_clerk_" + s.id,
+        clerkId,
         email: s.email,
         name: s.name,
         role: "STUDENT",
@@ -68,9 +73,10 @@ async function main() {
 
   // Iterate faculty
   for (const f of mockFaculty) {
+    const clerkId = f.id === "f1" ? FACULTY_CLERK_ID : "mock_clerk_" + f.id;
     await prisma.user.create({
       data: {
-        clerkId: "mock_clerk_" + f.id,
+        clerkId,
         email: f.email,
         name: f.name,
         role: "FACULTY",

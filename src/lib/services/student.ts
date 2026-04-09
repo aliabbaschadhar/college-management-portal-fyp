@@ -25,7 +25,7 @@ export async function getStudentDashboardData(clerkId: string) {
     },
   });
 
-  if (!user || user.role !== "STUDENT" || !user.student) {
+  if (!user || user.role?.toUpperCase() !== "STUDENT" || !user.student) {
     return null;
   }
 
