@@ -12,6 +12,8 @@ As of 2026-04-09, the project is running on Next.js App Router with Clerk auth, 
 - Implemented Clerk webhook user sync (`user.created`, `user.updated`, `user.deleted`) to Postgres.
 - Implemented API route groups for attendance, courses, fees, grades, quizzes/questions, timetable, admissions, announcements, feedback, and user profile.
 - Implemented timetable conflict prevention with `409 Conflict` responses for room/faculty overlaps.
+- Replaced starter README with a comprehensive project-specific setup and architecture guide covering Bun workflow, Clerk/Prisma environment setup, API surface, QR verification, deployment, and troubleshooting.
+- Added repository logo branding to the top of README using `public/logo.svg` for immediate project identity in documentation.
 
 ## Pending Tasks (Next Steps)
 - Complete remaining mock-data replacements in dashboard pages/components where still present.
