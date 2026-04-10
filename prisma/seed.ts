@@ -4,7 +4,6 @@ import {
   mockFaculty,
   mockCourses,
   mockAdmissions,
-  mockAttendance,
   mockFees,
   mockAnnouncements,
   mockFeedback,
@@ -15,6 +14,7 @@ import {
   mockGrades,
   mockEnrollments,
   mockTeaches,
+  mockAttendance,
 } from "../src/lib/mock-data";
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -27,29 +27,44 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  const ADMIN_CLERK_ID = "user_3C8Chi5YoOK5RqlXuf8wFez9Rwm";
-  const STUDENT_CLERK_ID = "user_3C23w8tZsKY3eOaCRzoJCwMaVsH"; // Ali Abbas (s1)
-  const FACULTY_CLERK_ID = "user_3C2ojvMaV4o8skmTWwtpaPri2lR"; // Dr. Khalid Mahmood (f1)
+  // ── Clerk ID → mock-profile-id lookup maps ─────────────────
+  const STUDENT_CLERK_IDS: Record<string, string> = {
+    s1: "user_3C9cPnJBgQQum6oC9Bd6iaYdIYM",  // Ali Abbas
+    s2: "user_3C9TUj65lyHr9jwkUStkuyRgIut",  // Fatima Zahra
+    s3: "user_3C9gAqqP8REEpeVX86W0ELzinur",  // Muhammad Usman
+  };
+
+  const FACULTY_CLERK_IDS: Record<string, string> = {
+    f1: "user_3C9cVNeByLUAptMRkUMgw8gyzdW",  // Dr. Khalid Mahmood
+    f2: "user_3C9fgZSJgjXCzhyP47JUOwQf0jj",  // Dr. Amina Rashid
+    f3: "user_3C9g1tP7H7v03w2CJIrq6g47ymX",  // Prof. Zahid Iqbal
+  };
+
+  const ADMIN_ACCOUNTS = [
+    { clerkId: "user_3C9cf7vvuywZKrZicAweaHGtiNr", email: "admin@college.edu.pk",  name: "Admin Tester" },
+    { clerkId: "user_3C9g1Lp0h1opFyWAbBn0pccGQhs", email: "admin2@college.edu.pk", name: "Dr. Zafar Iqbal" },
+    { clerkId: "user_3C9fiFD4wdqiUTFGwYyQAbvc7N6", email: "admin3@college.edu.pk", name: "Prof. Nadia Sheikh" },
+  ];
 
   console.log("Seeding database...");
 
   // Create Admins
-  await prisma.user.create({
-    data: {
-      clerkId: ADMIN_CLERK_ID,
-      email: "admin@college.edu.pk",
-      name: "Admin Tester",
-      role: "ADMIN",
-      admin: {
-        create: {}
-      }
-    }
-  });
-  console.log("Admin seeded.");
+  for (const admin of ADMIN_ACCOUNTS) {
+    await prisma.user.create({
+      data: {
+        clerkId: admin.clerkId,
+        email: admin.email,
+        name: admin.name,
+        role: "ADMIN",
+        admin: { create: {} },
+      },
+    });
+  }
+  console.log("Admins seeded.");
 
   // Iterate students
   for (const s of mockStudents) {
-    const clerkId = s.id === "s1" ? STUDENT_CLERK_ID : "mock_clerk_" + s.id;
+    const clerkId = STUDENT_CLERK_IDS[s.id] ?? "mock_clerk_" + s.id;
     await prisma.user.create({
       data: {
         clerkId,
@@ -73,7 +88,7 @@ async function main() {
 
   // Iterate faculty
   for (const f of mockFaculty) {
-    const clerkId = f.id === "f1" ? FACULTY_CLERK_ID : "mock_clerk_" + f.id;
+    const clerkId = FACULTY_CLERK_IDS[f.id] ?? "mock_clerk_" + f.id;
     await prisma.user.create({
       data: {
         clerkId,
@@ -241,7 +256,6 @@ async function main() {
   // Questions
   for (const q of mockQuestions) {
     // Find quiz that includes this question
-    // Looking at mockQuestions carefully, they actually map directly to a quiz through mockQuizzes questions list.
     const parentQuiz = mockQuizzes.find(qz => qz.questions.includes(q.id));
 
     await prisma.question.create({

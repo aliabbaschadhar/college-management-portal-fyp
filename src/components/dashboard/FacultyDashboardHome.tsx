@@ -60,6 +60,7 @@ interface FacultyDashboardData {
   courses: FacultyCourse[];
   timetable: FacultyTimetableEntry[];
   announcements: FacultyAnnouncement[];
+  attendanceOverview: { name: string; value: number }[];
 }
 
 interface Quiz {
@@ -89,10 +90,10 @@ const CHART_COLORS = [
   "var(--color-data-6)",
 ];
 
-const attendancePieData = [
-  { name: "Present", value: 78, fill: "var(--color-system-success)" },
-  { name: "Late", value: 12, fill: "var(--color-system-warning)" },
-  { name: "Absent", value: 10, fill: "var(--color-system-danger)" },
+const ATTENDANCE_PIE_FILLS = [
+  "var(--color-system-success)",
+  "var(--color-system-danger)",
+  "var(--color-system-warning)",
 ];
 
 const attendancePieConfig: ChartConfig = {
@@ -106,6 +107,7 @@ const defaultData: FacultyDashboardData = {
   courses: [],
   timetable: [],
   announcements: [],
+  attendanceOverview: [],
 };
 
 export function FacultyDashboardHome() {
@@ -233,7 +235,10 @@ export function FacultyDashboardHome() {
             <PieChart>
               <ChartTooltip content={<ChartTooltipContent nameKey="name" />} />
               <Pie
-                data={attendancePieData}
+                data={data.attendanceOverview.map((item, i) => ({
+                  ...item,
+                  fill: ATTENDANCE_PIE_FILLS[i] ?? "var(--color-brand-secondary)",
+                }))}
                 dataKey="value"
                 nameKey="name"
                 cx="50%"
@@ -242,8 +247,8 @@ export function FacultyDashboardHome() {
                 outerRadius={100}
                 paddingAngle={4}
               >
-                {attendancePieData.map((entry, idx) => (
-                  <Cell key={idx} fill={entry.fill} />
+                {data.attendanceOverview.map((_, idx) => (
+                  <Cell key={idx} fill={ATTENDANCE_PIE_FILLS[idx] ?? "var(--color-brand-secondary)"} />
                 ))}
               </Pie>
             </PieChart>

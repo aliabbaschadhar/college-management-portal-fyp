@@ -89,19 +89,161 @@ export const mockAdmissions: Admission[] = [
 ];
 
 // ─── Attendance ──────────────────────────────────────────
+// Rich attendance spanning March–April 2026 for chart data
 export const mockAttendance: Attendance[] = [
-  { id: "at1", studentId: "s1", courseId: "c2", date: "2026-04-01", status: "Present", markedBy: "f1" },
-  { id: "at2", studentId: "s2", courseId: "c2", date: "2026-04-01", status: "Present", markedBy: "f1" },
-  { id: "at3", studentId: "s3", courseId: "c2", date: "2026-04-01", status: "Absent", markedBy: "f1" },
-  { id: "at4", studentId: "s16", courseId: "c2", date: "2026-04-01", status: "Late", markedBy: "f1" },
-  { id: "at5", studentId: "s1", courseId: "c1", date: "2026-04-01", status: "Present", markedBy: "f2" },
-  { id: "at6", studentId: "s4", courseId: "c4", date: "2026-04-01", status: "Present", markedBy: "f3" },
-  { id: "at7", studentId: "s5", courseId: "c4", date: "2026-04-01", status: "Absent", markedBy: "f3" },
-  { id: "at8", studentId: "s6", courseId: "c6", date: "2026-04-02", status: "Present", markedBy: "f4" },
-  { id: "at9", studentId: "s7", courseId: "c6", date: "2026-04-02", status: "Late", markedBy: "f4" },
-  { id: "at10", studentId: "s8", courseId: "c7", date: "2026-04-02", status: "Present", markedBy: "f5" },
-  { id: "at11", studentId: "s1", courseId: "c2", date: "2026-04-03", status: "Present", markedBy: "f1" },
-  { id: "at12", studentId: "s2", courseId: "c2", date: "2026-04-03", status: "Absent", markedBy: "f1" },
+  // ── s1 (Ali Abbas) — enrolled in c2 (Machine Learning) and c1 (Database Systems)
+  // c2 attendance (taught by f1)
+  { id: "at1",  studentId: "s1", courseId: "c2", date: "2026-03-03", status: "Present", markedBy: "f1" },
+  { id: "at2",  studentId: "s1", courseId: "c2", date: "2026-03-05", status: "Present", markedBy: "f1" },
+  { id: "at3",  studentId: "s1", courseId: "c2", date: "2026-03-10", status: "Present", markedBy: "f1" },
+  { id: "at4",  studentId: "s1", courseId: "c2", date: "2026-03-12", status: "Late",    markedBy: "f1" },
+  { id: "at5",  studentId: "s1", courseId: "c2", date: "2026-03-17", status: "Present", markedBy: "f1" },
+  { id: "at6",  studentId: "s1", courseId: "c2", date: "2026-03-19", status: "Absent",  markedBy: "f1" },
+  { id: "at7",  studentId: "s1", courseId: "c2", date: "2026-03-24", status: "Present", markedBy: "f1" },
+  { id: "at8",  studentId: "s1", courseId: "c2", date: "2026-03-26", status: "Present", markedBy: "f1" },
+  { id: "at9",  studentId: "s1", courseId: "c2", date: "2026-03-31", status: "Present", markedBy: "f1" },
+  { id: "at10", studentId: "s1", courseId: "c2", date: "2026-04-02", status: "Late",    markedBy: "f1" },
+  { id: "at11", studentId: "s1", courseId: "c2", date: "2026-04-07", status: "Present", markedBy: "f1" },
+  { id: "at12", studentId: "s1", courseId: "c2", date: "2026-04-09", status: "Present", markedBy: "f1" },
+  // c1 attendance (taught by f2)
+  { id: "at13", studentId: "s1", courseId: "c1", date: "2026-03-03", status: "Present", markedBy: "f2" },
+  { id: "at14", studentId: "s1", courseId: "c1", date: "2026-03-05", status: "Present", markedBy: "f2" },
+  { id: "at15", studentId: "s1", courseId: "c1", date: "2026-03-10", status: "Present", markedBy: "f2" },
+  { id: "at16", studentId: "s1", courseId: "c1", date: "2026-03-12", status: "Absent",  markedBy: "f2" },
+  { id: "at17", studentId: "s1", courseId: "c1", date: "2026-03-17", status: "Present", markedBy: "f2" },
+  { id: "at18", studentId: "s1", courseId: "c1", date: "2026-03-19", status: "Present", markedBy: "f2" },
+  { id: "at19", studentId: "s1", courseId: "c1", date: "2026-03-24", status: "Late",    markedBy: "f2" },
+  { id: "at20", studentId: "s1", courseId: "c1", date: "2026-03-26", status: "Present", markedBy: "f2" },
+  { id: "at21", studentId: "s1", courseId: "c1", date: "2026-03-31", status: "Present", markedBy: "f2" },
+  { id: "at22", studentId: "s1", courseId: "c1", date: "2026-04-02", status: "Present", markedBy: "f2" },
+  { id: "at23", studentId: "s1", courseId: "c1", date: "2026-04-07", status: "Absent",  markedBy: "f2" },
+  { id: "at24", studentId: "s1", courseId: "c1", date: "2026-04-09", status: "Present", markedBy: "f2" },
+
+  // ── s2 (Fatima Zahra) — enrolled in c2, c1
+  { id: "at25", studentId: "s2", courseId: "c2", date: "2026-03-03", status: "Present", markedBy: "f1" },
+  { id: "at26", studentId: "s2", courseId: "c2", date: "2026-03-05", status: "Present", markedBy: "f1" },
+  { id: "at27", studentId: "s2", courseId: "c2", date: "2026-03-10", status: "Late",    markedBy: "f1" },
+  { id: "at28", studentId: "s2", courseId: "c2", date: "2026-03-12", status: "Present", markedBy: "f1" },
+  { id: "at29", studentId: "s2", courseId: "c2", date: "2026-03-17", status: "Absent",  markedBy: "f1" },
+  { id: "at30", studentId: "s2", courseId: "c2", date: "2026-03-19", status: "Present", markedBy: "f1" },
+  { id: "at31", studentId: "s2", courseId: "c2", date: "2026-03-24", status: "Present", markedBy: "f1" },
+  { id: "at32", studentId: "s2", courseId: "c2", date: "2026-03-26", status: "Absent",  markedBy: "f1" },
+  { id: "at33", studentId: "s2", courseId: "c1", date: "2026-03-03", status: "Present", markedBy: "f2" },
+  { id: "at34", studentId: "s2", courseId: "c1", date: "2026-03-10", status: "Present", markedBy: "f2" },
+  { id: "at35", studentId: "s2", courseId: "c1", date: "2026-03-17", status: "Present", markedBy: "f2" },
+  { id: "at36", studentId: "s2", courseId: "c1", date: "2026-03-24", status: "Late",    markedBy: "f2" },
+  { id: "at37", studentId: "s2", courseId: "c1", date: "2026-03-31", status: "Present", markedBy: "f2" },
+  { id: "at38", studentId: "s2", courseId: "c1", date: "2026-04-07", status: "Present", markedBy: "f2" },
+
+  // ── s3 (Muhammad Usman) — enrolled in c2, c1
+  { id: "at39", studentId: "s3", courseId: "c2", date: "2026-03-03", status: "Absent",  markedBy: "f1" },
+  { id: "at40", studentId: "s3", courseId: "c2", date: "2026-03-05", status: "Present", markedBy: "f1" },
+  { id: "at41", studentId: "s3", courseId: "c2", date: "2026-03-10", status: "Present", markedBy: "f1" },
+  { id: "at42", studentId: "s3", courseId: "c2", date: "2026-03-12", status: "Absent",  markedBy: "f1" },
+  { id: "at43", studentId: "s3", courseId: "c2", date: "2026-03-17", status: "Present", markedBy: "f1" },
+  { id: "at44", studentId: "s3", courseId: "c2", date: "2026-03-19", status: "Late",    markedBy: "f1" },
+  { id: "at45", studentId: "s3", courseId: "c1", date: "2026-03-03", status: "Present", markedBy: "f2" },
+  { id: "at46", studentId: "s3", courseId: "c1", date: "2026-03-10", status: "Absent",  markedBy: "f2" },
+  { id: "at47", studentId: "s3", courseId: "c1", date: "2026-03-17", status: "Present", markedBy: "f2" },
+  { id: "at48", studentId: "s3", courseId: "c1", date: "2026-03-24", status: "Present", markedBy: "f2" },
+
+  // ── s16 (Rabia Aslam) — enrolled in c2, c1
+  { id: "at49", studentId: "s16", courseId: "c2", date: "2026-03-03", status: "Late",    markedBy: "f1" },
+  { id: "at50", studentId: "s16", courseId: "c2", date: "2026-03-05", status: "Present", markedBy: "f1" },
+  { id: "at51", studentId: "s16", courseId: "c2", date: "2026-03-10", status: "Present", markedBy: "f1" },
+  { id: "at52", studentId: "s16", courseId: "c2", date: "2026-03-12", status: "Present", markedBy: "f1" },
+  { id: "at53", studentId: "s16", courseId: "c2", date: "2026-03-17", status: "Absent",  markedBy: "f1" },
+  { id: "at54", studentId: "s16", courseId: "c2", date: "2026-03-19", status: "Present", markedBy: "f1" },
+  { id: "at55", studentId: "s16", courseId: "c1", date: "2026-03-03", status: "Present", markedBy: "f2" },
+  { id: "at56", studentId: "s16", courseId: "c1", date: "2026-03-10", status: "Present", markedBy: "f2" },
+  { id: "at57", studentId: "s16", courseId: "c1", date: "2026-03-17", status: "Late",    markedBy: "f2" },
+  { id: "at58", studentId: "s16", courseId: "c1", date: "2026-03-24", status: "Present", markedBy: "f2" },
+
+  // ── s4 (Ayesha Siddiqui) — enrolled in c4 (Linear Algebra, f3)
+  { id: "at59", studentId: "s4", courseId: "c4", date: "2026-03-03", status: "Present", markedBy: "f3" },
+  { id: "at60", studentId: "s4", courseId: "c4", date: "2026-03-10", status: "Present", markedBy: "f3" },
+  { id: "at61", studentId: "s4", courseId: "c4", date: "2026-03-17", status: "Late",    markedBy: "f3" },
+  { id: "at62", studentId: "s4", courseId: "c4", date: "2026-03-24", status: "Present", markedBy: "f3" },
+  { id: "at63", studentId: "s4", courseId: "c4", date: "2026-03-31", status: "Present", markedBy: "f3" },
+  { id: "at64", studentId: "s4", courseId: "c4", date: "2026-04-07", status: "Present", markedBy: "f3" },
+
+  // ── s5 (Hassan Raza) — enrolled in c4
+  { id: "at65", studentId: "s5", courseId: "c4", date: "2026-03-03", status: "Present", markedBy: "f3" },
+  { id: "at66", studentId: "s5", courseId: "c4", date: "2026-03-10", status: "Absent",  markedBy: "f3" },
+  { id: "at67", studentId: "s5", courseId: "c4", date: "2026-03-17", status: "Present", markedBy: "f3" },
+  { id: "at68", studentId: "s5", courseId: "c4", date: "2026-03-24", status: "Present", markedBy: "f3" },
+  { id: "at69", studentId: "s5", courseId: "c4", date: "2026-03-31", status: "Late",    markedBy: "f3" },
+
+  // ── s6, s7 — enrolled in c6 (Quantum Mechanics, f4)
+  { id: "at70", studentId: "s6", courseId: "c6", date: "2026-03-03", status: "Present", markedBy: "f4" },
+  { id: "at71", studentId: "s6", courseId: "c6", date: "2026-03-10", status: "Present", markedBy: "f4" },
+  { id: "at72", studentId: "s6", courseId: "c6", date: "2026-03-17", status: "Present", markedBy: "f4" },
+  { id: "at73", studentId: "s6", courseId: "c6", date: "2026-03-24", status: "Late",    markedBy: "f4" },
+  { id: "at74", studentId: "s6", courseId: "c6", date: "2026-03-31", status: "Present", markedBy: "f4" },
+  { id: "at75", studentId: "s7", courseId: "c6", date: "2026-03-03", status: "Present", markedBy: "f4" },
+  { id: "at76", studentId: "s7", courseId: "c6", date: "2026-03-10", status: "Late",    markedBy: "f4" },
+  { id: "at77", studentId: "s7", courseId: "c6", date: "2026-03-17", status: "Absent",  markedBy: "f4" },
+  { id: "at78", studentId: "s7", courseId: "c6", date: "2026-03-24", status: "Present", markedBy: "f4" },
+
+  // ── s8, s9 — enrolled in c7 (English Literature, f5)
+  { id: "at79", studentId: "s8", courseId: "c7", date: "2026-03-03", status: "Present", markedBy: "f5" },
+  { id: "at80", studentId: "s8", courseId: "c7", date: "2026-03-10", status: "Present", markedBy: "f5" },
+  { id: "at81", studentId: "s8", courseId: "c7", date: "2026-03-17", status: "Absent",  markedBy: "f5" },
+  { id: "at82", studentId: "s8", courseId: "c7", date: "2026-03-24", status: "Present", markedBy: "f5" },
+  { id: "at83", studentId: "s9", courseId: "c7", date: "2026-03-03", status: "Present", markedBy: "f5" },
+  { id: "at84", studentId: "s9", courseId: "c7", date: "2026-03-10", status: "Late",    markedBy: "f5" },
+  { id: "at85", studentId: "s9", courseId: "c7", date: "2026-03-17", status: "Present", markedBy: "f5" },
+  { id: "at86", studentId: "s9", courseId: "c7", date: "2026-03-24", status: "Present", markedBy: "f5" },
+
+  // ── s10 — enrolled in c8 (Organic Chemistry, f6)
+  { id: "at87", studentId: "s10", courseId: "c8", date: "2026-03-03", status: "Present", markedBy: "f6" },
+  { id: "at88", studentId: "s10", courseId: "c8", date: "2026-03-10", status: "Present", markedBy: "f6" },
+  { id: "at89", studentId: "s10", courseId: "c8", date: "2026-03-17", status: "Absent",  markedBy: "f6" },
+  { id: "at90", studentId: "s10", courseId: "c8", date: "2026-03-24", status: "Present", markedBy: "f6" },
+
+  // ── s11 — enrolled in c1, c3
+  { id: "at91", studentId: "s11", courseId: "c1", date: "2026-03-03", status: "Present", markedBy: "f2" },
+  { id: "at92", studentId: "s11", courseId: "c1", date: "2026-03-10", status: "Present", markedBy: "f2" },
+  { id: "at93", studentId: "s11", courseId: "c1", date: "2026-03-17", status: "Absent",  markedBy: "f2" },
+  { id: "at94", studentId: "s11", courseId: "c1", date: "2026-03-24", status: "Present", markedBy: "f2" },
+  { id: "at95", studentId: "s11", courseId: "c3", date: "2026-03-04", status: "Present", markedBy: "f2" },
+  { id: "at96", studentId: "s11", courseId: "c3", date: "2026-03-11", status: "Late",    markedBy: "f2" },
+  { id: "at97", studentId: "s11", courseId: "c3", date: "2026-03-18", status: "Present", markedBy: "f2" },
+
+  // ── s12 — enrolled in c3
+  { id: "at98",  studentId: "s12", courseId: "c3", date: "2026-03-04", status: "Present", markedBy: "f2" },
+  { id: "at99",  studentId: "s12", courseId: "c3", date: "2026-03-11", status: "Present", markedBy: "f2" },
+  { id: "at100", studentId: "s12", courseId: "c3", date: "2026-03-18", status: "Present", markedBy: "f2" },
+  { id: "at101", studentId: "s12", courseId: "c3", date: "2026-03-25", status: "Absent",  markedBy: "f2" },
+
+  // ── s13 — enrolled in c9 (Microeconomics, f7)
+  { id: "at102", studentId: "s13", courseId: "c9", date: "2026-03-03", status: "Present", markedBy: "f7" },
+  { id: "at103", studentId: "s13", courseId: "c9", date: "2026-03-10", status: "Present", markedBy: "f7" },
+  { id: "at104", studentId: "s13", courseId: "c9", date: "2026-03-17", status: "Late",    markedBy: "f7" },
+  { id: "at105", studentId: "s13", courseId: "c9", date: "2026-03-24", status: "Present", markedBy: "f7" },
+
+  // ── Additional April attendance for s2 & s3 ────────────────
+  { id: "at106", studentId: "s2", courseId: "c2", date: "2026-03-31", status: "Present", markedBy: "f1" },
+  { id: "at107", studentId: "s2", courseId: "c2", date: "2026-04-02", status: "Present", markedBy: "f1" },
+  { id: "at108", studentId: "s2", courseId: "c2", date: "2026-04-07", status: "Late",    markedBy: "f1" },
+  { id: "at109", studentId: "s2", courseId: "c2", date: "2026-04-09", status: "Present", markedBy: "f1" },
+  { id: "at110", studentId: "s2", courseId: "c1", date: "2026-03-31", status: "Present", markedBy: "f2" },
+  { id: "at111", studentId: "s2", courseId: "c1", date: "2026-04-02", status: "Present", markedBy: "f2" },
+  { id: "at112", studentId: "s2", courseId: "c1", date: "2026-04-07", status: "Absent",  markedBy: "f2" },
+  { id: "at113", studentId: "s2", courseId: "c1", date: "2026-04-09", status: "Present", markedBy: "f2" },
+  { id: "at114", studentId: "s3", courseId: "c2", date: "2026-03-24", status: "Present", markedBy: "f1" },
+  { id: "at115", studentId: "s3", courseId: "c2", date: "2026-03-31", status: "Present", markedBy: "f1" },
+  { id: "at116", studentId: "s3", courseId: "c2", date: "2026-04-02", status: "Late",    markedBy: "f1" },
+  { id: "at117", studentId: "s3", courseId: "c2", date: "2026-04-07", status: "Present", markedBy: "f1" },
+  { id: "at118", studentId: "s3", courseId: "c1", date: "2026-03-31", status: "Present", markedBy: "f2" },
+  { id: "at119", studentId: "s3", courseId: "c1", date: "2026-04-02", status: "Late",    markedBy: "f2" },
+  { id: "at120", studentId: "s3", courseId: "c1", date: "2026-04-07", status: "Present", markedBy: "f2" },
+  { id: "at121", studentId: "s3", courseId: "c1", date: "2026-04-09", status: "Present", markedBy: "f2" },
+
+  // ── Attendance for s4/s5 in c4 (April — for f3 dashboard) ──
+  { id: "at122", studentId: "s4", courseId: "c4", date: "2026-04-09", status: "Present", markedBy: "f3" },
+  { id: "at123", studentId: "s5", courseId: "c4", date: "2026-04-07", status: "Present", markedBy: "f3" },
+  { id: "at124", studentId: "s5", courseId: "c4", date: "2026-04-09", status: "Absent",  markedBy: "f3" },
 ];
 
 // ─── Fee Records ─────────────────────────────────────────
@@ -118,6 +260,14 @@ export const mockFees: Fee[] = [
   { id: "fee10", studentId: "s10", type: "Semester Fee", feeType: "Semester Fee", amount: 30000, status: "Paid", dueDate: "2026-02-15", semester: 3, paidDate: "2026-02-13" },
   { id: "fee11", studentId: "s1", type: "Lab Fee", feeType: "Lab Fee", amount: 5000, status: "Unpaid", dueDate: "2026-03-15", semester: 7, paidDate: null },
   { id: "fee12", studentId: "s1", type: "Library Fee", feeType: "Library Fee", amount: 2000, status: "Paid", dueDate: "2026-02-15", semester: 7, paidDate: "2026-02-10" },
+  // ── s2 & s3 additional fees ────────────────────────────────
+  { id: "fee13", studentId: "s2", type: "Lab Fee", feeType: "Lab Fee", amount: 5000, status: "Paid", dueDate: "2026-03-15", semester: 7, paidDate: "2026-03-10" },
+  { id: "fee14", studentId: "s2", type: "Library Fee", feeType: "Library Fee", amount: 2000, status: "Unpaid", dueDate: "2026-03-15", semester: 7, paidDate: null },
+  { id: "fee15", studentId: "s3", type: "Lab Fee", feeType: "Lab Fee", amount: 5000, status: "Overdue", dueDate: "2026-02-28", semester: 7, paidDate: null },
+  { id: "fee16", studentId: "s3", type: "Library Fee", feeType: "Library Fee", amount: 2000, status: "Paid", dueDate: "2026-02-15", semester: 7, paidDate: "2026-02-12" },
+  // ── s4/s5 fees (for f3 students) ───────────────────────────
+  { id: "fee17", studentId: "s4", type: "Lab Fee", feeType: "Lab Fee", amount: 4000, status: "Paid", dueDate: "2026-03-15", semester: 5, paidDate: "2026-03-08" },
+  { id: "fee18", studentId: "s5", type: "Lab Fee", feeType: "Lab Fee", amount: 4000, status: "Unpaid", dueDate: "2026-03-15", semester: 5, paidDate: null },
 ];
 
 // ─── Announcements ───────────────────────────────────────
@@ -141,6 +291,13 @@ export const mockFeedback: Feedback[] = [
   { id: "fb8", studentId: "s8", submittedBy: "s8", type: "Faculty", targetId: "f4", rating: 5, comment: "Absolutely brilliant teacher. Makes physics fun!", date: "2026-03-20" },
   { id: "fb9", studentId: "s9", submittedBy: "s9", type: "Course", targetId: "c6", rating: 5, comment: "One of the best courses I have ever had.", date: "2026-03-18" },
   { id: "fb10", studentId: "s10", submittedBy: "s10", type: "Faculty", targetId: "f5", rating: 4, comment: "Very engaging lectures. Assignments are thought-provoking.", date: "2026-03-15" },
+  // ── Faculty feedback for f2 (Dr. Amina Rashid) ─────────────
+  { id: "fb11", studentId: "s1",  submittedBy: "s1",  type: "Faculty", targetId: "f2", rating: 4, comment: "Great practical approach. Makes databases interesting.", date: "2026-03-22" },
+  { id: "fb12", studentId: "s2",  submittedBy: "s2",  type: "Faculty", targetId: "f2", rating: 5, comment: "One of the best lecturers in CS department.", date: "2026-03-20" },
+  { id: "fb13", studentId: "s11", submittedBy: "s11", type: "Faculty", targetId: "f2", rating: 4, comment: "Very well prepared lectures and helpful office hours.", date: "2026-03-19" },
+  // ── Faculty feedback for f3 (Prof. Zahid Iqbal) ────────────
+  { id: "fb14", studentId: "s4", submittedBy: "s4", type: "Faculty", targetId: "f3", rating: 4, comment: "Clear explanations of abstract math concepts.", date: "2026-03-21" },
+  { id: "fb15", studentId: "s5", submittedBy: "s5", type: "Faculty", targetId: "f3", rating: 5, comment: "Makes linear algebra approachable and intuitive.", date: "2026-03-18" },
 ];
 
 // ─── Timetable ───────────────────────────────────────────
@@ -161,6 +318,11 @@ export const mockTimetable: Timetable[] = [
   { id: "tt14", courseId: "c4", courseCode: "MTH-301", courseName: "Linear Algebra", facultyName: "Prof. Zahid Iqbal", room: "Room 105", day: "Thursday", startTime: "11:00", endTime: "12:00", department: "Mathematics", semester: 5 },
   { id: "tt15", courseId: "c7", courseCode: "ENG-301", courseName: "English Literature", facultyName: "Prof. Asad Ali", room: "Room 302", day: "Friday", startTime: "09:00", endTime: "10:00", department: "English", semester: 5 },
   { id: "tt16", courseId: "c3", courseCode: "CS-201", courseName: "Data Structures", facultyName: "Dr. Amina Rashid", room: "CS Lab 2", day: "Friday", startTime: "10:00", endTime: "12:00", department: "Computer Science", semester: 3 },
+  // ── Thursday entries for f2 courses (live for today) ────────
+  { id: "tt17", courseId: "c1", courseCode: "CS-301", courseName: "Database Systems", facultyName: "Dr. Amina Rashid", room: "Room 201", day: "Thursday", startTime: "14:00", endTime: "15:30", department: "Computer Science", semester: 5 },
+  { id: "tt18", courseId: "c3", courseCode: "CS-201", courseName: "Data Structures", facultyName: "Dr. Amina Rashid", room: "CS Lab 2", day: "Thursday", startTime: "16:00", endTime: "17:00", department: "Computer Science", semester: 3 },
+  // ── Thursday entry for c2 (so students s1/s2/s3 see today's class)
+  { id: "tt19", courseId: "c2", courseCode: "CS-401", courseName: "Machine Learning", facultyName: "Dr. Khalid Mahmood", room: "CS Lab 1", day: "Thursday", startTime: "12:00", endTime: "13:00", department: "Computer Science", semester: 7 },
 ];
 
 export const adminDashboardStats = {
@@ -181,7 +343,7 @@ export const studentsPerDepartment = {
 
 export const attendanceOverview = {
   labels: ["Present", "Absent", "Late"],
-  data: [72, 18, 10],
+  data: [91, 17, 22],
 };
 
 // ─── Recent Activity ─────────────────────────────────────
@@ -206,6 +368,10 @@ export const mockQuestions: Question[] = [
   { id: "q8", text: "What is a linked list?", options: ["An array of elements", "A linear data structure with pointers", "A tree structure", "A hash map"], correctOption: 1, courseId: "c3", createdBy: "f2" },
   { id: "q9", text: "What is the time complexity of binary search?", options: ["O(n)", "O(n²)", "O(log n)", "O(1)"], correctOption: 2, courseId: "c3", createdBy: "f2" },
   { id: "q10", text: "What is a stack?", options: ["FIFO structure", "LIFO structure", "Random access", "Graph structure"], correctOption: 1, courseId: "c3", createdBy: "f2" },
+  // ── Questions for Linear Algebra quiz (f3) ─────────────────
+  { id: "q11", text: "What is a vector space?", options: ["A set of vectors closed under addition and scalar multiplication", "A matrix", "A determinant", "A scalar field"], correctOption: 0, courseId: "c4", createdBy: "f3" },
+  { id: "q12", text: "What is the rank of a matrix?", options: ["Number of rows", "Number of columns", "Max number of linearly independent rows", "Trace of the matrix"], correctOption: 2, courseId: "c4", createdBy: "f3" },
+  { id: "q13", text: "What is an eigenvalue?", options: ["A scalar associated with a linear transformation", "A vector", "A matrix inverse", "Row echelon form"], correctOption: 0, courseId: "c4", createdBy: "f3" },
 ];
 
 // ─── Quizzes ─────────────────────────────────────────────
@@ -214,6 +380,8 @@ export const mockQuizzes: Quiz[] = [
   { id: "qz2", title: "ML Basics Quiz", courseId: "c2", createdBy: "f1", duration: 20, totalMarks: 30, questions: ["q5", "q6", "q7"], status: "Published", dueDate: "2026-04-18" },
   { id: "qz3", title: "Data Structures Mid Quiz", courseId: "c3", createdBy: "f2", duration: 25, totalMarks: 25, questions: ["q8", "q9", "q10"], status: "Draft", dueDate: "2026-04-25" },
   { id: "qz4", title: "Advanced SQL Quiz", courseId: "c1", createdBy: "f2", duration: 10, totalMarks: 15, questions: ["q1", "q3"], status: "Closed", dueDate: "2026-03-15" },
+  // ── Quiz for f3's course c4 ───────────────────────────────
+  { id: "qz5", title: "Linear Algebra Fundamentals", courseId: "c4", createdBy: "f3", duration: 20, totalMarks: 25, questions: ["q11", "q12", "q13"], status: "Published", dueDate: "2026-04-22" },
 ];
 
 // ─── Quiz Attempts ───────────────────────────────────────
@@ -221,6 +389,10 @@ export const mockQuizAttempts: QuizAttempt[] = [
   { id: "qa1", quizId: "qz4", studentId: "s1", score: 13, totalMarks: 15, submittedAt: "2026-03-14T10:30:00", answers: [0, 0] },
   { id: "qa2", quizId: "qz4", studentId: "s2", score: 10, totalMarks: 15, submittedAt: "2026-03-14T10:45:00", answers: [0, 1] },
   { id: "qa3", quizId: "qz4", studentId: "s3", score: 15, totalMarks: 15, submittedAt: "2026-03-14T10:28:00", answers: [0, 0] },
+  // ── f2 quiz attempts (qz1 — Database Fundamentals) ─────────
+  { id: "qa4", quizId: "qz1", studentId: "s1",  score: 16, totalMarks: 20, submittedAt: "2026-04-08T09:30:00", answers: [0, 2, 0, 1] },
+  { id: "qa5", quizId: "qz1", studentId: "s2",  score: 18, totalMarks: 20, submittedAt: "2026-04-08T09:45:00", answers: [0, 2, 0, 1] },
+  { id: "qa6", quizId: "qz1", studentId: "s11", score: 14, totalMarks: 20, submittedAt: "2026-04-08T10:00:00", answers: [0, 2, 0, 0] },
 ];
 
 // ─── Grade Records ───────────────────────────────────────
@@ -235,6 +407,11 @@ export const mockGrades: Grade[] = [
   { id: "g8", studentId: "s6", courseId: "c6", quizMarks: 19, assignmentMarks: 23, midMarks: 38, finalMarks: 46, total: 126, gpa: 3.9, locked: false },
   { id: "g9", studentId: "s11", courseId: "c1", quizMarks: 13, assignmentMarks: 17, midMarks: 29, finalMarks: 36, total: 95, gpa: 3.1, locked: true },
   { id: "g10", studentId: "s16", courseId: "c2", quizMarks: 15, assignmentMarks: 21, midMarks: 34, finalMarks: 43, total: 113, gpa: 3.6, locked: false },
+  // ── Missing grade for s3 in c1 ─────────────────────────────
+  { id: "g11", studentId: "s3", courseId: "c1", quizMarks: 14, assignmentMarks: 18, midMarks: 30, finalMarks: 37, total: 99, gpa: 3.2, locked: true },
+  // ── Grades for s11 in c3, s12 in c3 ────────────────────────
+  { id: "g12", studentId: "s11", courseId: "c3", quizMarks: 16, assignmentMarks: 20, midMarks: 31, finalMarks: 39, total: 106, gpa: 3.4, locked: false },
+  { id: "g13", studentId: "s12", courseId: "c3", quizMarks: 18, assignmentMarks: 22, midMarks: 35, finalMarks: 42, total: 117, gpa: 3.7, locked: false },
 ];
 
 // ─── Enrollment Map (which students are in which courses) ─

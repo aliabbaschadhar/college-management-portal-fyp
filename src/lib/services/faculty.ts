@@ -18,6 +18,7 @@ interface FacultyDashboardData {
     room: string;
   }[];
   announcements: { id: string; title: string; priority: string; date: string }[];
+  attendanceOverview: { name: string; value: number }[];
 }
 
 export async function getFacultyDashboardData(
@@ -47,6 +48,8 @@ export async function getFacultyDashboardData(
   const faculty = user.faculty;
   const courses = faculty.teaches;
 
+  const courseIds = courses.map((c) => c.id);
+
   const uniqueStudentIds = new Set<string>();
   for (const course of courses) {
     for (const enrollment of course.enrollments) {
@@ -54,10 +57,17 @@ export async function getFacultyDashboardData(
     }
   }
 
-  const feedbacks = await prisma.feedback.findMany({
-    where: { targetId: faculty.id, type: "Faculty" },
-    select: { rating: true },
-  });
+  const [feedbacks, attendanceGroups] = await Promise.all([
+    prisma.feedback.findMany({
+      where: { targetId: faculty.id, type: "Faculty" },
+      select: { rating: true },
+    }),
+    prisma.attendance.groupBy({
+      by: ["status"],
+      where: { courseId: { in: courseIds } },
+      _count: { _all: true },
+    }),
+  ]);
 
   const avgRating =
     feedbacks.length > 0
@@ -65,6 +75,17 @@ export async function getFacultyDashboardData(
       : 0;
 
   const pendingQuizReviews = courses.reduce((sum, c) => sum + c.quizzes.length, 0);
+
+  // Attendance overview for faculty's courses
+  const attendanceMap: Record<string, number> = {};
+  for (const group of attendanceGroups) {
+    attendanceMap[group.status] = group._count._all;
+  }
+  const attendanceOverview = [
+    { name: "Present", value: attendanceMap["Present"] ?? 0 },
+    { name: "Absent", value: attendanceMap["Absent"] ?? 0 },
+    { name: "Late", value: attendanceMap["Late"] ?? 0 },
+  ];
 
   const announcements = await prisma.announcement.findMany({
     where: { audience: { in: ["Faculty", "All"] } },
@@ -103,5 +124,7 @@ export async function getFacultyDashboardData(
       priority: a.priority,
       date: a.date.toISOString(),
     })),
+    attendanceOverview,
   };
 }
+
