@@ -29,21 +29,33 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   // ── Clerk ID → mock-profile-id lookup maps ─────────────────
   const STUDENT_CLERK_IDS: Record<string, string> = {
-    s1: "user_3C9cPnJBgQQum6oC9Bd6iaYdIYM",  // Ali Abbas
-    s2: "user_3C9TUj65lyHr9jwkUStkuyRgIut",  // Fatima Zahra
-    s3: "user_3C9gAqqP8REEpeVX86W0ELzinur",  // Muhammad Usman
+    s1: "user_3C9cPnJBgQQum6oC9Bd6iaYdIYM", // Ali Abbas
+    s2: "user_3C9TUj65lyHr9jwkUStkuyRgIut", // Fatima Zahra
+    s3: "user_3C9gAqqP8REEpeVX86W0ELzinur", // Muhammad Usman
   };
 
   const FACULTY_CLERK_IDS: Record<string, string> = {
-    f1: "user_3C9cVNeByLUAptMRkUMgw8gyzdW",  // Dr. Khalid Mahmood
-    f2: "user_3C9fgZSJgjXCzhyP47JUOwQf0jj",  // Dr. Amina Rashid
-    f3: "user_3C9g1tP7H7v03w2CJIrq6g47ymX",  // Prof. Zahid Iqbal
+    f1: "user_3C9cVNeByLUAptMRkUMgw8gyzdW", // Dr. Khalid Mahmood
+    f2: "user_3C9fgZSJgjXCzhyP47JUOwQf0jj", // Dr. Amina Rashid
+    f3: "user_3C9g1tP7H7v03w2CJIrq6g47ymX", // Prof. Zahid Iqbal
   };
 
   const ADMIN_ACCOUNTS = [
-    { clerkId: "user_3C9cf7vvuywZKrZicAweaHGtiNr", email: "admin@college.edu.pk",  name: "Admin Tester" },
-    { clerkId: "user_3C9g1Lp0h1opFyWAbBn0pccGQhs", email: "admin2@college.edu.pk", name: "Dr. Zafar Iqbal" },
-    { clerkId: "user_3C9fiFD4wdqiUTFGwYyQAbvc7N6", email: "admin3@college.edu.pk", name: "Prof. Nadia Sheikh" },
+    {
+      clerkId: "user_3C9cf7vvuywZKrZicAweaHGtiNr",
+      email: "admin@college.edu.pk",
+      name: "Admin Tester",
+    },
+    {
+      clerkId: "user_3C9g1Lp0h1opFyWAbBn0pccGQhs",
+      email: "admin2@college.edu.pk",
+      name: "Dr. Zafar Iqbal",
+    },
+    {
+      clerkId: "user_3C9fiFD4wdqiUTFGwYyQAbvc7N6",
+      email: "admin3@college.edu.pk",
+      name: "Prof. Nadia Sheikh",
+    },
   ];
 
   console.log("Seeding database...");
@@ -79,10 +91,10 @@ async function main() {
             department: s.department,
             semester: s.semester,
             enrollmentDate: new Date(s.enrollmentDate),
-            avatar: undefined
-          }
-        }
-      }
+            avatar: undefined,
+          },
+        },
+      },
     });
   }
 
@@ -102,10 +114,10 @@ async function main() {
             department: f.department,
             specialization: f.specialization,
             joinDate: new Date(f.joinDate),
-            avatar: undefined
-          }
-        }
-      }
+            avatar: undefined,
+          },
+        },
+      },
     });
   }
   console.log("Users seeded.");
@@ -113,7 +125,7 @@ async function main() {
   // Courses
   for (const c of mockCourses) {
     // Find faculty mapping (must wait for creation above)
-    const facultyAssign = mockTeaches.find(t => t.courseId === c.id);
+    const facultyAssign = mockTeaches.find((t) => t.courseId === c.id);
     await prisma.course.create({
       data: {
         id: c.id,
@@ -122,21 +134,21 @@ async function main() {
         creditHours: c.creditHours,
         department: c.department,
         semester: c.semester,
-        assignedFaculty: facultyAssign ? facultyAssign.facultyId : null
-      }
+        assignedFaculty: facultyAssign ? facultyAssign.facultyId : null,
+      },
     });
   }
   console.log("Courses seeded.");
 
   // Enrollments
   for (const e of mockEnrollments) {
-    const course = mockCourses.find(c => c.id === e.courseId);
+    const course = mockCourses.find((c) => c.id === e.courseId);
     await prisma.enrollment.create({
       data: {
         studentId: e.studentId,
         courseId: e.courseId,
-        semester: course?.semester || 1
-      }
+        semester: course?.semester || 1,
+      },
     });
   }
   console.log("Enrollments seeded.");
@@ -188,8 +200,8 @@ async function main() {
         status: f.status as "Paid" | "Unpaid" | "Overdue",
         dueDate: new Date(f.dueDate),
         semester: f.semester,
-        paidDate: f.paidDate ? new Date(f.paidDate) : null
-      }
+        paidDate: f.paidDate ? new Date(f.paidDate) : null,
+      },
     });
   }
 
@@ -203,9 +215,9 @@ async function main() {
         author: a.author,
         date: new Date(a.date),
         audience: a.audience as "All" | "Students" | "Faculty",
-        priority: a.priority as "High" | "Medium" | "Low"
-      }
-    })
+        priority: a.priority as "High" | "Medium" | "Low",
+      },
+    });
   }
 
   // Feedback
@@ -218,9 +230,9 @@ async function main() {
         targetId: f.targetId,
         rating: f.rating,
         comment: f.comment,
-        date: new Date(f.date)
-      }
-    })
+        date: new Date(f.date),
+      },
+    });
   }
 
   // Timetable
@@ -232,9 +244,9 @@ async function main() {
         room: t.room,
         day: t.day,
         startTime: t.startTime,
-        endTime: t.endTime
-      }
-    })
+        endTime: t.endTime,
+      },
+    });
   }
 
   // Quizzes
@@ -248,15 +260,15 @@ async function main() {
         duration: q.duration,
         totalMarks: q.totalMarks,
         status: q.status,
-        dueDate: new Date(q.dueDate)
-      }
-    })
+        dueDate: new Date(q.dueDate),
+      },
+    });
   }
 
   // Questions
   for (const q of mockQuestions) {
     // Find quiz that includes this question
-    const parentQuiz = mockQuizzes.find(qz => qz.questions.includes(q.id));
+    const parentQuiz = mockQuizzes.find((qz) => qz.questions.includes(q.id));
 
     await prisma.question.create({
       data: {
@@ -264,9 +276,9 @@ async function main() {
         text: q.text,
         options: q.options,
         correctOption: q.correctOption,
-        quizId: parentQuiz ? parentQuiz.id : mockQuizzes[0].id
-      }
-    })
+        quizId: parentQuiz ? parentQuiz.id : mockQuizzes[0].id,
+      },
+    });
   }
 
   // Attempts
@@ -279,12 +291,12 @@ async function main() {
         score: a.score,
         totalMarks: a.totalMarks,
         submittedAt: new Date(a.submittedAt),
-        answers: a.answers
-      }
-    })
+        answers: a.answers,
+      },
+    });
   }
 
-  // Grades 
+  // Grades
   for (const g of mockGrades) {
     await prisma.grade.create({
       data: {
@@ -297,9 +309,9 @@ async function main() {
         finalMarks: g.finalMarks,
         total: g.total,
         gpa: g.gpa,
-        locked: g.locked
-      }
-    })
+        locked: g.locked,
+      },
+    });
   }
 
   // Admissions
@@ -317,9 +329,9 @@ async function main() {
         cnic: a.cnic,
         previousInstitution: a.previousInstitution,
         marksObtained: a.marksObtained,
-        totalMarks: a.totalMarks
-      }
-    })
+        totalMarks: a.totalMarks,
+      },
+    });
   }
 
   console.log("Database seeded successfully.");
