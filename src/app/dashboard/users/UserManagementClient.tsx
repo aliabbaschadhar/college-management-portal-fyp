@@ -28,7 +28,7 @@ type Role = "ADMIN" | "FACULTY" | "STUDENT";
 
 interface UserRow {
   id: string;
-  clerkId: string;
+  clerkId: string | null;
   name: string | null;
   email: string;
   role: Role;

@@ -96,16 +96,6 @@ export async function GET(request: NextRequest) {
       ...(resolvedStudentId ? { studentId: resolvedStudentId } : {}),
     };
 
-    // Auto-detect overdue fees: update unpaid fees past their due date
-    await prisma.fee.updateMany({
-      where: {
-        status: "Unpaid",
-        dueDate: { lt: new Date() },
-        ...whereClause,
-      },
-      data: { status: "Overdue" },
-    });
-
     const fees = await prisma.fee.findMany({
       where: whereClause,
       include: {

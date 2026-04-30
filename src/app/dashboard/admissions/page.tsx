@@ -139,15 +139,20 @@ export default function ManageAdmissionsPage() {
     formData.append("file", file);
     setMutationError(null);
     try {
-      const res = await fetch("/api/admissions", {
+      const res = await fetch("/api/admissions/import", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ csv: true }),
+        body: formData,
       });
-      if (!res.ok) throw new Error("CSV import not yet implemented");
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? "CSV import failed");
+      }
+      const result = (await res.json()) as { imported: number };
+      setSuccessMessage(`Successfully imported ${result.imported} admission(s) from CSV`);
+      setTimeout(() => setSuccessMessage(null), 5000);
       loadAdmissions();
-    } catch {
-      setMutationError("CSV import feature coming soon");
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : "CSV import failed");
     }
     if (csvInputRef.current) csvInputRef.current.value = "";
   };
