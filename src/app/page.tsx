@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useEffect } from "react";
 import Link from "next/link";
 import { SignedIn, SignedOut } from "@clerk/nextjs";
 import { motion, useReducedMotion } from "framer-motion";
@@ -21,6 +22,12 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { gsap } from "gsap";
+import { useGSAP } from "@gsap/react";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import MagneticCard from "@/components/MagneticCard";
+
+gsap.registerPlugin(ScrollTrigger);
 
 const operationsFlow = [
   {
@@ -133,12 +140,108 @@ const fadeUp = {
 
 export default function Home() {
   const prefersReducedMotion = useReducedMotion();
+  const heroRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const heroTextRef = useRef<HTMLHeadingElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(() => {
+    // 3D Staggered Hero Reveal
+    const words = heroTextRef.current?.querySelectorAll("span") || [];
+    gsap.from(words, {
+      z: 500,
+      opacity: 0,
+      rotateX: -45,
+      stagger: 0.1,
+      duration: 1.5,
+      ease: "power4.out",
+    });
+
+    // Perspective Grid Animation on Scroll
+    gsap.to(gridRef.current, {
+      backgroundPositionY: "200%",
+      ease: "none",
+      scrollTrigger: {
+        trigger: containerRef.current,
+        start: "top top",
+        end: "bottom bottom",
+        scrub: true,
+      },
+    });
+
+    // Floating Background Elements
+    gsap.to(".floating-asset", {
+      y: "random(-20, 20)",
+      x: "random(-20, 20)",
+      rotation: "random(-15, 15)",
+      duration: "random(2, 4)",
+      repeat: -1,
+      yoyo: true,
+      ease: "sine.inOut",
+      stagger: {
+        each: 0.5,
+        from: "random",
+      },
+    });
+    // Campus Flow Timeline Animation
+    const tl = gsap.timeline({
+      scrollTrigger: {
+        trigger: ".campus-flow-container",
+        start: "top 80%",
+        end: "bottom 60%",
+        scrub: 1,
+      }
+    });
+
+    tl.fromTo(".campus-line", 
+      { scaleY: 0 }, 
+      { scaleY: 1, ease: "none", duration: 1 }
+    );
+
+    gsap.from(".campus-step", {
+      opacity: 0,
+      x: -30,
+      stagger: 0.2,
+      scrollTrigger: {
+        trigger: ".campus-flow-container",
+        start: "top 75%",
+        toggleActions: "play none none reverse"
+      }
+    });
+  }, { scope: containerRef });
 
   return (
-    <div className="min-h-screen bg-brand-light text-brand-dark dark:bg-background dark:text-foreground">
+    <div ref={containerRef} className="min-h-screen bg-brand-light text-brand-dark dark:bg-background dark:text-foreground overflow-hidden">
       <Header />
 
-      <main id="main-content" className="overflow-x-hidden">
+      <main id="main-content" className="relative overflow-x-hidden">
+        {/* Advanced 3D Perspective Grid Background */}
+        <div 
+          ref={gridRef}
+          className="pointer-events-none absolute inset-0 -z-20 opacity-[0.08] dark:opacity-[0.15]"
+          style={{
+            perspective: "1000px",
+            transformStyle: "preserve-3d",
+          }}
+        >
+          <div 
+            className="absolute inset-x-0 -top-full h-[300%] w-full"
+            style={{
+              backgroundImage: `linear-gradient(to right, var(--color-brand-primary) 1px, transparent 1px), linear-gradient(to bottom, var(--color-brand-primary) 1px, transparent 1px)`,
+              backgroundSize: "60px 60px",
+              transform: "rotateX(60deg) translateY(-25%)",
+              transformOrigin: "center top",
+            }}
+          />
+        </div>
+
+        {/* Floating Background Assets */}
+        <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+            <GraduationCap className="floating-asset absolute left-[10%] top-[20%] h-24 w-24 text-brand-primary opacity-5 blur-[1px]" />
+            <BookOpen className="floating-asset absolute right-[15%] top-[40%] h-20 w-20 text-brand-secondary opacity-5 blur-[2px]" />
+            <Shield className="floating-asset absolute left-[20%] bottom-[15%] h-32 w-32 text-brand-primary opacity-5 blur-[1px]" />
+            <Sparkles className="floating-asset absolute right-[10%] bottom-[30%] h-16 w-16 text-brand-secondary opacity-10" />
+        </div>
         <section id="overview" className="relative overflow-hidden px-4 pb-16 pt-28 sm:px-6 lg:px-8 lg:pb-24 lg:pt-36">
           <div className="pointer-events-none absolute inset-0 -z-10">
             <div className="absolute inset-x-0 top-0 h-56 bg-linear-to-b from-brand-primary/20 to-transparent" />
@@ -166,9 +269,12 @@ export default function Home() {
                 Govt. Graduate College, Hafizabad | BSCS FYP
               </div>
 
-              <h1 className="mt-6 max-w-4xl text-4xl font-black leading-[1.08] tracking-tight text-brand-dark dark:text-foreground sm:text-5xl lg:text-6xl">
-                Not another template dashboard.
-                <span className="block text-brand-primary">A daily operating system for your campus.</span>
+              <h1 
+                ref={heroTextRef}
+                className="mt-6 max-w-4xl text-4xl font-black leading-[1.08] tracking-tight text-brand-dark dark:text-foreground sm:text-5xl lg:text-6xl"
+              >
+                <span className="inline-block">Not</span> <span className="inline-block">another</span> <span className="inline-block">template</span> <span className="inline-block">dashboard.</span>
+                <span className="block text-brand-primary mt-2">A daily operating system for your campus.</span>
               </h1>
 
               <p className="mt-6 max-w-2xl text-base leading-relaxed text-brand-dark/80 dark:text-muted-foreground sm:text-lg">
@@ -198,13 +304,9 @@ export default function Home() {
               </div>
             </motion.div>
 
-            <motion.aside
-              initial={prefersReducedMotion ? false : "hidden"}
-              animate={prefersReducedMotion ? undefined : "visible"}
-              variants={fadeUp}
-              transition={{ duration: 0.6, delay: prefersReducedMotion ? 0 : 0.1 }}
+            <MagneticCard
               className="rounded-2xl border border-brand-primary/15 bg-brand-white p-6 shadow-sm dark:bg-card"
-              aria-label="Campus operations snapshot"
+              tiltMax={10}
             >
               <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand-primary">Command Snapshot</p>
               <div className="mt-4 space-y-4">
@@ -220,7 +322,7 @@ export default function Home() {
                   </div>
                 ))}
               </div>
-            </motion.aside>
+            </MagneticCard>
           </div>
         </section>
 
@@ -265,19 +367,15 @@ export default function Home() {
               </h2>
             </motion.div>
 
-            <div className="relative rounded-2xl border border-brand-primary/10 bg-brand-light p-4 sm:p-6 dark:bg-background">
-              <div className="absolute bottom-6 left-8 top-6 hidden w-px bg-brand-primary/20 md:block" />
+            <div className="campus-flow-container relative rounded-2xl border border-brand-primary/10 bg-brand-light p-4 sm:p-6 dark:bg-background">
+              <div className="campus-line absolute bottom-6 left-8 top-6 hidden w-px bg-brand-primary/20 md:block origin-top" />
               <div className="space-y-4">
                 {operationsFlow.map((step, index) => {
                   const StepIcon = step.icon;
                   return (
-                    <motion.div
+                    <div
                       key={step.title}
-                      initial={prefersReducedMotion ? false : "hidden"}
-                      whileInView={prefersReducedMotion ? undefined : "visible"}
-                      viewport={{ once: true, amount: 0.2 }}
-                      variants={fadeUp}
-                      transition={{ duration: 0.45, delay: prefersReducedMotion ? 0 : index * 0.06 }}
+                      className="campus-step"
                     >
                       <div className="grid gap-3 rounded-xl border border-brand-primary/10 bg-brand-white p-4 md:grid-cols-[auto_1fr] md:gap-5 md:p-5 dark:bg-card">
                         <div className="flex items-center gap-3 md:min-w-48 md:items-start md:gap-4">
@@ -292,7 +390,7 @@ export default function Home() {
                         </div>
                         <p className="text-sm leading-relaxed text-brand-dark/75 dark:text-muted-foreground md:pt-1">{step.text}</p>
                       </div>
-                    </motion.div>
+                    </div>
                   );
                 })}
               </div>
@@ -351,22 +449,24 @@ export default function Home() {
                     variants={fadeUp}
                     transition={{ duration: 0.45, delay: prefersReducedMotion ? 0 : index * 0.05 }}
                   >
-                    <Card className="border-brand-primary/10 bg-brand-white shadow-sm transition-transform duration-200 hover:-translate-y-1 dark:bg-card">
-                      <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="flex items-start gap-4">
-                          <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-brand-primary/10 text-brand-primary">
-                            <ModuleIcon className="h-5 w-5" aria-hidden="true" />
-                          </span>
-                          <div>
-                            <CardTitle className="text-lg font-bold text-brand-dark dark:text-foreground">{module.title}</CardTitle>
-                            <p className="mt-2 text-sm leading-relaxed text-brand-dark/75 dark:text-muted-foreground">{module.summary}</p>
+                    <MagneticCard tiltMax={8} className="h-full">
+                      <Card className="h-full border-brand-primary/10 bg-brand-white shadow-sm transition-transform duration-200 dark:bg-card">
+                        <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-start sm:justify-between h-full">
+                          <div className="flex items-start gap-4">
+                            <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-brand-primary/10 text-brand-primary">
+                              <ModuleIcon className="h-5 w-5" aria-hidden="true" />
+                            </span>
+                            <div>
+                              <CardTitle className="text-lg font-bold text-brand-dark dark:text-foreground">{module.title}</CardTitle>
+                              <p className="mt-2 text-sm leading-relaxed text-brand-dark/75 dark:text-muted-foreground">{module.summary}</p>
+                            </div>
                           </div>
-                        </div>
-                        <span className="inline-flex items-center rounded-md border border-brand-primary/15 bg-brand-primary/5 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-brand-primary/80">
-                          {module.metric}
-                        </span>
-                      </CardContent>
-                    </Card>
+                          <span className="inline-flex items-center rounded-md border border-brand-primary/15 bg-brand-primary/5 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-brand-primary/80">
+                            {module.metric}
+                          </span>
+                        </CardContent>
+                      </Card>
+                    </MagneticCard>
                   </motion.div>
                 );
               })}
@@ -400,22 +500,24 @@ export default function Home() {
                   variants={fadeUp}
                   transition={{ duration: 0.45, delay: prefersReducedMotion ? 0 : index * 0.06 }}
                 >
-                  <Card className="h-full border-brand-primary/10 bg-brand-white shadow-sm dark:bg-background">
-                    <CardHeader>
-                      <CardTitle className="text-2xl font-black text-brand-dark dark:text-foreground">{role.title}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm leading-relaxed text-brand-dark/75 dark:text-muted-foreground">{role.summary}</p>
-                      <ul className="mt-5 space-y-2">
-                        {role.points.map((point) => (
-                          <li key={point} className="flex items-start gap-2 text-sm text-brand-dark/80 dark:text-muted-foreground">
-                            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-brand-primary" aria-hidden="true" />
-                            {point}
-                          </li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
+                  <MagneticCard tiltMax={10} className="h-full">
+                    <Card className="h-full border-brand-primary/10 bg-brand-white shadow-sm dark:bg-background">
+                      <CardHeader>
+                        <CardTitle className="text-2xl font-black text-brand-dark dark:text-foreground">{role.title}</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm leading-relaxed text-brand-dark/75 dark:text-muted-foreground">{role.summary}</p>
+                        <ul className="mt-5 space-y-2">
+                          {role.points.map((point) => (
+                            <li key={point} className="flex items-start gap-2 text-sm text-brand-dark/80 dark:text-muted-foreground">
+                              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-brand-primary" aria-hidden="true" />
+                              {point}
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  </MagneticCard>
                 </motion.div>
               ))}
             </div>
@@ -423,42 +525,44 @@ export default function Home() {
         </section>
 
         <section id="start" className="px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
-          <div className="mx-auto max-w-5xl rounded-2xl border border-brand-primary/20 bg-brand-dark px-6 py-12 text-center text-brand-white shadow-sm sm:px-10">
-            <p className="text-sm font-bold uppercase tracking-widest text-brand-secondary">Get started</p>
-            <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">
-              Move this semester to one control center.
-            </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-brand-white/80 sm:text-base">
-              If your teams are still switching between register books, spreadsheets, and chat threads, this portal gives students, faculty, and admin one operational truth.
-            </p>
+          <MagneticCard tiltMax={5} className="mx-auto max-w-5xl rounded-2xl overflow-hidden">
+            <div className="border border-brand-primary/20 bg-brand-dark px-6 py-12 text-center text-brand-white shadow-sm sm:px-10">
+              <p className="text-sm font-bold uppercase tracking-widest text-brand-secondary">Get started</p>
+              <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">
+                Move this semester to one control center.
+              </h2>
+              <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-brand-white/80 sm:text-base">
+                If your teams are still switching between register books, spreadsheets, and chat threads, this portal gives students, faculty, and admin one operational truth.
+              </p>
 
-            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <SignedOut>
-                <Button asChild size="lg" className="bg-brand-primary text-brand-white hover:bg-brand-primary/90">
-                  <Link href="/sign-up">
-                    Create Account
-                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  size="lg"
-                  variant="outline"
-                  className="border-brand-white/30 bg-transparent text-brand-white hover:bg-brand-white/10"
-                >
-                  <Link href="/sign-in">Sign In</Link>
-                </Button>
-              </SignedOut>
-              <SignedIn>
-                <Button asChild size="lg" className="bg-brand-primary text-brand-white hover:bg-brand-primary/90">
-                  <Link href="/dashboard">
-                    Go to Dashboard
-                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                  </Link>
-                </Button>
-              </SignedIn>
+              <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <SignedOut>
+                  <Button asChild size="lg" className="bg-brand-primary text-brand-white hover:bg-brand-primary/90">
+                    <Link href="/sign-up">
+                      Create Account
+                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                    </Link>
+                  </Button>
+                  <Button
+                    asChild
+                    size="lg"
+                    variant="outline"
+                    className="border-brand-white/30 bg-transparent text-brand-white hover:bg-brand-white/10"
+                  >
+                    <Link href="/sign-in">Sign In</Link>
+                  </Button>
+                </SignedOut>
+                <SignedIn>
+                  <Button asChild size="lg" className="bg-brand-primary text-brand-white hover:bg-brand-primary/90">
+                    <Link href="/dashboard">
+                      Go to Dashboard
+                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                    </Link>
+                  </Button>
+                </SignedIn>
+              </div>
             </div>
-          </div>
+          </MagneticCard>
         </section>
       </main>
 

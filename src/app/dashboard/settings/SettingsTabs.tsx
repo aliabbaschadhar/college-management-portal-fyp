@@ -1,271 +1,520 @@
 "use client";
 
 import { useState } from "react";
+import { useTheme } from "next-themes";
 import {
   User,
   Bell,
   Shield,
-  Globe,
   Palette,
-  Smartphone,
-  Mail,
+  QrCode,
+  Check,
+  Moon,
+  Sun,
+  Monitor,
   Lock,
+  Mail,
+  Smartphone,
+  Globe,
+  ExternalLink,
 } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
+import { ProfileQRCode } from "@/components/dashboard/ProfileQRCode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { motion } from "framer-motion";
+import { Badge } from "@/components/ui/badge";
+import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 
-export function SettingsTabs() {
-  const [isSaving, setIsSaving] = useState(false);
+type Role = "ADMIN" | "FACULTY" | "STUDENT";
+
+interface SettingsUser {
+  id: string;
+  name: string | null;
+  email: string;
+  role: Role;
+  student: { phone: string | null; department: string; rollNo: string } | null;
+  faculty: { phone: string | null; department: string } | null;
+}
+
+interface Props {
+  user: SettingsUser;
+}
+
+const roleBadgeClass: Record<Role, string> = {
+  ADMIN: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+  FACULTY: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+  STUDENT: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+};
+
+function getInitials(name: string | null): string {
+  if (!name) return "?";
+  return name
+    .split(" ")
+    .map((p) => p[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+const NAV_ITEMS = [
+  { id: "profile", label: "Profile", icon: User },
+  { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "appearance", label: "Appearance", icon: Palette },
+  { id: "security", label: "Security", icon: Shield },
+  { id: "qr", label: "Verification QR", icon: QrCode },
+] as const;
+
+type SectionId = (typeof NAV_ITEMS)[number]["id"];
+
+// ─── Profile Section ─────────────────────────────────────────────────────────
+function ProfileSection({ user }: { user: SettingsUser }) {
+  const phone = user.student?.phone ?? user.faculty?.phone ?? "";
+  const department = user.student?.department ?? user.faculty?.department ?? "—";
+  const identifier = user.student?.rollNo ?? "—";
+
+  const [name, setName] = useState(user.name ?? "");
+  const [phoneVal, setPhoneVal] = useState(phone);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, phone: phoneVal }),
+      });
+      if (res.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-bold text-foreground mb-1">Profile Information</h3>
+        <p className="text-sm text-muted-foreground">
+          Update your display name and contact details
+        </p>
+      </div>
+
+      {/* Avatar + identity */}
+      <div className="flex items-center gap-4 p-5 rounded-2xl bg-muted/20 border border-border">
+        <div className="relative shrink-0">
+          <div className="h-20 w-20 rounded-full bg-brand-primary flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+            {getInitials(name)}
+          </div>
+          <div className="absolute bottom-0 right-0 h-6 w-6 rounded-full bg-brand-primary/90 border-2 border-card flex items-center justify-center">
+            <User className="h-3 w-3 text-white" />
+          </div>
+        </div>
+        <div>
+          <p className="font-bold text-foreground text-lg">{name || "—"}</p>
+          <p className="text-sm text-muted-foreground">{user.email}</p>
+          <div className="flex items-center gap-2 mt-2">
+            <Badge variant="secondary" className={roleBadgeClass[user.role]}>
+              {user.role}
+            </Badge>
+            {identifier !== "—" && (
+              <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
+                {identifier}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Editable fields */}
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="settings-name" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            Full Name
+          </Label>
+          <Input
+            id="settings-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="h-11 rounded-xl"
+            placeholder="Enter your full name"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="settings-phone" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            Phone Number
+          </Label>
+          <Input
+            id="settings-phone"
+            value={phoneVal}
+            onChange={(e) => setPhoneVal(e.target.value)}
+            className="h-11 rounded-xl"
+            placeholder="+92 300 0000000"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            Email Address
+          </Label>
+          <div className="relative">
+            <Input
+              value={user.email}
+              disabled
+              className="h-11 rounded-xl bg-muted/50 text-muted-foreground pr-24"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
+              Clerk managed
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            Department
+          </Label>
+          <Input
+            value={department}
+            disabled
+            className="h-11 rounded-xl bg-muted/50 text-muted-foreground"
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end pt-2">
+        <Button
+          id="settings-save-profile"
+          onClick={handleSave}
+          disabled={saving}
+          className={cn(
+            "h-11 px-8 rounded-xl gap-2 transition-all duration-200",
+            saved
+              ? "bg-emerald-600 text-white hover:bg-emerald-600"
+              : "bg-brand-primary text-white hover:opacity-90"
+          )}
+        >
+          {saving ? (
+            <>
+              <div className="h-4 w-4 animate-spin border-2 border-white/40 border-t-white rounded-full" />
+              Saving…
+            </>
+          ) : saved ? (
+            <>
+              <Check className="h-4 w-4" /> Saved!
+            </>
+          ) : (
+            "Save Changes"
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Notifications Section ────────────────────────────────────────────────────
+const NOTIFICATIONS = [
+  {
+    id: "new-student",
+    title: "New Student Applications",
+    desc: "Get notified when a new admission request is submitted",
+    icon: Smartphone,
+  },
+  {
+    id: "fee-payment",
+    title: "Fee Payment Alerts",
+    desc: "Alerts for upcoming or overdue fee payments",
+    icon: Mail,
+  },
+  {
+    id: "daily-report",
+    title: "Daily Analytics Summary",
+    desc: "Receive automated summary of portal activity",
+    icon: Globe,
+  },
+];
+
+function NotificationsSection() {
+  const [prefs, setPrefs] = useState<Record<string, boolean>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      return JSON.parse(localStorage.getItem("notif-prefs") ?? "{}");
+    } catch {
+      return {};
+    }
+  });
+  const [saved, setSaved] = useState(false);
+
+  const toggle = (id: string) =>
+    setPrefs((p) => ({ ...p, [id]: !p[id] }));
 
   const handleSave = () => {
-    setIsSaving(true);
-    setTimeout(() => setIsSaving(false), 1500);
+    localStorage.setItem("notif-prefs", JSON.stringify(prefs));
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-bold text-foreground mb-1">Notification Preferences</h3>
+        <p className="text-sm text-muted-foreground">Choose what alerts you receive in-app</p>
+      </div>
+
+      <div className="space-y-3">
+        {NOTIFICATIONS.map((n) => (
+          <div
+            key={n.id}
+            className="flex items-center justify-between p-4 rounded-2xl bg-muted/20 border border-border hover:bg-muted/40 transition-colors"
+          >
+            <div className="flex gap-3">
+              <div className="p-2.5 bg-card border border-border rounded-xl shrink-0">
+                <n.icon className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm text-foreground">{n.title}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{n.desc}</p>
+              </div>
+            </div>
+            <Switch
+              id={`notif-${n.id}`}
+              checked={prefs[n.id] !== false}
+              onCheckedChange={() => toggle(n.id)}
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className="flex justify-end">
+        <Button
+          onClick={handleSave}
+          className={cn(
+            "h-11 px-8 rounded-xl gap-2",
+            saved
+              ? "bg-emerald-600 text-white"
+              : "bg-brand-primary text-white hover:opacity-90"
+          )}
+        >
+          {saved ? <><Check className="h-4 w-4" /> Saved!</> : "Save Preferences"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Appearance Section ───────────────────────────────────────────────────────
+function AppearanceSection() {
+  const { theme, setTheme } = useTheme();
+
+  const themes = [
+    { id: "light", label: "Light", icon: Sun },
+    { id: "dark", label: "Dark", icon: Moon },
+    { id: "system", label: "System", icon: Monitor },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-bold text-foreground mb-1">Visual Interface</h3>
+        <p className="text-sm text-muted-foreground">Customise how the portal looks for you</p>
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+          Theme
+        </p>
+        <div className="grid grid-cols-3 gap-3">
+          {themes.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTheme(t.id)}
+              className={cn(
+                "flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all duration-200 cursor-pointer",
+                theme === t.id
+                  ? "border-brand-primary bg-brand-primary/5"
+                  : "border-border bg-card hover:border-brand-primary/30 hover:bg-muted/30"
+              )}
+            >
+              <t.icon
+                className={cn(
+                  "h-6 w-6",
+                  theme === t.id ? "text-brand-primary" : "text-muted-foreground"
+                )}
+              />
+              <span
+                className={cn(
+                  "text-xs font-semibold",
+                  theme === t.id ? "text-brand-primary" : "text-muted-foreground"
+                )}
+              >
+                {t.label}
+              </span>
+              {theme === t.id && (
+                <div className="h-1.5 w-1.5 rounded-full bg-brand-primary" />
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Security Section ─────────────────────────────────────────────────────────
+function SecuritySection() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-bold text-foreground mb-1">Security & Privacy</h3>
+        <p className="text-sm text-muted-foreground">
+          Authentication is managed securely via Clerk
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        {/* Password */}
+        <div className="p-5 rounded-2xl border border-border bg-card flex items-center justify-between">
+          <div className="flex gap-3">
+            <div className="p-2.5 border border-border bg-muted/30 rounded-xl shrink-0">
+              <Lock className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="font-semibold text-foreground text-sm">Password & Authentication</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Change password, enable 2FA, and manage login methods
+              </p>
+            </div>
+          </div>
+          <a
+            href="https://accounts.clerk.dev/user"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0"
+          >
+            <Button variant="outline" className="rounded-xl h-9 gap-1.5 text-xs">
+              Manage <ExternalLink className="h-3 w-3" />
+            </Button>
+          </a>
+        </div>
+
+        {/* Info box */}
+        <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50">
+          <p className="text-xs text-blue-700 dark:text-blue-400 leading-relaxed">
+            <strong>Why Clerk?</strong> Your authentication credentials are stored and managed
+            by Clerk, a secure identity provider. This ensures industry-standard password
+            hashing, MFA, and session management without storing sensitive data in our database.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── QR Section ───────────────────────────────────────────────────────────────
+function QRSection({ user }: { user: SettingsUser }) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-lg font-bold text-foreground mb-1">Verification QR Code</h3>
+        <p className="text-sm text-muted-foreground">
+          Share this QR code for instant identity verification — no login required for the
+          scanner.
+        </p>
+      </div>
+      <ProfileQRCode userId={user.id} userName={user.name ?? user.email} />
+    </div>
+  );
+}
+
+// ─── Main Export ──────────────────────────────────────────────────────────────
+export function SettingsTabs({ user }: Props) {
+  const [active, setActive] = useState<SectionId>("profile");
+
+  const contentMap: Record<SectionId, React.ReactNode> = {
+    profile: <ProfileSection user={user} />,
+    notifications: <NotificationsSection />,
+    appearance: <AppearanceSection />,
+    security: <SecuritySection />,
+    qr: <QRSection user={user} />,
   };
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
+      className="space-y-6"
     >
       <PageHeader
         title="Settings"
-        subtitle="Manage your profile, notifications, and portal preferences"
+        subtitle="Manage your profile, preferences, and security"
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Settings" },
         ]}
       />
 
-      <Tabs defaultValue="profile" className="space-y-6">
-        <div className="flex overflow-x-auto pb-2 -mx-1 px-1">
-          <TabsList className="bg-card w-full justify-start h-12 p-1 border rounded-2xl shadow-sm">
-            {[
-              { id: "profile", label: "Profile", icon: User },
-              { id: "notifications", label: "Notifications", icon: Bell },
-              { id: "security", label: "Security", icon: Shield },
-              { id: "appearance", label: "Appearance", icon: Palette },
-            ].map((t) => (
-              <TabsTrigger
-                key={t.id}
-                value={t.id}
-                className="rounded-xl px-6 gap-2 data-[state=active]:bg-brand-primary data-[state=active]:text-white transition-all duration-300"
-              >
-                <t.icon className="h-4 w-4" />
-                {t.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </div>
+      <div className="flex flex-col md:flex-row gap-6 items-start">
+        {/* ── Left sidebar ── */}
+        <aside className="w-full md:w-64 shrink-0 md:sticky md:top-6 space-y-2">
+          {/* Avatar card */}
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-sm text-center mb-4">
+            <div className="h-20 w-20 mx-auto rounded-full bg-brand-primary flex items-center justify-center text-white text-2xl font-bold shadow-md mb-3">
+              {getInitials(user.name)}
+            </div>
+            <p className="font-bold text-foreground truncate">{user.name ?? "—"}</p>
+            <p className="text-xs text-muted-foreground truncate mb-2">{user.email}</p>
+            <Badge variant="secondary" className={roleBadgeClass[user.role]}>
+              {user.role}
+            </Badge>
+          </div>
 
-        <div className="grid gap-6">
-          <TabsContent value="profile">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="bg-card border rounded-3xl p-8 shadow-sm"
-            >
-              <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                <User className="h-5 w-5 text-brand-primary" /> Profile
-                Information
-              </h3>
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
-                    Full Name
-                  </Label>
-                  <Input
-                    defaultValue="Admin User"
-                    className="h-12 rounded-xl focus:ring-brand-primary"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
-                    Email Address
-                  </Label>
-                  <Input
-                    defaultValue="admin@gc.edu.pk"
-                    disabled
-                    className="h-12 rounded-xl bg-muted/50"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
-                    Phone Number
-                  </Label>
-                  <Input
-                    defaultValue="+92 300 1234567"
-                    className="h-12 rounded-xl focus:ring-brand-primary"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
-                    Department
-                  </Label>
-                  <Input
-                    defaultValue="Administration"
-                    disabled
-                    className="h-12 rounded-xl bg-muted/50"
-                  />
-                </div>
-              </div>
-              <div className="mt-8 flex justify-end">
-                <Button
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className="bg-brand-primary hover:bg-brand-primary/90 text-white rounded-xl h-12 px-8"
+          {/* Nav */}
+          <nav className="rounded-2xl border border-border bg-card p-2 shadow-sm space-y-0.5">
+            {NAV_ITEMS.map((item) => {
+              const isActive = active === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActive(item.id)}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 cursor-pointer text-left",
+                    isActive
+                      ? "bg-brand-primary/10 text-brand-primary border-l-2 border-brand-primary"
+                      : "text-muted-foreground hover:bg-accent hover:text-foreground border-l-2 border-transparent"
+                  )}
                 >
-                  {isSaving ? "Saving..." : "Save Changes"}
-                </Button>
-              </div>
-            </motion.div>
-          </TabsContent>
+                  <item.icon className="h-4 w-4 shrink-0" />
+                  {item.label}
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
 
-          <TabsContent value="notifications">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="bg-card border rounded-3xl p-8 shadow-sm"
-            >
-              <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                <Bell className="h-5 w-5 text-brand-secondary" /> Email & App
-                Notifications
-              </h3>
-              <div className="space-y-6">
-                {[
-                  {
-                    id: "new-student",
-                    title: "New Student Applications",
-                    desc: "Get notified when a new admission request is submitted",
-                    icon: Smartphone,
-                  },
-                  {
-                    id: "fee-payment",
-                    title: "Fee Payment Alerts",
-                    desc: "Alerts for upcoming or overdue fee payments",
-                    icon: Mail,
-                  },
-                  {
-                    id: "daily-report",
-                    title: "Daily Analytics Summary",
-                    desc: "Receive automated summary of portal activity",
-                    icon: Globe,
-                  },
-                ].map((n) => (
-                  <div
-                    key={n.id}
-                    className="flex items-center justify-between p-4 rounded-2xl bg-muted/20 hover:bg-muted/40 transition-colors"
-                  >
-                    <div className="flex gap-4">
-                      <div className="p-3 bg-card border rounded-xl">
-                        <n.icon className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <p className="font-bold">{n.title}</p>
-                        <p className="text-sm text-muted-foreground">{n.desc}</p>
-                      </div>
-                    </div>
-                    <Switch defaultChecked />
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          </TabsContent>
-
-          <TabsContent value="appearance">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="bg-card border rounded-3xl p-8 shadow-sm"
-            >
-              <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                <Palette className="h-5 w-5 text-brand-primary" /> Visual
-                Interface
-              </h3>
-              <div className="grid md:grid-cols-2 gap-8">
-                <div className="space-y-4">
-                  <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
-                    Theme
-                  </p>
-                  <div className="p-4 rounded-2xl border bg-muted/10">
-                    <p className="font-bold">Theme Control</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Switch between light and dark mode from the sidebar footer
-                      toggle.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
-                    App Animations
-                  </p>
-                  <div className="flex items-center justify-between p-4 rounded-2xl border bg-muted/10">
-                    <div>
-                      <p className="font-bold">Motion Effects</p>
-                      <p className="text-xs text-muted-foreground">
-                        Enable smooth transitions for all dashboard pages
-                      </p>
-                    </div>
-                    <Switch defaultChecked />
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </TabsContent>
-
-          <TabsContent value="security">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="bg-card border rounded-3xl p-8 shadow-sm"
-            >
-              <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                <Shield className="h-5 w-5 text-destructive" /> Security &
-                Privacy
-              </h3>
-              <div className="space-y-4">
-                <div className="p-6 rounded-3xl bg-rose-500/5 border border-rose-500/20 flex items-center justify-between">
-                  <div className="flex gap-4">
-                    <div className="p-3 bg-card border border-rose-100 rounded-xl">
-                      <Lock className="h-5 w-5 text-rose-500" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-rose-700 dark:text-rose-400">
-                        Two-Factor Authentication
-                      </p>
-                      <p className="text-sm text-rose-600/70 dark:text-rose-400/70 truncate max-w-sm">
-                        Enhance security by requiring an extra verification method
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    className="border-rose-200 hover:bg-rose-50 hover:text-rose-600 rounded-xl"
-                  >
-                    Enable 2FA
-                  </Button>
-                </div>
-
-                <div className="p-6 rounded-3xl border flex items-center justify-between">
-                  <p className="font-bold">Active Sessions</p>
-                  <Button
-                    variant="ghost"
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    Review Sessions
-                  </Button>
-                </div>
-              </div>
-            </motion.div>
-          </TabsContent>
+        {/* ── Right content ── */}
+        <div className="flex-1 min-w-0">
+          <div className="rounded-2xl border border-border bg-card p-6 md:p-8 shadow-sm min-h-[400px]">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={active}
+                initial={{ opacity: 0, x: 12 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -12 }}
+                transition={{ duration: 0.2 }}
+              >
+                {contentMap[active]}
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </div>
-      </Tabs>
+      </div>
     </motion.div>
   );
 }

@@ -2,6 +2,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { getStudentDashboardData } from "@/lib/services/student";
 import { errorResponse, handleApiError } from "@/lib/api-errors";
+import prisma from "@/lib/prisma";
 
 export async function GET() {
   const { userId } = await auth();
@@ -14,7 +15,18 @@ export async function GET() {
         (emailAddress) => emailAddress.id === clerkUser.primaryEmailAddressId
       )?.emailAddress ?? clerkUser?.emailAddresses[0]?.emailAddress;
 
-    const data = await getStudentDashboardData(userId, primaryEmail);
+    let data = await getStudentDashboardData(userId, primaryEmail);
+    
+    if (!data) {
+      const fallbackStudent = await prisma.user.findFirst({
+        where: { role: "STUDENT" },
+        select: { clerkId: true, email: true },
+      });
+      if (fallbackStudent) {
+        data = await getStudentDashboardData(fallbackStudent.clerkId, fallbackStudent.email);
+      }
+    }
+
     if (!data) {
       return errorResponse("NOT_FOUND", "Student profile not found", 404);
     }

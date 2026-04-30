@@ -3,29 +3,68 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
 import { Menu, X, ChevronRight } from 'lucide-react'
-import { motion, AnimatePresence, useScroll, useSpring } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
+import { gsap } from 'gsap'
+import { useGSAP } from '@gsap/react'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [scrolled, setScrolled] = useState(false)
+  const headerRef = useRef<HTMLElement>(null)
+  const progressBarRef = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
 
-  const { scrollYProgress } = useScroll()
-  const scaleX = useSpring(scrollYProgress, {
-    stiffness: 100,
-    damping: 30,
-    restDelta: 0.001
-  })
+  useGSAP(() => {
+    // Header Entrance
+    gsap.from(headerRef.current, {
+      y: -100,
+      duration: 1.2,
+      ease: "power4.out",
+    });
 
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20)
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
+    // Scroll Progress Bar
+    gsap.to(progressBarRef.current, {
+      scaleX: 1,
+      ease: "none",
+      scrollTrigger: {
+        scrub: 0.3,
+        start: "top top",
+        end: "bottom bottom",
+        trigger: "body",
+      }
+    });
+
+    // Sticky Header Animation
+    ScrollTrigger.create({
+      start: "top -50px",
+      onEnter: () => {
+        gsap.to(headerRef.current, {
+          backgroundColor: "rgba(var(--sticky-bg-rgb), 0.9)",
+          backdropFilter: "blur(12px)",
+          paddingTop: "12px",
+          paddingBottom: "12px",
+          borderBottom: "1px solid rgba(var(--color-brand-primary-rgb), 0.1)",
+          duration: 0.4,
+          ease: "power2.out"
+        });
+      },
+      onLeaveBack: () => {
+        gsap.to(headerRef.current, {
+          backgroundColor: "transparent",
+          backdropFilter: "blur(0px)",
+          paddingTop: "20px",
+          paddingBottom: "20px",
+          borderBottom: "none",
+          duration: 0.4,
+          ease: "power2.out"
+        });
+      }
+    });
+  }, { scope: headerRef });
 
   const navLinks = [
     { label: 'Overview', href: '/#overview' },
@@ -35,20 +74,15 @@ const Header = () => {
   ]
 
   return (
-    <motion.header
-      initial={{ y: -100 }}
-      animate={{ y: 0 }}
-      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrolled
-        ? 'border-b border-brand-primary/10 bg-brand-light/90 backdrop-blur-xl py-3 dark:bg-background/90'
-        : 'bg-transparent py-5'
-        }`}
+    <header
+      ref={headerRef}
+      className="fixed top-0 left-0 right-0 z-50 bg-transparent py-5"
     >
       {/* Scroll Progress Bar */}
-      <motion.div
-        className="absolute top-0 left-0 right-0 h-0.5 origin-left z-50"
+      <div
+        ref={progressBarRef}
+        className="absolute top-0 left-0 right-0 h-0.5 origin-left z-50 pointer-events-none scale-x-0"
         style={{
-          scaleX,
           background: 'linear-gradient(90deg, var(--color-brand-primary), var(--color-brand-secondary), var(--color-brand-primary))'
         }}
       />
@@ -211,7 +245,7 @@ const Header = () => {
           )}
         </AnimatePresence>
       </div>
-    </motion.header>
+    </header>
   )
 }
 

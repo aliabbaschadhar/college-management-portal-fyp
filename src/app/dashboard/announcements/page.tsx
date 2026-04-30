@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Plus, Bell, Trash2, Calendar, Target, Info } from "lucide-react";
+import { AuditBadge } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -153,6 +154,7 @@ export default function AnnouncementsPage() {
                     <span className="flex items-center"><Target className="h-3 w-3 mr-1 text-brand-secondary" /> Targeting: {a.audience}</span>
                     <span className="flex items-center"><Info className="h-3 w-3 mr-1 text-brand-primary" /> {a.priority} Priority</span>
                   </div>
+                  <AuditBadge entity="Announcement" entityId={a.id} />
                 </div>
               </div>
 

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Lock, Unlock, Save, CheckCircle } from "lucide-react";
+import { Lock, Unlock, Save, CheckCircle, Trash2 } from "lucide-react";
+import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { useUser } from "@clerk/nextjs";
 import { motion } from "framer-motion";
@@ -136,7 +137,7 @@ export default function FacultyGradesPage() {
                     <th className="text-center py-3 px-2 font-semibold text-foreground w-20">Final</th>
                     <th className="text-center py-3 px-3 font-semibold text-foreground">Total</th>
                     <th className="text-center py-3 px-3 font-semibold text-foreground">GPA</th>
-                    <th className="text-center py-3 px-3 font-semibold text-foreground">Status</th>
+                    <th className="text-center py-3 px-3 font-semibold text-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -144,7 +145,12 @@ export default function FacultyGradesPage() {
                     const gpaColor = g.gpa >= 3.5 ? "text-emerald-500" : g.gpa >= 3.0 ? "text-amber-500" : "text-rose-500";
                     return (
                       <tr key={g.id} className="border-b border-border/50 hover:bg-accent/20 transition-colors">
-                        <td className="py-3 px-4 font-medium text-foreground">{g.student.user.name ?? "—"}</td>
+                        <td className="py-3 px-4">
+                          <div>
+                            <span className="font-medium text-foreground">{g.student.user.name ?? "—"}</span>
+                            <AuditBadgeInline entity="Grade" entityId={g.id} />
+                          </div>
+                        </td>
                         <td className="py-3 px-3 font-mono text-muted-foreground text-xs">{g.student.rollNo}</td>
                         <td className="py-2 px-2">
                           <Input type="number" min={0} max={25} value={g.quizMarks} onChange={(e) => updateGrade(g.id, "quizMarks", +e.target.value)} disabled={g.locked} className="text-center h-8 w-16 mx-auto" />
@@ -161,15 +167,37 @@ export default function FacultyGradesPage() {
                         <td className="py-3 px-3 text-center font-bold text-foreground">{g.total}</td>
                         <td className={`py-3 px-3 text-center font-bold ${gpaColor}`}>{g.gpa}</td>
                         <td className="py-3 px-3 text-center">
-                          {g.locked ? (
-                            <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 gap-1">
-                              <Lock className="h-3 w-3" /> Locked
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 gap-1">
-                              <Unlock className="h-3 w-3" /> Editable
-                            </Badge>
-                          )}
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={async () => {
+                                const res = await fetch(`/api/grades/${g.id}`, {
+                                  method: "PATCH",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ locked: !g.locked }),
+                                });
+                                if (res.ok) setGrades((prev) => prev.map((x) => x.id === g.id ? { ...x, locked: !x.locked } : x));
+                              }}
+                              className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-accent transition-colors"
+                              title={g.locked ? "Unlock grade" : "Lock grade"}
+                            >
+                              {g.locked ? (
+                                <Lock className="h-3.5 w-3.5 text-emerald-600" />
+                              ) : (
+                                <Unlock className="h-3.5 w-3.5 text-amber-600" />
+                              )}
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (!confirm(`Delete grade for ${g.student.user.name}?`)) return;
+                                const res = await fetch(`/api/grades/${g.id}`, { method: "DELETE" });
+                                if (res.ok) setGrades((prev) => prev.filter((x) => x.id !== g.id));
+                              }}
+                              className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-destructive/10 transition-colors"
+                              title="Delete grade"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-guard";
 import { Prisma } from "@prisma/client";
+import { logAuditAction, getAdminName } from "@/lib/audit-log";
 
 export async function GET(
   _request: NextRequest,
@@ -62,6 +63,7 @@ export async function PATCH(
   if (denied) return denied;
 
   try {
+    const { userId } = await auth();
     const { id } = await params;
     const body = (await request.json()) as {
       courseCode?: string;
@@ -88,6 +90,18 @@ export async function PATCH(
       },
     });
 
+    if (userId) {
+      const adminName = await getAdminName(userId);
+      await logAuditAction({
+        action: "UPDATED",
+        entity: "Course",
+        entityId: id,
+        description: `Updated course ${course.courseCode} — ${course.courseName}`,
+        adminClerkId: userId,
+        adminName,
+      });
+    }
+
     return NextResponse.json(course);
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -111,8 +125,28 @@ export async function DELETE(
   if (denied) return denied;
 
   try {
+    const { userId } = await auth();
     const { id } = await params;
+
+    const course = await prisma.course.findUnique({
+      where: { id },
+      select: { courseCode: true, courseName: true },
+    });
+
     await prisma.course.delete({ where: { id } });
+
+    if (userId && course) {
+      const adminName = await getAdminName(userId);
+      await logAuditAction({
+        action: "DELETED",
+        entity: "Course",
+        entityId: id,
+        description: `Deleted course ${course.courseCode} — ${course.courseName}`,
+        adminClerkId: userId,
+        adminName,
+      });
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {

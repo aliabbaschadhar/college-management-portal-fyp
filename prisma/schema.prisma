@@ -203,6 +203,20 @@ model Admission {
   totalMarks          Float
 }
 
+model AuditLog {
+  id          String   @id @default(uuid())
+  action      String   // "CREATED" | "UPDATED" | "DELETED"
+  entity      String   // "Admission" | "Fee" | "Course" | "Student" etc.
+  entityId    String   // ID of the affected record
+  description String   // Human-readable description
+  adminId     String   // clerkId of the admin who performed the action
+  adminName   String   // Display name of the admin
+  createdAt   DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
 enum Role {
   STUDENT
   FACULTY

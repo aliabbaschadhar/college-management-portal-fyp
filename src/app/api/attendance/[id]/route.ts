@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { AttendanceStatus } from "@prisma/client";
+import { logAuditAction, getAdminName } from "@/lib/audit-log";
 
 export async function PATCH(
   request: NextRequest,
@@ -25,7 +26,12 @@ export async function PATCH(
     // Load attendance record with course info
     const attendance = await prisma.attendance.findUnique({
       where: { id },
-      select: { courseId: true, course: { select: { assignedFaculty: true } } },
+      select: {
+        courseId: true,
+        studentId: true,
+        course: { select: { assignedFaculty: true, courseCode: true } },
+        student: { include: { user: { select: { name: true } } } },
+      },
     });
 
     if (!attendance) {
@@ -46,9 +52,71 @@ export async function PATCH(
       data: { status: body.status },
     });
 
+    if (isAdmin) {
+      const adminName = await getAdminName(userId);
+      await logAuditAction({
+        action: "UPDATED",
+        entity: "Attendance",
+        entityId: id,
+        description: `Changed attendance to ${body.status} for ${attendance.student.user.name ?? "Unknown"} in ${attendance.course.courseCode}`,
+        adminClerkId: userId,
+        adminName,
+      });
+    }
+
     return NextResponse.json(updated);
   } catch (error) {
     console.error("PATCH /api/attendance/[id] error:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true },
+    });
+
+    if (!user || user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const { id } = await params;
+
+    const attendance = await prisma.attendance.findUnique({
+      where: { id },
+      include: {
+        student: { include: { user: { select: { name: true } } } },
+        course: { select: { courseCode: true } },
+      },
+    });
+
+    if (!attendance) {
+      return NextResponse.json({ error: "Attendance record not found" }, { status: 404 });
+    }
+
+    await prisma.attendance.delete({ where: { id } });
+
+    const adminName = await getAdminName(userId);
+    await logAuditAction({
+      action: "DELETED",
+      entity: "Attendance",
+      entityId: id,
+      description: `Deleted attendance record for ${attendance.student.user.name ?? "Unknown"} in ${attendance.course.courseCode}`,
+      adminClerkId: userId,
+      adminName,
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("DELETE /api/attendance/[id] error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

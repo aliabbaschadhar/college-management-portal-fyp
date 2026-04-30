@@ -1,7 +1,9 @@
+import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-guard";
 import { Prisma } from "@prisma/client";
+import { logAuditAction, getAdminName } from "@/lib/audit-log";
 
 export async function PATCH(
   request: NextRequest,
@@ -11,6 +13,7 @@ export async function PATCH(
   if (denied) return denied;
 
   try {
+    const { userId } = await auth();
     const { id } = await params;
     const body = (await request.json()) as {
       phone?: string;
@@ -27,7 +30,20 @@ export async function PATCH(
         ...(body.semester !== undefined ? { semester: body.semester } : {}),
         ...(body.avatar !== undefined ? { avatar: body.avatar } : {}),
       },
+      include: { user: { select: { name: true } } },
     });
+
+    if (userId) {
+      const adminName = await getAdminName(userId);
+      await logAuditAction({
+        action: "UPDATED",
+        entity: "Student",
+        entityId: id,
+        description: `Edited student profile: ${student.user.name ?? student.rollNo}`,
+        adminClerkId: userId,
+        adminName,
+      });
+    }
 
     return NextResponse.json(student);
   } catch (error) {
@@ -47,8 +63,28 @@ export async function DELETE(
   if (denied) return denied;
 
   try {
+    const { userId } = await auth();
     const { id } = await params;
+
+    const student = await prisma.student.findUnique({
+      where: { id },
+      include: { user: { select: { name: true } } },
+    });
+
     await prisma.student.delete({ where: { id } });
+
+    if (userId && student) {
+      const adminName = await getAdminName(userId);
+      await logAuditAction({
+        action: "DELETED",
+        entity: "Student",
+        entityId: id,
+        description: `Deleted student: ${student.user.name ?? student.rollNo}`,
+        adminClerkId: userId,
+        adminName,
+      });
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {

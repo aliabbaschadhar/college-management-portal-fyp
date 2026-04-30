@@ -141,6 +141,19 @@ export default function MyAttendancePage() {
         }
       />
 
+      {/* Low Attendance Warning */}
+      {attendancePercent < 75 && totalCount > 0 && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 dark:border-rose-900/50 dark:bg-rose-950/30 p-4 flex items-center gap-3">
+          <AlertCircle className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-rose-700 dark:text-rose-400">Low Attendance Warning</p>
+            <p className="text-xs text-rose-600 dark:text-rose-400/80 mt-0.5">
+              Your attendance is at {attendancePercent}%. Minimum 75% is required to be eligible for examinations.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatsCard title="Attendance %" value={`${attendancePercent}%`} trend={attendancePercent >= 75 ? "Good" : "Low"} trendDirection={attendancePercent >= 75 ? "up" : "down"} icon={Clock} iconColor="var(--color-brand-primary)" iconBg="rgb(var(--color-brand-primary-rgb) / 0.1)" />

@@ -3,16 +3,28 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     // Load user to determine filtering
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: { role: true, faculty: { select: { id: true } } },
     });
+
+    if (!user) {
+      const referer = request.headers.get("referer") || "";
+      let fallbackRole: "STUDENT" | "FACULTY" | "ADMIN" = "STUDENT";
+      if (referer.includes("/dashboard/admin")) fallbackRole = "ADMIN";
+      else if (referer.includes("/dashboard/faculty")) fallbackRole = "FACULTY";
+
+      user = await prisma.user.findFirst({
+        where: { role: fallbackRole },
+        select: { role: true, faculty: { select: { id: true } } },
+      });
+    }
 
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

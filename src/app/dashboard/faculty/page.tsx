@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2 } from "lucide-react";
+import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
 import { DEPARTMENTS } from "@/lib/constants";
@@ -102,6 +103,7 @@ export default function ManageFacultyPage() {
           <div>
             <p className="font-medium text-foreground">{row.user.name ?? "—"}</p>
             <p className="text-xs text-muted-foreground">{row.user.email}</p>
+            <AuditBadgeInline entity="Faculty" entityId={row.id} />
           </div>
         </div>
       )

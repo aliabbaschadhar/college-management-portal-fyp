@@ -1,13 +1,11 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
-import { ProfileQRCode } from "@/components/dashboard/ProfileQRCode";
 import { SettingsTabs } from "./SettingsTabs";
 
 /**
  * Settings page — Server Component wrapper.
- * Fetches the authenticated user's Postgres record to obtain
- * the stable User.id used to build the public QR verification URL.
+ * Fetches the full profile record to power the split-panel settings UI.
  */
 export default async function SettingsPage() {
   const clerkUser = await currentUser();
@@ -15,21 +13,32 @@ export default async function SettingsPage() {
 
   const dbUser = await prisma.user.findUnique({
     where: { clerkId: clerkUser.id },
-    select: { id: true, name: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      student: {
+        select: { phone: true, department: true, rollNo: true },
+      },
+      faculty: {
+        select: { phone: true, department: true },
+      },
+    },
   });
 
-  return (
-    <div className="space-y-6">
-      {/* QR Code section — always visible at top of settings */}
-      {dbUser && (
-        <ProfileQRCode
-          userId={dbUser.id}
-          userName={dbUser.name ?? clerkUser.firstName ?? "User"}
-        />
-      )}
+  if (!dbUser) redirect("/sign-in");
 
-      {/* Rest of settings (client interactive tabs) */}
-      <SettingsTabs />
-    </div>
+  return (
+    <SettingsTabs
+      user={{
+        id: dbUser.id,
+        name: dbUser.name,
+        email: dbUser.email,
+        role: dbUser.role,
+        student: dbUser.student,
+        faculty: dbUser.faculty,
+      }}
+    />
   );
 }

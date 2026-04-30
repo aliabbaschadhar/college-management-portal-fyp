@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   Users,
+  Users2,
   GraduationCap,
   BookOpen,
   UserPlus,
@@ -14,6 +15,7 @@ import {
   FileQuestion,
   PenTool,
   User,
+  Shield,
 } from "lucide-react";
 import type { UserRole } from "@/types";
 
@@ -35,6 +37,8 @@ const adminNav: NavItem[] = [
   { title: "Announcements", href: "/dashboard/announcements", icon: MessageSquare },
   { title: "Timetable", href: "/dashboard/timetable", icon: Calendar },
   { title: "Feedback", href: "/dashboard/feedback", icon: MessageCircle },
+  { title: "Audit Trail", href: "/dashboard/audit", icon: Shield },
+  { title: "User Management", href: "/dashboard/users", icon: Users2 },
   { title: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 

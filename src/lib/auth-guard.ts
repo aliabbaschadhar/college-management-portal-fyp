@@ -24,3 +24,35 @@ export async function requireRole(
 
   return null;
 }
+
+/**
+ * Allows access if the current user is the resource owner (by clerkId match)
+ * OR has one of the allowed roles (e.g. ADMIN).
+ * Returns { error: NextResponse } if unauthorized, or { userId, role } if permitted.
+ */
+export async function requireOwnerOrRole(
+  ownerClerkId: string,
+  allowedRoles: UserRole[]
+): Promise<{ error: NextResponse } | { userId: string; role: UserRole }> {
+  const { userId } = await auth();
+  if (!userId) {
+    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
+
+  // Owner always has access
+  if (userId === ownerClerkId) {
+    const clerkUser = await currentUser();
+    const role = (clerkUser?.publicMetadata?.role as UserRole) || "STUDENT";
+    return { userId, role };
+  }
+
+  // Otherwise check role
+  const clerkUser = await currentUser();
+  const role = clerkUser?.publicMetadata?.role as UserRole | undefined;
+
+  if (!role || !allowedRoles.includes(role)) {
+    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+
+  return { userId, role };
+}
