@@ -3,6 +3,12 @@ import { NextResponse } from "next/server";
 
 type UserRole = "ADMIN" | "FACULTY" | "STUDENT";
 
+function normalizeRole(rawRole: unknown): UserRole | undefined {
+  if (typeof rawRole !== "string") return undefined;
+  const upper = rawRole.toUpperCase() as UserRole;
+  return upper === "ADMIN" || upper === "FACULTY" || upper === "STUDENT" ? upper : undefined;
+}
+
 /**
  * Verifies the authenticated user has the required role.
  * Returns an error NextResponse if unauthorized, or null if the check passes.
@@ -16,8 +22,7 @@ export async function requireRole(
   }
 
   const clerkUser = await currentUser();
-  const rawRole = clerkUser?.publicMetadata?.role;
-  const role = (typeof rawRole === "string" ? rawRole.toUpperCase() : undefined) as UserRole | undefined;
+  const role = normalizeRole(clerkUser?.publicMetadata?.role);
 
   if (!role || !allowedRoles.includes(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -43,15 +48,13 @@ export async function requireOwnerOrRole(
   // Owner always has access
   if (userId === ownerClerkId) {
     const clerkUser = await currentUser();
-    const rawRole = clerkUser?.publicMetadata?.role;
-    const role = (typeof rawRole === "string" ? rawRole.toUpperCase() : "STUDENT") as UserRole;
+    const role = normalizeRole(clerkUser?.publicMetadata?.role) ?? "STUDENT";
     return { userId, role };
   }
 
   // Otherwise check role
   const clerkUser = await currentUser();
-  const rawRole = clerkUser?.publicMetadata?.role;
-  const role = (typeof rawRole === "string" ? rawRole.toUpperCase() : undefined) as UserRole | undefined;
+  const role = normalizeRole(clerkUser?.publicMetadata?.role);
 
   if (!role || !allowedRoles.includes(role)) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
