@@ -16,7 +16,8 @@ export async function requireRole(
   }
 
   const clerkUser = await currentUser();
-  const role = clerkUser?.publicMetadata?.role as UserRole | undefined;
+  const rawRole = clerkUser?.publicMetadata?.role;
+  const role = (typeof rawRole === "string" ? rawRole.toUpperCase() : undefined) as UserRole | undefined;
 
   if (!role || !allowedRoles.includes(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -42,13 +43,15 @@ export async function requireOwnerOrRole(
   // Owner always has access
   if (userId === ownerClerkId) {
     const clerkUser = await currentUser();
-    const role = (clerkUser?.publicMetadata?.role as UserRole) || "STUDENT";
+    const rawRole = clerkUser?.publicMetadata?.role;
+    const role = (typeof rawRole === "string" ? rawRole.toUpperCase() : "STUDENT") as UserRole;
     return { userId, role };
   }
 
   // Otherwise check role
   const clerkUser = await currentUser();
-  const role = clerkUser?.publicMetadata?.role as UserRole | undefined;
+  const rawRole = clerkUser?.publicMetadata?.role;
+  const role = (typeof rawRole === "string" ? rawRole.toUpperCase() : undefined) as UserRole | undefined;
 
   if (!role || !allowedRoles.includes(role)) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
