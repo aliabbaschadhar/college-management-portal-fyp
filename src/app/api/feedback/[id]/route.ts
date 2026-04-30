@@ -57,15 +57,19 @@ export async function DELETE(
 
     await prisma.feedback.delete({ where: { id } });
 
-    const adminName = await getAdminName(userId);
-    await logAuditAction({
-      action: "DELETED",
-      entity: "Feedback",
-      entityId: id,
-      description: `Deleted ${feedback.type} feedback (Rating: ${feedback.rating}/5)`,
-      adminClerkId: userId,
-      adminName,
-    });
+    try {
+      const adminName = await getAdminName(userId);
+      await logAuditAction({
+        action: "DELETED",
+        entity: "Feedback",
+        entityId: id,
+        description: `Deleted ${feedback.type} feedback (Rating: ${feedback.rating}/5)`,
+        adminClerkId: userId,
+        adminName,
+      });
+    } catch (auditError) {
+      console.error("Audit log failed:", auditError);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

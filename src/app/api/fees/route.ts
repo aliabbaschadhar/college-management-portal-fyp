@@ -49,22 +49,10 @@ export async function GET(request: NextRequest) {
 
   try {
     // Load user with role and student info
-    let user = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: { role: true, student: { select: { id: true } } },
     });
-
-    if (!user) {
-      const referer = request.headers.get("referer") || "";
-      let fallbackRole: "STUDENT" | "FACULTY" | "ADMIN" = "STUDENT";
-      if (referer.includes("/dashboard/admin")) fallbackRole = "ADMIN";
-      else if (referer.includes("/dashboard/faculty")) fallbackRole = "FACULTY";
-
-      user = await prisma.user.findFirst({
-        where: { role: fallbackRole },
-        select: { role: true, student: { select: { id: true } } },
-      });
-    }
 
     if (!user) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
 
@@ -166,15 +154,19 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const adminName = await getAdminName(userId);
-    await logAuditAction({
-      action: "CREATED",
-      entity: "Fee",
-      entityId: fee.id,
-      description: `Created ${body.type} of Rs. ${body.amount.toLocaleString()} for ${fee.student.user.name ?? "Unknown Student"}`,
-      adminClerkId: userId,
-      adminName,
-    });
+    try {
+      const adminName = await getAdminName(userId);
+      await logAuditAction({
+        action: "CREATED",
+        entity: "Fee",
+        entityId: fee.id,
+        description: `Created ${body.type} of Rs. ${body.amount.toLocaleString()} for ${fee.student.user.name ?? "Unknown Student"}`,
+        adminClerkId: userId,
+        adminName,
+      });
+    } catch (auditError) {
+      console.error("Audit log failed:", auditError);
+    }
 
     return NextResponse.json(fee, { status: 201 });
   } catch (error) {

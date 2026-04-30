@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // Load user with role and associated records
-    let user = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: {
         role: true,
@@ -45,22 +45,6 @@ export async function GET(request: NextRequest) {
         faculty: { select: { id: true } },
       },
     });
-
-    if (!user) {
-      const referer = request.headers.get("referer") || "";
-      let fallbackRole: "STUDENT" | "FACULTY" | "ADMIN" = "STUDENT";
-      if (referer.includes("/dashboard/admin")) fallbackRole = "ADMIN";
-      else if (referer.includes("/dashboard/faculty")) fallbackRole = "FACULTY";
-
-      user = await prisma.user.findFirst({
-        where: { role: fallbackRole },
-        select: {
-          role: true,
-          student: { select: { id: true } },
-          faculty: { select: { id: true } },
-        },
-      });
-    }
 
     if (!user) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
 

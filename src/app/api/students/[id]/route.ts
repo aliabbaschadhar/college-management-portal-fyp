@@ -34,15 +34,19 @@ export async function PATCH(
     });
 
     if (userId) {
-      const adminName = await getAdminName(userId);
-      await logAuditAction({
-        action: "UPDATED",
-        entity: "Student",
-        entityId: id,
-        description: `Edited student profile: ${student.user.name ?? student.rollNo}`,
-        adminClerkId: userId,
-        adminName,
-      });
+      try {
+        const adminName = await getAdminName(userId);
+        await logAuditAction({
+          action: "UPDATED",
+          entity: "Student",
+          entityId: id,
+          description: `Edited student profile: ${student.user.name ?? student.rollNo}`,
+          adminClerkId: userId,
+          adminName,
+        });
+      } catch (auditError) {
+        console.error("Audit log failed:", auditError);
+      }
     }
 
     return NextResponse.json(student);
@@ -74,15 +78,19 @@ export async function DELETE(
     await prisma.student.delete({ where: { id } });
 
     if (userId && student) {
-      const adminName = await getAdminName(userId);
-      await logAuditAction({
-        action: "DELETED",
-        entity: "Student",
-        entityId: id,
-        description: `Deleted student: ${student.user.name ?? student.rollNo}`,
-        adminClerkId: userId,
-        adminName,
-      });
+      try {
+        const adminName = await getAdminName(userId);
+        await logAuditAction({
+          action: "DELETED",
+          entity: "Student",
+          entityId: id,
+          description: `Deleted student: ${student.user.name ?? student.rollNo}`,
+          adminClerkId: userId,
+          adminName,
+        });
+      } catch (auditError) {
+        console.error("Audit log failed:", auditError);
+      }
     }
 
     return NextResponse.json({ success: true });

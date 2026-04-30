@@ -29,15 +29,19 @@ export async function PATCH(
       },
     });
 
-    const adminName = await getAdminName(userId);
-    await logAuditAction({
-      action: "UPDATED",
-      entity: "Grade",
-      entityId: id,
-      description: `${body.locked ? "Locked" : "Unlocked"} grade for ${grade.student.user.name ?? "Unknown"} in ${grade.course.courseCode}`,
-      adminClerkId: userId,
-      adminName,
-    });
+    try {
+      const adminName = await getAdminName(userId);
+      await logAuditAction({
+        action: "UPDATED",
+        entity: "Grade",
+        entityId: id,
+        description: `${body.locked ? "Locked" : "Unlocked"} grade for ${grade.student.user.name ?? "Unknown"} in ${grade.course.courseCode}`,
+        adminClerkId: userId,
+        adminName,
+      });
+    } catch (auditError) {
+      console.error("Audit log failed:", auditError);
+    }
 
     return NextResponse.json(grade);
   } catch (error) {
@@ -80,15 +84,19 @@ export async function DELETE(
 
     await prisma.grade.delete({ where: { id } });
 
-    const adminName = await getAdminName(userId);
-    await logAuditAction({
-      action: "DELETED",
-      entity: "Grade",
-      entityId: id,
-      description: `Deleted grade for ${grade.student.user.name ?? "Unknown"} in ${grade.course.courseCode}`,
-      adminClerkId: userId,
-      adminName,
-    });
+    try {
+      const adminName = await getAdminName(userId);
+      await logAuditAction({
+        action: "DELETED",
+        entity: "Grade",
+        entityId: id,
+        description: `Deleted grade for ${grade.student.user.name ?? "Unknown"} in ${grade.course.courseCode}`,
+        adminClerkId: userId,
+        adminName,
+      });
+    } catch (auditError) {
+      console.error("Audit log failed:", auditError);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

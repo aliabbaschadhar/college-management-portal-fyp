@@ -53,15 +53,20 @@ export async function PATCH(
     });
 
     if (isAdmin) {
-      const adminName = await getAdminName(userId);
-      await logAuditAction({
-        action: "UPDATED",
-        entity: "Attendance",
-        entityId: id,
-        description: `Changed attendance to ${body.status} for ${attendance.student.user.name ?? "Unknown"} in ${attendance.course.courseCode}`,
-        adminClerkId: userId,
-        adminName,
-      });
+      try {
+        const studentName = attendance.student?.user?.name ?? "Unknown";
+        const adminName = await getAdminName(userId);
+        await logAuditAction({
+          action: "UPDATED",
+          entity: "Attendance",
+          entityId: id,
+          description: `Changed attendance to ${body.status} for ${studentName} in ${attendance.course.courseCode}`,
+          adminClerkId: userId,
+          adminName,
+        });
+      } catch (auditError) {
+        console.error("Audit log failed:", auditError);
+      }
     }
 
     return NextResponse.json(updated);
@@ -104,15 +109,20 @@ export async function DELETE(
 
     await prisma.attendance.delete({ where: { id } });
 
-    const adminName = await getAdminName(userId);
-    await logAuditAction({
-      action: "DELETED",
-      entity: "Attendance",
-      entityId: id,
-      description: `Deleted attendance record for ${attendance.student.user.name ?? "Unknown"} in ${attendance.course.courseCode}`,
-      adminClerkId: userId,
-      adminName,
-    });
+    try {
+      const studentName = attendance.student?.user?.name ?? "Unknown";
+      const adminName = await getAdminName(userId);
+      await logAuditAction({
+        action: "DELETED",
+        entity: "Attendance",
+        entityId: id,
+        description: `Deleted attendance record for ${studentName} in ${attendance.course.courseCode}`,
+        adminClerkId: userId,
+        adminName,
+      });
+    } catch (auditError) {
+      console.error("Audit log failed:", auditError);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

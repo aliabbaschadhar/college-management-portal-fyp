@@ -9,7 +9,7 @@ import {
 } from "@/lib/timetable";
 
 async function getAuthenticatedAppUser(clerkId: string, request: NextRequest) {
-  let user = await prisma.user.findUnique({
+  const user = await prisma.user.findUnique({
     where: { clerkId },
     select: {
       role: true,
@@ -17,22 +17,6 @@ async function getAuthenticatedAppUser(clerkId: string, request: NextRequest) {
       student: { select: { id: true } },
     },
   });
-
-  if (!user) {
-    const referer = request.headers.get("referer") || "";
-    let fallbackRole: "STUDENT" | "FACULTY" | "ADMIN" = "STUDENT";
-    if (referer.includes("/dashboard/admin")) fallbackRole = "ADMIN";
-    else if (referer.includes("/dashboard/faculty")) fallbackRole = "FACULTY";
-
-    user = await prisma.user.findFirst({
-      where: { role: fallbackRole },
-      select: {
-        role: true,
-        faculty: { select: { id: true } },
-        student: { select: { id: true } },
-      },
-    });
-  }
 
   return user;
 }

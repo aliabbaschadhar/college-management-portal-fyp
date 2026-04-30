@@ -65,16 +65,20 @@ export async function PATCH(
     }
 
     // Audit log
-    const adminClerkUser = await currentUser();
-    const adminName = adminClerkUser?.fullName ?? (await getAdminName(adminClerkId));
-    void logAuditAction({
-      action: "UPDATED",
-      entity: "User",
-      entityId: id,
-      description: `Role changed from ${previousRole} to ${newRole} for ${targetUser.name ?? targetUser.email}`,
-      adminClerkId,
-      adminName,
-    });
+    try {
+      const adminClerkUser = await currentUser();
+      const adminName = adminClerkUser?.fullName ?? (await getAdminName(adminClerkId));
+      await logAuditAction({
+        action: "UPDATED",
+        entity: "User",
+        entityId: id,
+        description: `Role changed from ${previousRole} to ${newRole} for ${targetUser.name ?? targetUser.email}`,
+        adminClerkId,
+        adminName,
+      });
+    } catch (auditError) {
+      console.error("Audit log failed:", auditError);
+    }
 
     return NextResponse.json({
       id: updated.id,

@@ -14,18 +14,6 @@ export async function GET(request: NextRequest) {
       select: { role: true },
     });
 
-    if (!user) {
-      const referer = request.headers.get("referer") || "";
-      let fallbackRole: "STUDENT" | "FACULTY" | "ADMIN" = "STUDENT";
-      if (referer.includes("/dashboard/admin")) fallbackRole = "ADMIN";
-      else if (referer.includes("/dashboard/faculty")) fallbackRole = "FACULTY";
-
-      user = await prisma.user.findFirst({
-        where: { role: fallbackRole },
-        select: { role: true },
-      });
-    }
-
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { searchParams } = request.nextUrl;

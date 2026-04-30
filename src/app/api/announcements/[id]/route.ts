@@ -34,7 +34,8 @@ export async function PATCH(
       },
     });
 
-    if (userId) {
+    if (!userId) throw new Error("Missing authenticated userId after requireRole");
+    try {
       const adminName = await getAdminName(userId);
       await logAuditAction({
         action: "UPDATED",
@@ -44,6 +45,8 @@ export async function PATCH(
         adminClerkId: userId,
         adminName,
       });
+    } catch (auditError) {
+      console.error("Audit log failed:", auditError);
     }
 
     return NextResponse.json(announcement);
@@ -71,16 +74,21 @@ export async function DELETE(
 
     await prisma.announcement.delete({ where: { id } });
 
-    if (userId && announcement) {
-      const adminName = await getAdminName(userId);
-      await logAuditAction({
-        action: "DELETED",
-        entity: "Announcement",
-        entityId: id,
-        description: `Deleted announcement: "${announcement.title}"`,
-        adminClerkId: userId,
-        adminName,
-      });
+    if (!userId) throw new Error("Missing authenticated userId after requireRole");
+    if (announcement) {
+      try {
+        const adminName = await getAdminName(userId);
+        await logAuditAction({
+          action: "DELETED",
+          entity: "Announcement",
+          entityId: id,
+          description: `Deleted announcement: "${announcement.title}"`,
+          adminClerkId: userId,
+          adminName,
+        });
+      } catch (auditError) {
+        console.error("Audit log failed:", auditError);
+      }
     }
 
     return NextResponse.json({ success: true });

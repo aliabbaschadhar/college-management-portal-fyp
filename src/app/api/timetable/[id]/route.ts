@@ -180,15 +180,19 @@ export async function PATCH(
 
     const { userId: adminUserId } = await requireAdmin();
     if (adminUserId) {
-      const adminName = await getAdminName(adminUserId);
-      await logAuditAction({
-        action: "UPDATED",
-        entity: "Timetable",
-        entityId: id,
-        description: `Updated timetable: ${updated.course.courseCode ?? "Unknown"} on ${body.day} ${body.startTime}-${body.endTime} in ${body.room}`,
-        adminClerkId: adminUserId,
-        adminName,
-      });
+      try {
+        const adminName = await getAdminName(adminUserId);
+        await logAuditAction({
+          action: "UPDATED",
+          entity: "Timetable",
+          entityId: id,
+          description: `Updated timetable: ${updated.course.courseCode ?? "Unknown"} on ${body.day} ${body.startTime}-${body.endTime} in ${body.room}`,
+          adminClerkId: adminUserId,
+          adminName,
+        });
+      } catch (auditError) {
+        console.error("Audit log failed:", auditError);
+      }
     }
 
     return NextResponse.json(updated);
@@ -217,15 +221,19 @@ export async function DELETE(
 
     const { userId: adminUserId } = await requireAdmin();
     if (adminUserId && entry) {
-      const adminName = await getAdminName(adminUserId);
-      await logAuditAction({
-        action: "DELETED",
-        entity: "Timetable",
-        entityId: id,
-        description: `Deleted timetable entry for ${entry.course.courseCode} on ${entry.day}`,
-        adminClerkId: adminUserId,
-        adminName,
-      });
+      try {
+        const adminName = await getAdminName(adminUserId);
+        await logAuditAction({
+          action: "DELETED",
+          entity: "Timetable",
+          entityId: id,
+          description: `Deleted timetable entry for ${entry.course.courseCode} on ${entry.day}`,
+          adminClerkId: adminUserId,
+          adminName,
+        });
+      } catch (auditError) {
+        console.error("Audit log failed:", auditError);
+      }
     }
 
     return NextResponse.json({ success: true });

@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   if (!userId) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
 
   try {
-    let user = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { clerkId: userId },
       include: {
         student: true,
@@ -16,18 +16,6 @@ export async function GET(request: NextRequest) {
         admin: true,
       },
     });
-
-    if (!user) {
-      const referer = request.headers.get("referer") || "";
-      let fallbackRole: "STUDENT" | "FACULTY" | "ADMIN" = "STUDENT";
-      if (referer.includes("/dashboard/admin")) fallbackRole = "ADMIN";
-      else if (referer.includes("/dashboard/faculty")) fallbackRole = "FACULTY";
-
-      user = await prisma.user.findFirst({
-        where: { role: fallbackRole },
-        include: { student: true, faculty: true, admin: true },
-      });
-    }
 
     if (!user) return errorResponse("NOT_FOUND", "User not found", 404);
 

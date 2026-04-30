@@ -59,15 +59,19 @@ export async function PATCH(
       },
     });
 
-    const adminName = await getAdminName(userId);
-    await logAuditAction({
-      action: "UPDATED",
-      entity: "Fee",
-      entityId: id,
-      description: `Marked ${fee.type} as ${body.status} for ${fee.student.user.name ?? "Unknown Student"} (Rs. ${fee.amount.toLocaleString()})`,
-      adminClerkId: userId,
-      adminName,
-    });
+    try {
+      const adminName = await getAdminName(userId);
+      await logAuditAction({
+        action: "UPDATED",
+        entity: "Fee",
+        entityId: id,
+        description: `Marked ${fee.type} as ${body.status} for ${fee.student.user.name ?? "Unknown Student"} (Rs. ${fee.amount.toLocaleString()})`,
+        adminClerkId: userId,
+        adminName,
+      });
+    } catch (auditError) {
+      console.error("Audit log failed:", auditError);
+    }
 
     return NextResponse.json(fee);
   } catch (error) {
@@ -103,15 +107,19 @@ export async function DELETE(
 
     await prisma.fee.delete({ where: { id } });
 
-    const adminName = await getAdminName(userId);
-    await logAuditAction({
-      action: "DELETED",
-      entity: "Fee",
-      entityId: id,
-      description: `Deleted ${fee.type} (Rs. ${fee.amount.toLocaleString()}) for ${fee.student.user.name ?? "Unknown Student"}`,
-      adminClerkId: userId,
-      adminName,
-    });
+    try {
+      const adminName = await getAdminName(userId);
+      await logAuditAction({
+        action: "DELETED",
+        entity: "Fee",
+        entityId: id,
+        description: `Deleted ${fee.type} (Rs. ${fee.amount.toLocaleString()}) for ${fee.student.user.name ?? "Unknown Student"}`,
+        adminClerkId: userId,
+        adminName,
+      });
+    } catch (auditError) {
+      console.error("Audit log failed:", auditError);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -16,16 +16,6 @@ export async function GET() {
       )?.emailAddress ?? clerkUser?.emailAddresses[0]?.emailAddress;
 
     let data = await getStudentDashboardData(userId, primaryEmail);
-    
-    if (!data) {
-      const fallbackStudent = await prisma.user.findFirst({
-        where: { role: "STUDENT" },
-        select: { clerkId: true, email: true },
-      });
-      if (fallbackStudent) {
-        data = await getStudentDashboardData(fallbackStudent.clerkId, fallbackStudent.email);
-      }
-    }
 
     if (!data) {
       return errorResponse("NOT_FOUND", "Student profile not found", 404);

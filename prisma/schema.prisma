@@ -8,7 +8,7 @@ datasource db {
 
 model User {
   id        String   @id @default(uuid())
-  clerkId   String   @unique
+  clerkId   String?  @unique
   email     String   @unique
   name      String?
   role      Role     @default(STUDENT)
@@ -17,6 +17,7 @@ model User {
   admin     Admin?
   faculty   Faculty?
   student   Student?
+  auditLogs AuditLog[]
 }
 
 model Student {
@@ -126,6 +127,8 @@ model Feedback {
   comment   String
   date      DateTime     @default(now())
   student   Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, targetId, type])
 }
 
 model Timetable {
@@ -209,9 +212,11 @@ model AuditLog {
   entity      String   // "Admission" | "Fee" | "Course" | "Student" etc.
   entityId    String   // ID of the affected record
   description String   // Human-readable description
-  adminId     String   // clerkId of the admin who performed the action
-  adminName   String   // Display name of the admin
+  adminId     String?  // clerkId of the admin who performed the action
+  adminName   String?  // Display name of the admin
   createdAt   DateTime @default(now())
+  expiresAt   DateTime? // Optional retention timestamp
+  adminUser   User?    @relation(fields: [adminId], references: [clerkId], onDelete: SetNull)
 
   @@index([entity, entityId])
   @@index([createdAt])

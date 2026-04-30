@@ -38,22 +38,10 @@ export async function POST(request: NextRequest) {
 
   try {
     // Load user role and faculty info
-    let user = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: { role: true, clerkId: true, faculty: { select: { id: true } } },
     });
-
-    if (!user) {
-      const referer = request.headers.get("referer") || "";
-      let fallbackRole: "STUDENT" | "FACULTY" | "ADMIN" = "STUDENT";
-      if (referer.includes("/dashboard/admin")) fallbackRole = "ADMIN";
-      else if (referer.includes("/dashboard/faculty")) fallbackRole = "FACULTY";
-
-      user = await prisma.user.findFirst({
-        where: { role: fallbackRole },
-        select: { role: true, clerkId: true, faculty: { select: { id: true } } },
-      });
-    }
 
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

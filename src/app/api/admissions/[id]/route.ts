@@ -47,14 +47,15 @@ export async function PATCH(
           await prisma.$transaction(async (tx) => {
             const newUser = await tx.user.create({
               data: {
-                clerkId: `admission_${admission.id}`,
                 email: admission.email,
                 name: admission.studentName,
                 role: "STUDENT",
               },
             });
 
-            const rollNo = `${admission.appliedDepartment.substring(0, 2).toUpperCase()}-${new Date().getFullYear()}-${admission.id.substring(0, 4).toUpperCase()}`;
+            if (!admission.appliedDepartment) throw new Error("Missing appliedDepartment");
+            const safeDept = admission.appliedDepartment.length >= 2 ? admission.appliedDepartment.substring(0, 2).toUpperCase() : "XX";
+            const rollNo = `${safeDept}-${new Date().getFullYear()}-${admission.id.substring(0, 8).toUpperCase()}`;
 
             const student = await tx.student.create({
               data: {
@@ -88,45 +89,61 @@ export async function PATCH(
             });
           });
 
-          await logAuditAction({
-            action: "UPDATED",
-            entity: "Admission",
-            entityId: id,
-            description: `Approved admission for ${admission.studentName} — Student record, roll number, and initial fees auto-created`,
-            adminClerkId: userId,
-            adminName,
-          });
+          try {
+            await logAuditAction({
+              action: "UPDATED",
+              entity: "Admission",
+              entityId: id,
+              description: `Approved admission for ${admission.studentName} — Student record, roll number, and initial fees auto-created`,
+              adminClerkId: userId,
+              adminName,
+            });
+          } catch (auditError) {
+            console.error("Audit log failed:", auditError);
+          }
         } else {
-          await logAuditAction({
-            action: "UPDATED",
-            entity: "Admission",
-            entityId: id,
-            description: `Approved admission for ${admission.studentName} — User already exists, skipped auto-creation`,
-            adminClerkId: userId,
-            adminName,
-          });
+          try {
+            await logAuditAction({
+              action: "UPDATED",
+              entity: "Admission",
+              entityId: id,
+              description: `Approved admission for ${admission.studentName} — User already exists, skipped auto-creation`,
+              adminClerkId: userId,
+              adminName,
+            });
+          } catch (auditError) {
+            console.error("Audit log failed:", auditError);
+          }
         }
       } catch (provisionError) {
         console.error("Auto-provision error:", provisionError);
         // Don't fail the status update — just log
+        try {
+          await logAuditAction({
+            action: "UPDATED",
+            entity: "Admission",
+            entityId: id,
+            description: `Approved admission for ${admission.studentName} — Auto-provisioning failed, manual setup needed`,
+            adminClerkId: userId,
+            adminName,
+          });
+        } catch (auditError) {
+          console.error("Audit log failed:", auditError);
+        }
+      }
+    } else {
+      try {
         await logAuditAction({
           action: "UPDATED",
           entity: "Admission",
           entityId: id,
-          description: `Approved admission for ${admission.studentName} — Auto-provisioning failed, manual setup needed`,
+          description: `Changed admission status for ${admission.studentName} to ${body.status}`,
           adminClerkId: userId,
           adminName,
         });
+      } catch (auditError) {
+        console.error("Audit log failed:", auditError);
       }
-    } else {
-      await logAuditAction({
-        action: "UPDATED",
-        entity: "Admission",
-        entityId: id,
-        description: `Changed admission status for ${admission.studentName} to ${body.status}`,
-        adminClerkId: userId,
-        adminName,
-      });
     }
 
     return NextResponse.json(admission);
@@ -166,15 +183,19 @@ export async function DELETE(
 
     await prisma.admission.delete({ where: { id } });
 
-    const adminName = await getAdminName(userId);
-    await logAuditAction({
-      action: "DELETED",
-      entity: "Admission",
-      entityId: id,
-      description: `Deleted ${admission.status} admission for ${admission.studentName}`,
-      adminClerkId: userId,
-      adminName,
-    });
+    try {
+      const adminName = await getAdminName(userId);
+      await logAuditAction({
+        action: "DELETED",
+        entity: "Admission",
+        entityId: id,
+        description: `Deleted ${admission.status} admission for ${admission.studentName}`,
+        adminClerkId: userId,
+        adminName,
+      });
+    } catch (auditError) {
+      console.error("Audit log failed:", auditError);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -16,6 +16,10 @@ export interface AuditLogParams {
  */
 export async function logAuditAction(params: AuditLogParams): Promise<void> {
   try {
+    // Calculate expiration date (e.g., 90 days from now)
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 90);
+
     await prisma.auditLog.create({
       data: {
         action: params.action,
@@ -24,6 +28,7 @@ export async function logAuditAction(params: AuditLogParams): Promise<void> {
         description: params.description,
         adminId: params.adminClerkId,
         adminName: params.adminName,
+        expiresAt,
       },
     });
   } catch (error) {

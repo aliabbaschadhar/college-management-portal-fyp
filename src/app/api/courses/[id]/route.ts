@@ -91,15 +91,19 @@ export async function PATCH(
     });
 
     if (userId) {
-      const adminName = await getAdminName(userId);
-      await logAuditAction({
-        action: "UPDATED",
-        entity: "Course",
-        entityId: id,
-        description: `Updated course ${course.courseCode} — ${course.courseName}`,
-        adminClerkId: userId,
-        adminName,
-      });
+      try {
+        const adminName = await getAdminName(userId);
+        await logAuditAction({
+          action: "UPDATED",
+          entity: "Course",
+          entityId: id,
+          description: `Updated course ${course.courseCode} — ${course.courseName}`,
+          adminClerkId: userId,
+          adminName,
+        });
+      } catch (auditError) {
+        console.error("Audit log failed:", auditError);
+      }
     }
 
     return NextResponse.json(course);
@@ -136,15 +140,19 @@ export async function DELETE(
     await prisma.course.delete({ where: { id } });
 
     if (userId && course) {
-      const adminName = await getAdminName(userId);
-      await logAuditAction({
-        action: "DELETED",
-        entity: "Course",
-        entityId: id,
-        description: `Deleted course ${course.courseCode} — ${course.courseName}`,
-        adminClerkId: userId,
-        adminName,
-      });
+      try {
+        const adminName = await getAdminName(userId);
+        await logAuditAction({
+          action: "DELETED",
+          entity: "Course",
+          entityId: id,
+          description: `Deleted course ${course.courseCode} — ${course.courseName}`,
+          adminClerkId: userId,
+          adminName,
+        });
+      } catch (auditError) {
+        console.error("Audit log failed:", auditError);
+      }
     }
 
     return NextResponse.json({ success: true });

@@ -8,17 +8,15 @@ export async function GET() {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    let data = await getFacultyDashboardData(userId);
-    
-    if (!data) {
-      const fallbackFaculty = await prisma.user.findFirst({
-        where: { role: "FACULTY" },
-        select: { clerkId: true },
-      });
-      if (fallbackFaculty) {
-        data = await getFacultyDashboardData(fallbackFaculty.clerkId);
-      }
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true },
+    });
+    if (!user || user.role !== "FACULTY") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+
+    const data = await getFacultyDashboardData(userId);
 
     if (!data) {
       return NextResponse.json({ error: "Faculty not found" }, { status: 404 });

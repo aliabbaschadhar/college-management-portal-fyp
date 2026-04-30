@@ -33,7 +33,8 @@ export async function PATCH(
       include: { user: { select: { name: true } } },
     });
 
-    if (userId) {
+    if (!userId) throw new Error("Missing userId after requireRole");
+    try {
       const adminName = await getAdminName(userId);
       await logAuditAction({
         action: "UPDATED",
@@ -43,6 +44,8 @@ export async function PATCH(
         adminClerkId: userId,
         adminName,
       });
+    } catch (auditError) {
+      console.error("Audit log failed:", auditError);
     }
 
     return NextResponse.json(faculty);
@@ -73,16 +76,21 @@ export async function DELETE(
 
     await prisma.faculty.delete({ where: { id } });
 
-    if (userId && faculty) {
-      const adminName = await getAdminName(userId);
-      await logAuditAction({
-        action: "DELETED",
-        entity: "Faculty",
-        entityId: id,
-        description: `Deleted faculty: ${faculty.user.name ?? "Unknown"}`,
-        adminClerkId: userId,
-        adminName,
-      });
+    if (!userId) throw new Error("Missing userId after requireRole");
+    if (faculty) {
+      try {
+        const adminName = await getAdminName(userId);
+        await logAuditAction({
+          action: "DELETED",
+          entity: "Faculty",
+          entityId: id,
+          description: `Deleted faculty: ${faculty.user.name ?? "Unknown"}`,
+          adminClerkId: userId,
+          adminName,
+        });
+      } catch (auditError) {
+        console.error("Audit log failed:", auditError);
+      }
     }
 
     return NextResponse.json({ success: true });
