@@ -28,17 +28,19 @@ export default function SmoothScroll({ children }: { children: ReactNode }) {
     // Sync ScrollTrigger with Lenis
     lenis.on('scroll', ScrollTrigger.update)
 
-    gsap.ticker.add((time) => {
+    // Keep a stable reference so the exact same function can be removed on cleanup
+    const tickerCallback = (time: number) => {
       lenis.raf(time * 1000)
-    })
+    }
 
+    gsap.ticker.add(tickerCallback)
     gsap.ticker.lagSmoothing(0)
 
     return () => {
       lenis.destroy()
-      gsap.ticker.remove((time) => {
-        lenis.raf(time * 1000)
-      })
+      gsap.ticker.remove(tickerCallback)
+      // Restore default lag smoothing so other components aren't affected
+      gsap.ticker.lagSmoothing(500, 33)
     }
   }, [])
 
