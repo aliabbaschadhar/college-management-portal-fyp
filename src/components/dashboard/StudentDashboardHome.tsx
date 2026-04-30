@@ -122,7 +122,12 @@ export function StudentDashboardHome() {
     fetch("/api/dashboard/student")
       .then((r) => r.json())
       .then((data) => {
-        if (!data.error) {
+        if (!data || data.error) {
+           setTimetable([]);
+           setAnnouncements([]);
+           setQuizzes([]);
+           setDashboardData(null);
+        } else {
           setTimetable(Array.isArray(data.timetable) ? data.timetable : []);
           setAnnouncements(Array.isArray(data.studentAnnouncements) ? data.studentAnnouncements : []);
           setQuizzes(Array.isArray(data.pendingQuizzes) ? data.pendingQuizzes : []);

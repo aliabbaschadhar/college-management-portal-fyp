@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { hasTimeOverlap, parseTimetablePayload } from "@/lib/timetable";
 import { auth } from "@clerk/nextjs/server";
+import { logAuditAction, getAdminName } from "@/lib/audit-log";
 
 async function requireAdmin() {
   const { userId } = await auth();
@@ -177,6 +178,23 @@ export async function PATCH(
       },
     });
 
+    const { userId: adminUserId } = await requireAdmin();
+    if (adminUserId) {
+      try {
+        const adminName = await getAdminName(adminUserId);
+        await logAuditAction({
+          action: "UPDATED",
+          entity: "Timetable",
+          entityId: id,
+          description: `Updated timetable: ${updated.course.courseCode ?? "Unknown"} on ${body.day} ${body.startTime}-${body.endTime} in ${body.room}`,
+          adminClerkId: adminUserId,
+          adminName,
+        });
+      } catch (auditError) {
+        console.error("Audit log failed:", auditError);
+      }
+    }
+
     return NextResponse.json(updated);
   } catch (error) {
     console.error("PATCH /api/timetable/[id] error:", error);
@@ -193,7 +211,31 @@ export async function DELETE(
 
   try {
     const { id } = await params;
+
+    const entry = await prisma.timetable.findUnique({
+      where: { id },
+      include: { course: { select: { courseCode: true } } },
+    });
+
     await prisma.timetable.delete({ where: { id } });
+
+    const { userId: adminUserId } = await requireAdmin();
+    if (adminUserId && entry) {
+      try {
+        const adminName = await getAdminName(adminUserId);
+        await logAuditAction({
+          action: "DELETED",
+          entity: "Timetable",
+          entityId: id,
+          description: `Deleted timetable entry for ${entry.course.courseCode} on ${entry.day}`,
+          adminClerkId: adminUserId,
+          adminName,
+        });
+      } catch (auditError) {
+        console.error("Audit log failed:", auditError);
+      }
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {

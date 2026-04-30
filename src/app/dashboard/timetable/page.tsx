@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Clock, User, MapPin, Download, Plus, Pencil, Trash2 } from "lucide-react";
+import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { motion } from "framer-motion";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DEPARTMENTS } from "@/lib/constants";
@@ -456,6 +457,7 @@ export default function TimetablePage() {
                                 <div className="text-[10px] text-muted-foreground">
                                   {to12HourTime(slot.startTime)} - {to12HourTime(slot.endTime)}
                                 </div>
+                                <AuditBadgeInline entity="Timetable" entityId={slot.id} />
                               </div>
                             </motion.div>
                           ) : (

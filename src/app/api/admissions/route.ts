@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // Check user role
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: { role: true },
     });

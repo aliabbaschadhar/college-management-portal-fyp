@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // Load user role to filter allowed audiences
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: { role: true },
     });

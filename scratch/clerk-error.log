@@ -1,0 +1,17 @@
+[2026-04-30T11:05:30.141Z] Clerk Error: No message
+ClerkAPIResponseError: 
+    at UserAPI.request (/home/aliabbaschadhar/Work/college-management-portal-fyp/.next/dev/server/chunks/ssr/node_modules_2824a224._.js:9444:27)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DashboardPage (/home/aliabbaschadhar/Work/college-management-portal-fyp/.next/dev/server/chunks/ssr/[root-of-the-server]__3caaa49b._.js:171:16)
+{
+  "clerkError": true,
+  "code": "api_response_error",
+  "clerkTraceId": "",
+  "errors": [
+    {
+      "code": "unexpected_error",
+      "message": "fetch failed"
+    }
+  ]
+}
+

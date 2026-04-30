@@ -121,8 +121,12 @@ export function FacultyDashboardHome() {
       fetch("/api/dashboard/faculty").then((r) => r.json()),
       fetch("/api/quizzes").then((r) => r.json()).catch(() => []),
     ])
-      .then(([dashData, quizData]: [FacultyDashboardData, Quiz[]]) => {
-        setData(dashData);
+      .then(([dashData, quizData]: [FacultyDashboardData & { error?: string }, Quiz[]]) => {
+        if (!dashData || dashData.error) {
+          setData(defaultData);
+        } else {
+          setData(dashData as FacultyDashboardData);
+        }
         setQuizzes(Array.isArray(quizData) ? quizData : []);
         setLoading(false);
       })

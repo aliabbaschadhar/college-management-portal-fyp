@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { FileText, Plus, Clock, Users, Eye, CheckCircle, Play, Square } from "lucide-react";
+import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
@@ -196,6 +197,7 @@ export default function ManageQuizzesPage() {
                   <span className="flex items-center gap-1">
                     <Users className="h-3 w-3" /> {quiz._count.attempts} attempted
                   </span>
+                  <AuditBadgeInline entity="Quiz" entityId={quiz.id} />
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">

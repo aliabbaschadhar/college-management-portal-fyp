@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2, UserPlus } from "lucide-react";
+import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
 import { DEPARTMENTS } from "@/lib/constants";
@@ -135,7 +136,10 @@ export default function ManageCoursesPage() {
       <span className="font-mono font-semibold text-brand-primary">{row.courseCode}</span>
     )},
     { key: "courseName", header: "Course Name", sortable: true, render: (row) => (
-      <span className="font-medium text-foreground">{row.courseName}</span>
+      <div>
+        <span className="font-medium text-foreground">{row.courseName}</span>
+        <AuditBadgeInline entity="Course" entityId={row.id} />
+      </div>
     )},
     { key: "creditHours", header: "Credits", sortable: true, render: (row) => (
       <Badge variant="outline">{row.creditHours} CH</Badge>

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { FeeStatus } from "@prisma/client";
 import { ApiError, errorResponse, handleApiError, parseJsonBody } from "@/lib/api-errors";
+import { logAuditAction, getAdminName } from "@/lib/audit-log";
 
 interface FeeCreateBody {
   studentId: string;
@@ -102,6 +103,7 @@ export async function GET(request: NextRequest) {
           include: { user: { select: { name: true } } },
         },
       },
+      orderBy: { dueDate: "desc" },
     });
 
     return NextResponse.json(fees);
@@ -115,14 +117,14 @@ export async function POST(request: NextRequest) {
   if (!userId) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
 
   try {
-    // Check user role - only admin/faculty can create fees
+    // Only admin can create fees
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: { role: true },
     });
 
-    if (!user || !["ADMIN", "FACULTY"].includes(user.role)) {
-      return errorResponse("FORBIDDEN", "Forbidden", 403);
+    if (!user || user.role !== "ADMIN") {
+      return errorResponse("FORBIDDEN", "Only administrators can create fee records", 403);
     }
 
     const body = await parseJsonBody<FeeCreateBody>(request);
@@ -137,7 +139,24 @@ export async function POST(request: NextRequest) {
         dueDate,
         semester: body.semester,
       },
+      include: {
+        student: { include: { user: { select: { name: true } } } },
+      },
     });
+
+    try {
+      const adminName = await getAdminName(userId);
+      await logAuditAction({
+        action: "CREATED",
+        entity: "Fee",
+        entityId: fee.id,
+        description: `Created ${body.type} of Rs. ${body.amount.toLocaleString()} for ${fee.student.user.name ?? "Unknown Student"}`,
+        adminClerkId: userId,
+        adminName,
+      });
+    } catch (auditError) {
+      console.error("Audit log failed:", auditError);
+    }
 
     return NextResponse.json(fee, { status: 201 });
   } catch (error) {

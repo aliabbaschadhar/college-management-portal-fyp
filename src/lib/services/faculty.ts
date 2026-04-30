@@ -6,6 +6,7 @@ interface FacultyDashboardData {
     totalStudents: number;
     avgRating: number;
     pendingQuizReviews: number;
+    avgStudentGpa: number;
   };
   courses: { id: string; courseCode: string; courseName: string; enrolledCount: number }[];
   timetable: {
@@ -57,7 +58,7 @@ export async function getFacultyDashboardData(
     }
   }
 
-  const [feedbacks, attendanceGroups] = await Promise.all([
+  const [feedbacks, attendanceGroups, gradeStats] = await Promise.all([
     prisma.feedback.findMany({
       where: { targetId: faculty.id, type: "Faculty" },
       select: { rating: true },
@@ -66,6 +67,10 @@ export async function getFacultyDashboardData(
       by: ["status"],
       where: { courseId: { in: courseIds } },
       _count: { _all: true },
+    }),
+    prisma.grade.aggregate({
+      where: { courseId: { in: courseIds } },
+      _avg: { gpa: true },
     }),
   ]);
 
@@ -100,6 +105,7 @@ export async function getFacultyDashboardData(
       totalStudents: uniqueStudentIds.size,
       avgRating,
       pendingQuizReviews,
+      avgStudentGpa: +(gradeStats._avg.gpa ?? 0).toFixed(2),
     },
     courses: courses.map((c) => ({
       id: c.id,

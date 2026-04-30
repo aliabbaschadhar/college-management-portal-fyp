@@ -1,19 +1,23 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { getFacultyDashboardData } from "@/lib/services/faculty";
+import prisma from "@/lib/prisma";
 
 export async function GET() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const clerkUser = await currentUser();
-    const role = clerkUser?.publicMetadata?.role as string | undefined;
-    if (role?.toUpperCase() !== "FACULTY") {
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true },
+    });
+    if (!user || user.role !== "FACULTY") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const data = await getFacultyDashboardData(userId);
+
     if (!data) {
       return NextResponse.json({ error: "Faculty not found" }, { status: 404 });
     }

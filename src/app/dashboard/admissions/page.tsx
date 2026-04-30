@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { CheckCircle, XCircle, Clock, Eye } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { CheckCircle, XCircle, Clock, Eye, Trash2, Upload } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
+import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -56,7 +57,9 @@ export default function ManageAdmissionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [selectedAdmission, setSelectedAdmission] = useState<Admission | null>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
@@ -110,6 +113,48 @@ export default function ManageAdmissionsPage() {
     if (selectedAdmission?.id === id) {
       setSelectedAdmission({ ...selectedAdmission, status: newStatus });
     }
+    if (newStatus === "Approved") {
+      setMutationError(null);
+      setSuccessMessage("Admission approved — Student record and initial fees auto-created!");
+      setTimeout(() => setSuccessMessage(null), 5000);
+    }
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete the admission for ${name}?`)) return;
+    setMutationError(null);
+    const res = await fetch(`/api/admissions/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const payload = (await res.json().catch(() => null)) as { error?: string } | null;
+      setMutationError(payload?.error ?? "Failed to delete admission");
+      return;
+    }
+    setAdmissions((prev) => prev.filter((a) => a.id !== id));
+  };
+
+  const handleCSVImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append("file", file);
+    setMutationError(null);
+    try {
+      const res = await fetch("/api/admissions/import", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? "CSV import failed");
+      }
+      const result = (await res.json()) as { imported: number };
+      setSuccessMessage(`Successfully imported ${result.imported} admission(s) from CSV`);
+      setTimeout(() => setSuccessMessage(null), 5000);
+      loadAdmissions();
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : "CSV import failed");
+    }
+    if (csvInputRef.current) csvInputRef.current.value = "";
   };
 
   const columns: Column<Admission>[] = [
@@ -118,6 +163,7 @@ export default function ManageAdmissionsPage() {
         <div>
           <p className="font-medium text-foreground">{row.studentName}</p>
           <p className="text-xs text-muted-foreground">{row.email}</p>
+          <AuditBadgeInline entity="Admission" entityId={row.id} />
         </div>
       )
     },
@@ -166,6 +212,15 @@ export default function ManageAdmissionsPage() {
               </button>
             </>
           )}
+          {row.status !== "Approved" && (
+            <button
+              onClick={() => handleDelete(row.id, row.studentName)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
+              title="Delete"
+            >
+              <Trash2 className="h-4 w-4 text-rose-500" />
+            </button>
+          )}
         </div>
       )
     },
@@ -197,17 +252,29 @@ export default function ManageAdmissionsPage() {
         subtitle={`${admissions.filter((a) => a.status === "Pending").length} pending applications require review`}
         breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Admissions" }]}
         action={
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-45">
-              <SelectValue placeholder="Filter Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Applications</SelectItem>
-              <SelectItem value="Pending">Pending</SelectItem>
-              <SelectItem value="Approved">Approved</SelectItem>
-              <SelectItem value="Rejected">Rejected</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <input
+              type="file"
+              accept=".csv"
+              ref={csvInputRef}
+              onChange={handleCSVImport}
+              className="hidden"
+            />
+            <Button variant="outline" size="sm" onClick={() => csvInputRef.current?.click()}>
+              <Upload className="h-4 w-4 mr-2" /> Import CSV
+            </Button>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-45">
+                <SelectValue placeholder="Filter Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Applications</SelectItem>
+                <SelectItem value="Pending">Pending</SelectItem>
+                <SelectItem value="Approved">Approved</SelectItem>
+                <SelectItem value="Rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         }
       />
 
@@ -221,6 +288,12 @@ export default function ManageAdmissionsPage() {
       {mutationError && (
         <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-300">
           {mutationError}
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-300">
+          ✅ {successMessage}
         </div>
       )}
 

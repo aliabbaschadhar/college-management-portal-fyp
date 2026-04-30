@@ -110,6 +110,23 @@ export async function POST(request: NextRequest) {
       return errorResponse("FORBIDDEN", "Only students can submit feedback", 403);
     }
 
+    // Duplicate prevention: check if already submitted for this target
+    const existing = await prisma.feedback.findFirst({
+      where: {
+        studentId: student.id,
+        targetId: body.targetId,
+        type: body.type,
+      },
+    });
+
+    if (existing) {
+      return errorResponse(
+        "BAD_REQUEST",
+        "You have already submitted feedback for this target. You can only submit once per target.",
+        400
+      );
+    }
+
     const feedback = await prisma.feedback.create({
       data: {
         studentId: student.id,
@@ -125,7 +142,7 @@ export async function POST(request: NextRequest) {
         rating: true,
         comment: true,
         date: true,
-        // studentId not returned
+        // studentId not returned — anonymization
       },
     });
 

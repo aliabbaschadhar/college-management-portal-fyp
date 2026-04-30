@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Filter } from "lucide-react";
+import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
 import { Badge } from "@/components/ui/badge";
@@ -82,6 +83,7 @@ export default function ManageAttendancePage() {
       <div>
         <p className="font-medium text-foreground">{row.student.user.name ?? "—"}</p>
         <p className="text-xs text-muted-foreground">{row.student.rollNo}</p>
+        <AuditBadgeInline entity="Attendance" entityId={row.id} />
       </div>
     )},
     { key: "course", header: "Course", sortable: false, render: (row) => (

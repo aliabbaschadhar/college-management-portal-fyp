@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
 import { Roboto } from 'next/font/google'
 import { ThemeProvider } from '@/lib/theme-provider'
+import SmoothScroll from '@/components/SmoothScroll'
 import './globals.css'
 
 const roboto = Roboto({
@@ -49,7 +50,9 @@ export default function RootLayout({
             enableSystem={false}
             disableTransitionOnChange={false}
           >
-            {children}
+            <SmoothScroll>
+              {children}
+            </SmoothScroll>
           </ThemeProvider>
         </body>
       </html>

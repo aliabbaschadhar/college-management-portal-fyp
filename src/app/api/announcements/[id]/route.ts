@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-guard";
 import { AnnouncementAudience, Priority, Prisma } from "@prisma/client";
+import { logAuditAction, getAdminName } from "@/lib/audit-log";
 
 export async function PATCH(
   request: NextRequest,
@@ -11,6 +13,7 @@ export async function PATCH(
   if (denied) return denied;
 
   try {
+    const { userId } = await auth();
     const { id } = await params;
     const body = (await request.json()) as {
       title?: string;
@@ -31,6 +34,21 @@ export async function PATCH(
       },
     });
 
+    if (!userId) throw new Error("Missing authenticated userId after requireRole");
+    try {
+      const adminName = await getAdminName(userId);
+      await logAuditAction({
+        action: "UPDATED",
+        entity: "Announcement",
+        entityId: id,
+        description: `Edited announcement: "${announcement.title}"`,
+        adminClerkId: userId,
+        adminName,
+      });
+    } catch (auditError) {
+      console.error("Audit log failed:", auditError);
+    }
+
     return NextResponse.json(announcement);
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
@@ -49,8 +67,30 @@ export async function DELETE(
   if (denied) return denied;
 
   try {
+    const { userId } = await auth();
     const { id } = await params;
+
+    const announcement = await prisma.announcement.findUnique({ where: { id } });
+
     await prisma.announcement.delete({ where: { id } });
+
+    if (!userId) throw new Error("Missing authenticated userId after requireRole");
+    if (announcement) {
+      try {
+        const adminName = await getAdminName(userId);
+        await logAuditAction({
+          action: "DELETED",
+          entity: "Announcement",
+          entityId: id,
+          description: `Deleted announcement: "${announcement.title}"`,
+          adminClerkId: userId,
+          adminName,
+        });
+      } catch (auditError) {
+        console.error("Audit log failed:", auditError);
+      }
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
