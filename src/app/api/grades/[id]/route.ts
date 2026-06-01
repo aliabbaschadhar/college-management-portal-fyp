@@ -1,4 +1,4 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logAuditAction, getAdminName } from "@/lib/audit-log";
@@ -11,9 +11,11 @@ export async function PATCH(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const clerkUser = await currentUser();
-    const role = clerkUser?.publicMetadata?.role as string | undefined;
-    if (role?.toUpperCase() !== "ADMIN") {
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true },
+    });
+    if (dbUser?.role !== "ADMIN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -58,9 +60,11 @@ export async function DELETE(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const clerkUser = await currentUser();
-    const role = clerkUser?.publicMetadata?.role as string | undefined;
-    if (role?.toUpperCase() !== "ADMIN") {
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true },
+    });
+    if (dbUser?.role !== "ADMIN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

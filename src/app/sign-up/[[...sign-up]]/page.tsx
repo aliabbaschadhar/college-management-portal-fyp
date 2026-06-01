@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Sparkles, UserCheck, Eye, EyeOff, Loader2, AlertCircle, ShieldCheck } from "lucide-react";
-import { useTheme } from "next-themes";
+
 import { ThemeToggle } from "@/components/dashboard/ThemeToggle";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
@@ -19,7 +19,6 @@ export default function SignUpPage() {
   const { isLoaded, signUp, setActive } = useSignUp();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
-  const { resolvedTheme } = useTheme();
 
   // Registration Form states
   const [firstName, setFirstName] = useState("");
@@ -59,9 +58,10 @@ export default function SignUpPage() {
       // 2. Request OTP email verification
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
       setVerifying(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Sign-up error:", err);
-      setError(err.errors?.[0]?.message || "Failed to create account. Please check inputs.");
+      const clerkError = err as { errors?: Array<{ message: string }> };
+      setError(clerkError.errors?.[0]?.message || "Failed to create account. Please check inputs.");
     } finally {
       setLoading(false);
     }
@@ -85,9 +85,10 @@ export default function SignUpPage() {
       } else {
         setError("Verification incomplete. Please retry.");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Verification error:", err);
-      setError(err.errors?.[0]?.message || "Invalid verification code.");
+      const clerkError = err as { errors?: Array<{ message: string }> };
+      setError(clerkError.errors?.[0]?.message || "Invalid verification code.");
     } finally {
       setLoading(false);
     }
@@ -99,9 +100,10 @@ export default function SignUpPage() {
     try {
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
       alert("Verification code has been resent to your email.");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Resend error:", err);
-      setError(err.errors?.[0]?.message || "Failed to resend code.");
+      const clerkError = err as { errors?: Array<{ message: string }> };
+      setError(clerkError.errors?.[0]?.message || "Failed to resend code.");
     }
   };
 
@@ -116,9 +118,10 @@ export default function SignUpPage() {
         redirectUrl: "/sso-callback",
         redirectUrlComplete: "/dashboard",
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Social Sign-up error:", err);
-      setError(err.errors?.[0]?.message || "Social registration redirect failed");
+      const clerkError = err as { errors?: Array<{ message: string }> };
+      setError(clerkError.errors?.[0]?.message || "Social registration redirect failed");
       setSocialLoading(null);
     }
   };

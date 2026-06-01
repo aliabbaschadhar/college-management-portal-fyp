@@ -125,7 +125,7 @@ export function StudentDashboardHome() {
       .get<StudentDashboardResponse>("/api/dashboard/student")
       .then((res) => {
         const data = res.data;
-        if (!data || (data as any).error) {
+        if (!data || (data as { error?: string }).error) {
           setTimetable([]);
           setAnnouncements([]);
           setQuizzes([]);

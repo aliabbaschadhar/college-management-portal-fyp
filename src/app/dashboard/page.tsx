@@ -1,18 +1,27 @@
-import { currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import type { UserRole } from "@/types";
+import prisma from "@/lib/prisma";
 import AdminDashboardHome from "@/components/dashboard/AdminDashboardHome";
 import { StudentDashboardHome } from "@/components/dashboard/StudentDashboardHome";
 import { FacultyDashboardHome } from "@/components/dashboard/FacultyDashboardHome";
 
 export default async function DashboardPage() {
-  const user = await currentUser();
+  const { userId } = await auth();
 
-  if (!user) {
+  if (!userId) {
     redirect("/sign-in");
   }
 
-  const role = ((user.publicMetadata?.role as string) || "student").toLowerCase();
+  const dbUser = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { role: true },
+  });
+
+  if (!dbUser) {
+    redirect("/sign-in");
+  }
+
+  const role = dbUser.role.toLowerCase();
 
   if (role === "faculty") {
     return <FacultyDashboardHome />;

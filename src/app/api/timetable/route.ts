@@ -8,7 +8,7 @@ import {
   TIMETABLE_DAYS,
 } from "@/lib/timetable";
 
-async function getAuthenticatedAppUser(clerkId: string, request: NextRequest) {
+async function getAuthenticatedAppUser(clerkId: string) {
   const user = await prisma.user.findUnique({
     where: { clerkId },
     select: {
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const appUser = await getAuthenticatedAppUser(userId, request);
+    const appUser = await getAuthenticatedAppUser(userId);
     if (!appUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const appUser = await getAuthenticatedAppUser(userId, request);
+    const appUser = await getAuthenticatedAppUser(userId);
     if (!appUser || appUser.role?.toUpperCase() !== "ADMIN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

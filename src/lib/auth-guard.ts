@@ -1,13 +1,8 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
 
 type UserRole = "ADMIN" | "FACULTY" | "STUDENT";
-
-function normalizeRole(rawRole: unknown): UserRole | undefined {
-  if (typeof rawRole !== "string") return undefined;
-  const upper = rawRole.toUpperCase() as UserRole;
-  return upper === "ADMIN" || upper === "FACULTY" || upper === "STUDENT" ? upper : undefined;
-}
 
 /**
  * Verifies the authenticated user has the required role.
@@ -21,10 +16,12 @@ export async function requireRole(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const clerkUser = await currentUser();
-  const role = normalizeRole(clerkUser?.publicMetadata?.role);
+  const dbUser = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { role: true },
+  });
 
-  if (!role || !allowedRoles.includes(role)) {
+  if (!dbUser || !allowedRoles.includes(dbUser.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -45,20 +42,24 @@ export async function requireOwnerOrRole(
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
 
-  // Owner always has access
-  if (userId === ownerClerkId) {
-    const clerkUser = await currentUser();
-    const role = normalizeRole(clerkUser?.publicMetadata?.role) ?? "STUDENT";
-    return { userId, role };
-  }
+  const dbUser = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { role: true },
+  });
 
-  // Otherwise check role
-  const clerkUser = await currentUser();
-  const role = normalizeRole(clerkUser?.publicMetadata?.role);
-
-  if (!role || !allowedRoles.includes(role)) {
+  if (!dbUser) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
 
-  return { userId, role };
+  // Owner always has access
+  if (userId === ownerClerkId) {
+    return { userId, role: dbUser.role };
+  }
+
+  // Otherwise check role
+  if (!allowedRoles.includes(dbUser.role)) {
+    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+
+  return { userId, role: dbUser.role };
 }

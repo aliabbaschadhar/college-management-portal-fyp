@@ -148,7 +148,6 @@ export function UserManagementClient() {
     }
   };
 
-  const adminCount = users.filter((u) => u.role === "ADMIN").length;
   const facultyCount = users.filter((u) => u.role === "FACULTY").length;
   const studentCount = users.filter((u) => u.role === "STUDENT").length;
 

@@ -140,7 +140,6 @@ const fadeUp = {
 
 export default function Home() {
   const prefersReducedMotion = useReducedMotion();
-  const heroRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const heroTextRef = useRef<HTMLHeadingElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { errorResponse, handleApiError } from "@/lib/api-errors";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   const { userId } = await auth();
   if (!userId) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
 

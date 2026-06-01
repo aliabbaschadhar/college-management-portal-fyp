@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Sparkles, CheckCircle2, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
-import { useTheme } from "next-themes";
+
 import { ThemeToggle } from "@/components/dashboard/ThemeToggle";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
@@ -19,7 +19,6 @@ export default function SignInPage() {
   const { isLoaded, signIn, setActive } = useSignIn();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
-  const { resolvedTheme } = useTheme();
 
   // Form states
   const [email, setEmail] = useState("");
@@ -53,9 +52,10 @@ export default function SignInPage() {
       } else {
         setError("Action incomplete. Please check authentication requirements.");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Sign-in error:", err);
-      setError(err.errors?.[0]?.message || "Invalid email or password");
+      const clerkError = err as { errors?: Array<{ message: string }> };
+      setError(clerkError.errors?.[0]?.message || "Invalid email or password");
     } finally {
       setLoading(false);
     }
@@ -72,9 +72,10 @@ export default function SignInPage() {
         redirectUrl: "/sso-callback",
         redirectUrlComplete: "/dashboard",
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Social Sign-in error:", err);
-      setError(err.errors?.[0]?.message || "Social login redirect failed");
+      const clerkError = err as { errors?: Array<{ message: string }> };
+      setError(clerkError.errors?.[0]?.message || "Social login redirect failed");
       setSocialLoading(null);
     }
   };
