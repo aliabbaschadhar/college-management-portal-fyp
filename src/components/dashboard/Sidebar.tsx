@@ -44,7 +44,7 @@ export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose }: Si
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed lg:sticky top-0 left-0 z-50 flex h-screen flex-col border-r border-border bg-card transition-all duration-300 ease-in-out",
+          "fixed lg:sticky top-0 left-0 z-50 flex h-screen flex-col border-r-2 border-border bg-card transition-all duration-300 ease-in-out",
           collapsed ? "w-18" : "w-64",
           isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
@@ -79,19 +79,22 @@ export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose }: Si
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                  "group flex items-center gap-3 rounded-none px-3 py-2.5 text-sm font-bold transition-all duration-200 border-2 border-transparent",
                   active
-                    ? "bg-brand-primary/10 text-brand-primary border-l-[3px] border-brand-primary"
-                    : "text-muted-foreground hover:bg-accent hover:text-foreground border-l-[3px] border-transparent"
+                    ? "bg-primary text-primary-foreground border-border shadow-[2px_2px_0px_0px_var(--border)] -translate-x-0.5 -translate-y-0.5"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground hover:border-border hover:shadow-[2px_2px_0px_0px_var(--border)] hover:-translate-x-0.5 hover:-translate-y-0.5"
                 )}
                 title={collapsed ? item.title : undefined}
               >
-                <item.icon className={cn("h-4.5 w-4.5 shrink-0", active && "text-brand-primary")} />
+                <item.icon className={cn("h-4.5 w-4.5 shrink-0", active ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground")} />
                 {!collapsed && (
                   <>
                     <span className="truncate">{item.title}</span>
                     {item.badge !== undefined && item.badge > 0 && (
-                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-primary px-1.5 text-[10px] font-bold text-white">
+                      <span className={cn(
+                        "ml-auto flex h-5 min-w-5 items-center justify-center rounded-none border border-border px-1.5 text-[10px] font-bold shadow-[1px_1px_0px_0px_var(--border)]",
+                        active ? "bg-background text-foreground" : "bg-primary text-primary-foreground"
+                      )}>
                         {item.badge}
                       </span>
                     )}
@@ -117,7 +120,7 @@ export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose }: Si
           <div className="hidden lg:flex">
             <button
               onClick={() => setCollapsed(!collapsed)}
-              className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+              className="flex w-full items-center justify-center gap-2 rounded-none border-2 border-transparent px-3 py-2 text-sm font-bold text-muted-foreground hover:bg-accent hover:text-foreground hover:border-border hover:shadow-[2px_2px_0px_0px_var(--border)] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all cursor-pointer"
             >
               {collapsed ? (
                 <PanelLeft className="h-4 w-4" />

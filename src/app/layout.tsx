@@ -1,13 +1,12 @@
 import type { Metadata } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
-import { Roboto } from 'next/font/google'
+import { Outfit } from 'next/font/google'
 import { ThemeProvider } from '@/lib/theme-provider'
-import SmoothScroll from '@/components/SmoothScroll'
 import './globals.css'
 
-const roboto = Roboto({
-  weight: ['300', '400', '500', '700', '900'],
-  variable: '--font-roboto',
+const outfit = Outfit({
+  weight: ['300', '400', '500', '600', '700', '800', '900'],
+  variable: '--font-outfit',
   subsets: ['latin'],
 })
 
@@ -31,18 +30,24 @@ export default function RootLayout({
     <ClerkProvider
       appearance={{
         variables: {
-          colorPrimary: 'var(--color-brand-primary)',
-          colorTextOnPrimaryBackground: 'var(--color-brand-white)',
-          colorBackground: 'var(--color-brand-white)',
-          colorText: 'var(--color-brand-dark)',
-          colorInputBackground: 'var(--color-brand-white)',
-          colorInputText: 'var(--color-brand-dark)',
+          colorPrimary: 'var(--brand-primary)',
+          colorTextOnPrimaryBackground: 'var(--brand-white)',
+          colorBackground: 'var(--background)',
+          colorText: 'var(--foreground)',
+          colorInputBackground: 'var(--background)',
+          colorInputText: 'var(--foreground)',
+          borderRadius: '0px',
         },
+        elements: {
+          card: 'rounded-none border-2 border-border shadow-[4px_4px_0px_0px_var(--border)] bg-card text-card-foreground',
+          formButtonPrimary: 'rounded-none border-2 border-border shadow-[2px_2px_0px_0px_var(--border)] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0 active:translate-y-0 transition-all bg-primary text-primary-foreground',
+          formFieldInput: 'rounded-none border-2 border-border focus:ring-0 focus:border-primary bg-background text-foreground',
+        }
       }}
     >
       <html lang="en" suppressHydrationWarning>
         <body
-          className={`${roboto.variable} font-sans antialiased`}
+          className={`${outfit.variable} font-sans antialiased`}
         >
           <ThemeProvider
             attribute="class"
@@ -50,9 +55,7 @@ export default function RootLayout({
             enableSystem={false}
             disableTransitionOnChange={false}
           >
-            <SmoothScroll>
-              {children}
-            </SmoothScroll>
+            {children}
           </ThemeProvider>
         </body>
       </html>

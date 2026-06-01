@@ -24,11 +24,11 @@ export function StatsCard({
   iconBg,
 }: StatsCardProps) {
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-border bg-card p-5 transition-all duration-200 hover:shadow-lg hover:shadow-brand-primary/5 hover:border-brand-primary/20">
+    <div className="group relative overflow-hidden rounded-none border-2 border-border bg-card p-5 shadow-[3px_3px_0px_0px_var(--border)] transition-all duration-200 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[4px_4px_0px_0px_var(--border)] select-none">
       <div className="flex items-start justify-between">
         <div className="space-y-2">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <p className="text-3xl font-bold tracking-tight text-foreground">{value}</p>
+          <p className="text-sm font-bold text-muted-foreground uppercase tracking-wider">{title}</p>
+          <p className="text-3.5xl font-black tracking-tight text-foreground">{value}</p>
           <div className="flex items-center gap-1.5">
             {trendDirection === "up" ? (
               <TrendingUp className="h-3.5 w-3.5 text-system-success" />
@@ -37,26 +37,23 @@ export function StatsCard({
             )}
             <span
               className={cn(
-                "text-xs font-semibold",
+                "text-xs font-bold",
                 trendDirection === "up" ? "text-system-success" : "text-system-danger"
               )}
             >
               {trend}
             </span>
-            <span className="text-xs text-muted-foreground">vs last month</span>
+            <span className="text-[10px] font-medium text-muted-foreground uppercase">vs last month</span>
           </div>
         </div>
 
         <div
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-none border-2 border-border shadow-[2px_2px_0px_0px_var(--border)] transition-transform group-hover:scale-105"
           style={{ backgroundColor: iconBg }}
         >
           <Icon className="h-6 w-6" style={{ color: iconColor }} />
         </div>
       </div>
-
-      {/* Subtle gradient overlay on hover */}
-      <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-brand-primary/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
     </div>
   );
 }

@@ -15,7 +15,7 @@ export async function GET() {
         (emailAddress) => emailAddress.id === clerkUser.primaryEmailAddressId
       )?.emailAddress ?? clerkUser?.emailAddresses[0]?.emailAddress;
 
-    let data = await getStudentDashboardData(userId, primaryEmail);
+    const data = await getStudentDashboardData(userId, primaryEmail);
 
     if (!data) {
       return errorResponse("NOT_FOUND", "Student profile not found", 404);
