@@ -87,7 +87,6 @@ export default function ManageAdmissionsPage() {
   }, [filterStatus]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadAdmissions();
   }, [loadAdmissions]);
 
@@ -139,6 +138,8 @@ export default function ManageAdmissionsPage() {
     if (!file) return;
     setMutationError(null);
     try {
+      const formData = new FormData();
+      formData.append("file", file);
       const res = await fetch("/api/admissions/import", {
         method: "POST",
         body: formData,

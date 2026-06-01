@@ -93,6 +93,7 @@ export default function ManageDuesPage() {
   }, [filterStatus]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loadFees is memoized and updates local state from fetched data
     loadFees();
   }, [loadFees]);
 

@@ -6,29 +6,18 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-roboto);
+  --font-sans: var(--font-outfit);
 
-  /* Custom College Portal Colors (from design.md) */
-  --color-brand-primary: #3D5EE1;
-  --color-brand-secondary: #6FCCD8;
-  --color-brand-dark: #131022;
-  --color-brand-light: #E9EDF4;
-  --color-brand-white: #FFFFFF;
-  --color-brand-soft: #E8E8E8;
-  --color-brand-primary-rgb: 61 94 225;
-  --color-brand-secondary-rgb: 111 204 216;
-  --color-system-success-rgb: 26 190 23;
-  --color-system-warning-rgb: 234 179 0;
-  --color-system-danger-rgb: 232 38 70;
-  --color-data-1: #3D5EE1;
-  --color-data-2: #6FCCD8;
-  --color-data-3: #A78BFA;
-  --color-data-4: #F59E0B;
-  --color-data-5: #1ABE17;
-  --color-data-6: #E82646;
-  --color-data-7: #10B981;
-  --color-data-8: #EC4899;
-
+  /* Custom College Portal Colors */
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-secondary: var(--brand-secondary);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-light: var(--brand-light);
+  --color-brand-white: var(--brand-white);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-primary-rgb: var(--brand-primary-rgb);
+  --color-brand-secondary-rgb: var(--brand-secondary-rgb);
+  
   /* Legacy token aliases used in auth pages/components */
   --color-primary-navy: var(--color-brand-primary);
   --color-secondary-cyan: var(--color-brand-secondary);
@@ -41,7 +30,8 @@
   --color-system-warning: #EAB300;
   --color-system-danger: #E82646;
   --color-system-skyblue: #05C3FB;
-  --color-system-strokecard: #FFFFFF;
+  --color-system-strokecard: var(--border-color);
+  
   --color-semantic-info: var(--color-system-info);
   --color-semantic-success: var(--color-system-success);
   --color-semantic-warning: var(--color-system-warning);
@@ -55,11 +45,13 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
+  
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -76,89 +68,130 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+  --radius-xl: var(--radius);
+  --radius-2xl: var(--radius);
+  --radius-3xl: var(--radius);
+  --radius-4xl: var(--radius);
 }
 
 :root {
-  --radius: 0.625rem;
-  --color-brand-primary-rgb: 61 94 225;
-  --color-brand-secondary-rgb: 111 204 216;
-  --color-system-success-rgb: 26 190 23;
-  --color-system-warning-rgb: 234 179 0;
-  --color-system-danger-rgb: 232 38 70;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.141 0.005 285.823);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.141 0.005 285.823);
+  --radius: 0px;
+  
+  /* Brand colors matching Modern Minimalist Light */
+  --brand-primary: #2563eb; /* Royal Blue */
+  --brand-secondary: #0891b2; /* Cyan Accent */
+  --brand-dark: #09090b; /* Slate-950 */
+  --brand-light: #f8fafc; /* Canvas base */
+  --brand-white: #ffffff;
+  --brand-soft: #e4e4e7;
+  
+  --brand-primary-rgb: 37 99 235;
+  --brand-secondary-rgb: 8 145 178;
+  --color-system-success-rgb: 16 185 129;
+  --color-system-warning-rgb: 245 158 11;
+  --color-system-danger-rgb: 239 68 68;
+  
+  --background: oklch(0.99 0.003 240); /* clean paper */
+  --foreground: oklch(0.12 0.015 240); /* dark slate */
+  --card: oklch(1 0 0); /* pure white card */
+  --card-foreground: oklch(0.12 0.015 240);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.21 0.006 285.885);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.21 0.006 285.885);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.705 0.015 286.067);
+  --popover-foreground: oklch(0.12 0.015 240);
+  
+  --primary: var(--brand-primary);
+  --primary-foreground: #ffffff;
+  --secondary: #e4e4e7;
+  --secondary-foreground: var(--brand-dark);
+  
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #f1f5f9;
+  --accent-foreground: var(--brand-dark);
+  
+  --destructive: #ef4444;
+  --border-color: #0f172a; /* High contrast black borders */
+  --border: #0f172a;
+  --input: #0f172a;
+  --ring: var(--brand-primary);
+  
+  --sidebar: #ffffff;
+  --sidebar-foreground: var(--brand-dark);
+  --sidebar-primary: var(--brand-primary);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f1f5f9;
+  --sidebar-accent-foreground: var(--brand-dark);
+  --sidebar-border: #0f172a;
+  --sidebar-ring: var(--brand-primary);
+  
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-primary: oklch(0.21 0.006 285.885);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.705 0.015 286.067);
-  --sticky-bg-rgb: 255, 255, 255;
+
+  --sticky-bg-rgb: 248, 250, 252;
 }
 
 .dark {
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.21 0.006 285.885);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.92 0.004 286.32);
-  --primary-foreground: oklch(0.21 0.006 285.885);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.552 0.016 285.938);
+  --radius: 0px;
+  
+  /* Brand colors matching Unified Dark Mode */
+  --brand-primary: #06b6d4; /* Glowing Neon Cyan */
+  --brand-secondary: #6366f1; /* Glowing Indigo */
+  --brand-dark: #f8fafc;
+  --brand-light: #090d16; /* Charcoal background */
+  --brand-white: #ffffff;
+  --brand-soft: #1e293b;
+  
+  --brand-primary-rgb: 6 182 212;
+  --brand-secondary-rgb: 99 102 241;
+  --color-system-success-rgb: 16 185 129;
+  --color-system-warning-rgb: 245 158 11;
+  --color-system-danger-rgb: 239 68 68;
+  
+  --background: oklch(0.12 0.01 240); /* deep slate canvas */
+  --foreground: oklch(0.98 0.005 240); /* white text */
+  --card: oklch(0.16 0.015 240); /* slate card */
+  --card-foreground: oklch(0.98 0.005 240);
+  --popover: oklch(0.16 0.015 240);
+  --popover-foreground: oklch(0.98 0.005 240);
+  
+  --primary: var(--brand-primary);
+  --primary-foreground: #090d16;
+  --secondary: #1e293b;
+  --secondary-foreground: #f8fafc;
+  
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --accent: #1e293b;
+  --accent-foreground: #f8fafc;
+  
+  --destructive: #f43f5e;
+  --border-color: #ffffff; /* Sharp white borders */
+  --border: #ffffff;
+  --input: #ffffff;
+  --ring: var(--brand-primary);
+  
+  --sidebar: #090d16;
+  --sidebar-foreground: #f8fafc;
+  --sidebar-primary: var(--brand-primary);
+  --sidebar-primary-foreground: #090d16;
+  --sidebar-accent: #1e293b;
+  --sidebar-accent-foreground: #f8fafc;
+  --sidebar-border: #ffffff;
+  --sidebar-ring: var(--brand-primary);
+  
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.552 0.016 285.938);
-  --sticky-bg-rgb: 19, 16, 34;
+
+  --sticky-bg-rgb: 9, 13, 22;
 }
 
 @layer base {
@@ -169,4 +202,41 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Custom Neo-Brutalist / Sharp Geometric Utilities */
+@utility geo-border {
+  border: 2px solid var(--border-color);
+}
+
+@utility geo-shadow-sm {
+  box-shadow: 2px 2px 0px 0px var(--border-color);
+}
+
+@utility geo-shadow-md {
+  box-shadow: 4px 4px 0px 0px var(--border-color);
+}
+
+@utility geo-shadow-lg {
+  box-shadow: 6px 6px 0px 0px var(--border-color);
+}
+
+@utility geo-pressable {
+  transition: all 0.12s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 3px 3px 0px 0px var(--border-color);
+
+  &:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 4px 4px 0px 0px var(--border-color);
+  }
+
+  &:active {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0px 0px var(--border-color);
+  }
+}
+
+@utility dotted-bg {
+  background-image: radial-gradient(var(--border-color) 1px, transparent 1px);
+  background-size: 20px 20px;
 }

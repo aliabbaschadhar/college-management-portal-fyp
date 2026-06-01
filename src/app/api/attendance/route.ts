@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // Load user with role and faculty info
-    let user = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: {
         role: true,
