@@ -1,6 +1,6 @@
 "use client";
 
-import { useSignIn } from "@clerk/nextjs";
+import { useSignIn, useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -17,6 +17,7 @@ import { Separator } from "@/components/ui/separator";
 
 export default function SignInPage() {
   const { isLoaded, signIn, setActive } = useSignIn();
+  const { isSignedIn, isLoaded: authLoaded } = useAuth();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
 
@@ -33,6 +34,13 @@ export default function SignInPage() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // If user is already signed in, redirect them to dashboard
+  useEffect(() => {
+    if (authLoaded && isSignedIn) {
+      router.replace("/dashboard");
+    }
+  }, [authLoaded, isSignedIn, router]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,7 +88,7 @@ export default function SignInPage() {
     }
   };
 
-  if (!mounted) {
+  if (!mounted || (authLoaded && isSignedIn)) {
     return (
       <div className="min-h-[100dvh] bg-brand-dark flex items-center justify-center">
         <Loader2 className="animate-spin h-8 w-8 text-brand-primary" />
