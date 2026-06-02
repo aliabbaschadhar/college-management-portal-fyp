@@ -1,6 +1,6 @@
 "use client";
 
-import { useSignUp } from "@clerk/nextjs";
+import { useSignUp, useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -17,6 +17,7 @@ import { Separator } from "@/components/ui/separator";
 
 export default function SignUpPage() {
   const { isLoaded, signUp, setActive } = useSignUp();
+  const { isSignedIn, isLoaded: authLoaded } = useAuth();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
 
@@ -39,6 +40,13 @@ export default function SignUpPage() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // If user is already signed in, redirect to dashboard
+  useEffect(() => {
+    if (authLoaded && isSignedIn) {
+      router.replace("/dashboard");
+    }
+  }, [authLoaded, isSignedIn, router]);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
