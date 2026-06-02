@@ -42,14 +42,14 @@ export default function TakeQuizPage() {
   const [score, setScore] = useState(0);
 
   useEffect(() => {
-    api.get<QuizWithDetails[]>("/quizzes?status=Published")
+    api.get<QuizWithDetails[]>("/api/quizzes?status=Published")
       .then((res) => { setQuizzes(res.data); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
 
   const startQuiz = useCallback(async (quiz: QuizWithDetails) => {
     try {
-      const res = await api.get<QuizWithDetails>(`/quizzes/${quiz.id}`);
+      const res = await api.get<QuizWithDetails>(`/api/quizzes/${quiz.id}`);
       const fullQuiz = res.data;
       setActiveQuiz(fullQuiz);
       setQuestions(fullQuiz.questions || []);

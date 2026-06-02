@@ -52,9 +52,9 @@ export default function SubmitFeedbackPage() {
 
   useEffect(() => {
     Promise.all([
-      api.get<CourseOption[]>("/courses"),
-      api.get<FacultyOption[]>("/faculty"),
-      api.get<PastFeedback[]>("/feedback"),
+      api.get<CourseOption[]>("/api/courses"),
+      api.get<FacultyOption[]>("/api/faculty"),
+      api.get<PastFeedback[]>("/api/feedback"),
     ])
       .then(([crsRes, facRes, fbRes]) => {
         setCourses(crsRes.data);
@@ -68,7 +68,7 @@ export default function SubmitFeedbackPage() {
     if (!targetId || rating === 0) return;
     setSubmitting(true);
     try {
-      const res = await api.post<PastFeedback>("/feedback", {
+      const res = await api.post<PastFeedback>("/api/feedback", {
         type: feedbackType,
         targetId,
         rating,

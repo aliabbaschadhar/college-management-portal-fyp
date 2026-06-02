@@ -52,7 +52,7 @@ export default function MarkAttendancePage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    api.get<CourseOption[]>("/courses")
+    api.get<CourseOption[]>("/api/courses")
       .then((res) => setCourses(Array.isArray(res.data) ? res.data : []))
       .catch(() => {});
   }, []);
@@ -60,7 +60,7 @@ export default function MarkAttendancePage() {
   const handleCourseChange = (courseId: string) => {
     setSelectedCourse(courseId);
     setSubmitted(false);
-    api.get<StudentOption[]>("/students")
+    api.get<StudentOption[]>("/api/students")
       .then((res) => {
         const students = res.data;
         setAttendanceData(
@@ -84,7 +84,7 @@ export default function MarkAttendancePage() {
     if (!selectedCourse || attendanceData.length === 0) return;
     setSubmitting(true);
     try {
-      await api.post("/attendance", {
+      await api.post("/api/attendance", {
         courseId: selectedCourse,
         date: selectedDate,
         records: attendanceData.map((a) => ({ studentId: a.student.id, status: a.status })),

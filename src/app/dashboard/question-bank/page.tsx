@@ -55,8 +55,8 @@ export default function QuestionBankPage() {
 
   useEffect(() => {
     Promise.all([
-      api.get<QuestionWithQuiz[]>("/questions"),
-      api.get<QuizOption[]>("/quizzes"),
+      api.get<QuestionWithQuiz[]>("/api/questions"),
+      api.get<QuizOption[]>("/api/quizzes"),
     ])
       .then(([qsRes, qzsRes]) => {
         setQuestions(qsRes.data);
@@ -93,7 +93,7 @@ export default function QuestionBankPage() {
     setSaving(true);
     try {
       if (editingQuestion) {
-        const res = await api.patch<QuestionWithQuiz>(`/questions/${editingQuestion.id}`, {
+        const res = await api.patch<QuestionWithQuiz>(`/api/questions/${editingQuestion.id}`, {
           text: formText,
           options: formOptions,
           correctOption: formCorrect,
@@ -101,7 +101,7 @@ export default function QuestionBankPage() {
         const updated = res.data;
         setQuestions((prev) => prev.map((q) => (q.id === updated.id ? { ...q, ...updated } : q)));
       } else {
-        const res = await api.post<QuestionWithQuiz>("/questions", {
+        const res = await api.post<QuestionWithQuiz>("/api/questions", {
           text: formText,
           options: formOptions,
           correctOption: formCorrect,
@@ -120,7 +120,7 @@ export default function QuestionBankPage() {
 
   const handleDelete = async (qId: string) => {
     try {
-      await api.delete(`/questions/${qId}`);
+      await api.delete(`/api/questions/${qId}`);
       setQuestions((prev) => prev.filter((q) => q.id !== qId));
     } catch {
       // silent fail

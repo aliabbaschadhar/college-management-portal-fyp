@@ -79,7 +79,7 @@ export default function ManageQuizzesPage() {
 
   const fetchQuizzes = async () => {
     try {
-      const res = await api.get<ApiQuiz[]>("/quizzes");
+      const res = await api.get<ApiQuiz[]>("/api/quizzes");
       setQuizzes(res.data);
     } catch {
       setQuizzes([]);
@@ -92,8 +92,8 @@ export default function ManageQuizzesPage() {
       try {
         await Promise.all([
           fetchQuizzes(),
-          api.get<ApiCourse[]>("/courses").then((res) => setCourses(res.data)),
-          api.get<ApiQuestion[]>("/questions").then((res) => setQuestions(res.data)),
+          api.get<ApiCourse[]>("/api/courses").then((res) => setCourses(res.data)),
+          api.get<ApiQuestion[]>("/api/questions").then((res) => setQuestions(res.data)),
         ]);
       } catch {
         // partial fail handled by individual setters if needed
@@ -105,7 +105,7 @@ export default function ManageQuizzesPage() {
 
   const handleStatusToggle = async (quizId: string, newStatus: ApiQuiz["status"]) => {
     try {
-      await api.patch(`/quizzes/${quizId}`, { status: newStatus });
+      await api.patch(`/api/quizzes/${quizId}`, { status: newStatus });
       await fetchQuizzes();
     } catch {
       // silent fail
@@ -115,7 +115,7 @@ export default function ManageQuizzesPage() {
   const handleCreate = async () => {
     if (!formTitle || !formCourse || formQuestions.length === 0 || !formDueDate) return;
     try {
-      await api.post("/quizzes", {
+      await api.post("/api/quizzes", {
         title: formTitle,
         courseId: formCourse,
         duration: formDuration,
