@@ -62,18 +62,30 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
     announcements,
   ] = await Promise.all([
     prisma.grade.findMany({
-      where: { studentId: student.id },
+      where: {
+        studentId: student.id,
+        course: { semester: student.semester },
+      },
       include: { course: true },
     }),
     prisma.attendance.findMany({
-      where: { studentId: student.id },
+      where: {
+        studentId: student.id,
+        course: { semester: student.semester },
+      },
       include: { course: true },
     }),
     prisma.fee.findMany({
-      where: { studentId: student.id },
+      where: {
+        studentId: student.id,
+        semester: student.semester,
+      },
     }),
     prisma.enrollment.findMany({
-      where: { studentId: student.id },
+      where: {
+        studentId: student.id,
+        semester: student.semester,
+      },
       include: {
         course: {
           include: {
@@ -124,7 +136,7 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
     if (createdCount > 0) {
       // Re-fetch only enrollments since they were newly created
       enrollments = await prisma.enrollment.findMany({
-        where: { studentId: student.id },
+        where: { studentId: student.id, semester: student.semester },
         include: {
           course: {
             include: {
@@ -261,9 +273,9 @@ export async function ensureStudentEnrollments(
   department: string,
   semester: number
 ): Promise<number> {
-  // Check if student has any enrollments
+  // Check if student has any enrollments for this semester
   const count = await prisma.enrollment.count({
-    where: { studentId },
+    where: { studentId, semester },
   });
 
   if (count > 0) {

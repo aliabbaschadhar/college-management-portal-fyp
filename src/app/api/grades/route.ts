@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       select: {
         role: true,
         faculty: { select: { id: true } },
-        student: { select: { id: true } },
+        student: { select: { id: true, semester: true } },
       },
     });
 
@@ -131,8 +131,20 @@ export async function GET(request: NextRequest) {
     const grades = await prisma.grade.findMany({
       where: {
         ...(courseId ? { courseId } : {}),
-        ...(studentId ? { studentId } : {}),
-        ...(!isAdmin && !isFaculty && user.student ? { studentId: user.student.id } : {}),
+        ...(studentId ? {
+          studentId,
+          ...(!isAdmin && !isFaculty && user.student ? {
+            course: {
+              semester: user.student.semester,
+            },
+          } : {}),
+        } : {}),
+        ...(!isAdmin && !isFaculty && user.student ? {
+          studentId: user.student.id,
+          course: {
+            semester: user.student.semester,
+          },
+        } : {}),
       },
       include: {
         student: {

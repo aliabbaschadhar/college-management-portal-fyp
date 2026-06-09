@@ -19,26 +19,25 @@ export async function GET(request: NextRequest) {
     const quizId = searchParams.get("quizId");
     const courseId = searchParams.get("courseId");
 
-    const whereClause: Prisma.QuestionWhereInput = {
-      ...(quizId ? { quizId } : {}),
-      ...(courseId ? { quiz: { courseId } } : {}),
-    };
+    const quizWhere: Prisma.QuizWhereInput = {};
+    if (courseId) {
+      quizWhere.courseId = courseId;
+    }
 
     if (user.role === "FACULTY") {
-      whereClause.quiz = {
-        ...whereClause.quiz,
-        OR: [
-          { createdBy: userId },
-          { course: { assignedFaculty: user.faculty?.id } },
-        ],
-      };
+      quizWhere.OR = [
+        { createdBy: userId },
+        { course: { assignedFaculty: user.faculty?.id } },
+      ];
     } else if (user.role === "STUDENT") {
-      whereClause.quiz = {
-        ...whereClause.quiz,
-        status: "Published",
-        course: { enrollments: { some: { student: { userId: user.id } } } },
-      };
+      quizWhere.status = "Published";
+      quizWhere.course = { enrollments: { some: { student: { userId: user.id } } } };
     }
+
+    const whereClause: Prisma.QuestionWhereInput = {
+      ...(quizId ? { quizId } : {}),
+      ...(Object.keys(quizWhere).length > 0 ? { quiz: quizWhere } : {}),
+    };
 
     const questions = await prisma.question.findMany({
       where: whereClause,

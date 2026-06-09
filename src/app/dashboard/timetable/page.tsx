@@ -57,25 +57,35 @@ interface TimetableApiError {
 }
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const TIMES = [
-  "08:00",
-  "09:00",
-  "10:00",
-  "11:00",
-  "12:00",
-  "13:00",
-  "14:00",
-  "15:00",
-  "16:00",
-];
+const SHIFT_SLOTS = {
+  Morning: [
+    { start: "07:45", end: "09:00" },
+    { start: "09:00", end: "10:00" },
+    { start: "10:00", end: "11:00" },
+    { start: "11:00", end: "12:00" },
+    { start: "12:00", end: "13:00" },
+  ],
+  Evening: [
+    { start: "12:00", end: "13:00" },
+    { start: "13:00", end: "14:00" },
+    { start: "14:00", end: "15:00" },
+    { start: "15:00", end: "16:00" },
+    { start: "16:00", end: "17:00" },
+  ],
+};
 
 const EMPTY_FORM: TimetableMutationInput = {
   courseId: "",
   room: "",
   day: "Monday",
-  startTime: "08:00",
+  startTime: "07:45",
   endTime: "09:00",
   shift: "Morning",
+};
+
+const timeToMinutes = (t: string) => {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
 };
 
 function to12HourTime(time: string): string {
@@ -200,8 +210,11 @@ export default function TimetablePage() {
     }
   }, [editingEntry, filteredCourses, form.courseId]);
 
-  const openCreateDialog = (day?: TimetableDay, startTime?: string) => {
-    const selectedStart = startTime ?? "08:00";
+  const openCreateDialog = (day?: TimetableDay, startTime?: string, endTime?: string) => {
+    const defaultStart = filterShift === "Evening" ? "12:00" : "07:45";
+    const defaultEnd = filterShift === "Evening" ? "13:00" : "09:00";
+    const selectedStart = startTime ?? defaultStart;
+    const selectedEnd = endTime ?? (startTime ? addOneHour(startTime) : defaultEnd);
     const availableCourses =
       filteredCourses.length > 0 ? filteredCourses : courses;
 
@@ -211,7 +224,7 @@ export default function TimetablePage() {
       ...EMPTY_FORM,
       day: day ?? "Monday",
       startTime: selectedStart,
-      endTime: addOneHour(selectedStart),
+      endTime: selectedEnd,
       courseId: availableCourses[0]?.id ?? "",
       shift: filterShift,
     });
@@ -285,18 +298,26 @@ export default function TimetablePage() {
     }
 
     const generatedAt = new Date().toLocaleString();
+    const currentShiftKey = filterShift.toLowerCase() === "evening" ? "Evening" : "Morning";
+    const currentSlots = SHIFT_SLOTS[currentShiftKey];
 
-    const rows = TIMES.map((time) => {
-      const slots = DAYS.map((day) => {
-        const slot = timetable.find(
-          (entry) => entry.day === day && entry.startTime === time,
-        );
-        if (!slot) return "<td>-</td>";
+    const rows = currentSlots.map((slot) => {
+      const daySlots = DAYS.map((day) => {
+        const slotStart = timeToMinutes(slot.start);
+        const slotEnd = timeToMinutes(slot.end);
+        const entry = timetable.find((t) => {
+          if (t.day !== day) return false;
+          const classStart = timeToMinutes(t.startTime);
+          const classEnd = timeToMinutes(t.endTime);
+          return classStart < slotEnd && classEnd > slotStart;
+        });
 
-        return `<td><strong>${slot.course.courseCode}</strong><br/>${slot.course.courseName}<br/>${slot.room}<br/>${slot.course.faculty?.user.name ?? "Unassigned"}</td>`;
+        if (!entry) return "<td>-</td>";
+
+        return `<td><strong>${entry.course.courseCode}</strong><br/>${entry.course.courseName}<br/>${entry.room}<br/>${entry.course.faculty?.user.name ?? "Unassigned"}</td>`;
       }).join("");
 
-      return `<tr><th>${to12HourTime(time)}</th>${slots}</tr>`;
+      return `<tr><th>${to12HourTime(slot.start)} - ${to12HourTime(slot.end)}</th>${daySlots}</tr>`;
     }).join("");
 
     const html = `<!doctype html>
@@ -340,13 +361,39 @@ export default function TimetablePage() {
     printWindow.print();
   };
 
-  const getSlot = (
-    day: string,
-    time: string,
-  ): TimetableApiEntry | undefined => {
-    return timetable.find(
-      (entry) => entry.day === day && entry.startTime === time,
-    );
+  const shiftKey = filterShift.toLowerCase() === "evening" ? "Evening" : "Morning";
+  const slots = SHIFT_SLOTS[shiftKey];
+
+  const getClassForSlot = (day: string, slot: { start: string; end: string }) => {
+    const slotStart = timeToMinutes(slot.start);
+    const slotEnd = timeToMinutes(slot.end);
+    return timetable.find((t) => {
+      if (t.day !== day) return false;
+      const classStart = timeToMinutes(t.startTime);
+      const classEnd = timeToMinutes(t.endTime);
+      return classStart < slotEnd && classEnd > slotStart;
+    });
+  };
+
+  const isFirstSlotForClass = (cls: TimetableApiEntry, slot: { start: string; end: string }, slotsList: typeof slots) => {
+    const classStart = timeToMinutes(cls.startTime);
+    const classEnd = timeToMinutes(cls.endTime);
+    const firstMatch = slotsList.find((s) => {
+      const sStart = timeToMinutes(s.start);
+      const sEnd = timeToMinutes(s.end);
+      return classStart < sEnd && classEnd > sStart;
+    });
+    return firstMatch && firstMatch.start === slot.start && firstMatch.end === slot.end;
+  };
+
+  const getClassRowSpan = (cls: TimetableApiEntry, slotsList: typeof slots) => {
+    const classStart = timeToMinutes(cls.startTime);
+    const classEnd = timeToMinutes(cls.endTime);
+    return slotsList.filter((s) => {
+      const sStart = timeToMinutes(s.start);
+      const sEnd = timeToMinutes(s.end);
+      return classStart < sEnd && classEnd > sStart;
+    }).length;
   };
 
   return (
@@ -464,7 +511,7 @@ export default function TimetablePage() {
                   {DAYS.map((day) => (
                     <th
                       key={day}
-                      className="p-3 text-sm font-bold uppercase tracking-widest text-muted-foreground text-center bg-muted/30 rounded-xl min-w-50"
+                      className="p-3 text-sm font-bold uppercase tracking-widest text-muted-foreground text-center bg-muted/30 rounded-xl min-w-[95px]"
                     >
                       {day}
                     </th>
@@ -472,16 +519,21 @@ export default function TimetablePage() {
                 </tr>
               </thead>
               <tbody>
-                {TIMES.map((time) => (
-                  <tr key={time}>
+                {slots.map((slot) => (
+                  <tr key={`${slot.start}-${slot.end}`}>
                     <td className="p-4 text-xs font-bold text-muted-foreground text-center bg-muted/10 rounded-xl whitespace-nowrap">
-                      {to12HourTime(time)}
+                      {to12HourTime(slot.start)} - {to12HourTime(slot.end)}
                     </td>
                     {DAYS.map((day) => {
-                      const slot = getSlot(day, time);
-                      return (
-                        <td key={`${day}-${time}`} className="p-0 align-top">
-                          {slot ? (
+                      const cls = getClassForSlot(day, slot);
+                      if (cls) {
+                        if (!isFirstSlotForClass(cls, slot, slots)) {
+                          return null;
+                        }
+                        const span = getClassRowSpan(cls, slots);
+
+                        return (
+                          <td key={day} rowSpan={span} className="p-0 align-top">
                             <motion.div
                               initial={{ opacity: 0, scale: 0.9 }}
                               animate={{ opacity: 1, scale: 1 }}
@@ -490,28 +542,28 @@ export default function TimetablePage() {
                               <div className="space-y-2">
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="space-y-1">
-                                    <span className="text-[10px] font-bold text-brand-primary uppercase tracking-tighter block">
-                                      {slot.course.courseCode}
+                                    <span className="text-[10px] font-bold text-brand-primary uppercase tracking-tighter block break-words whitespace-normal">
+                                      {cls.course.courseCode}
                                     </span>
                                     <Badge
                                       variant="outline"
                                       className="text-[9px] h-4 bg-white/50 backdrop-blur-sm px-1 py-0 border-brand-primary/20"
                                     >
                                       <MapPin className="h-2 w-2 mr-1" />{" "}
-                                      {slot.room}
+                                      {cls.room}
                                     </Badge>
                                   </div>
 
                                   <div className="flex items-center gap-1">
                                     <button
-                                      onClick={() => openEditDialog(slot)}
+                                      onClick={() => openEditDialog(cls)}
                                       className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-brand-primary/20"
                                       title="Edit entry"
                                     >
                                       <Pencil className="h-3.5 w-3.5 text-brand-primary" />
                                     </button>
                                     <button
-                                      onClick={() => handleDelete(slot)}
+                                      onClick={() => handleDelete(cls)}
                                       className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-rose-100"
                                       title="Delete entry"
                                     >
@@ -520,38 +572,42 @@ export default function TimetablePage() {
                                   </div>
                                 </div>
 
-                                <h4 className="text-sm font-bold text-foreground leading-tight line-clamp-2">
-                                  {slot.course.courseName}
+                                <h4 className="text-sm font-bold text-foreground leading-tight break-words whitespace-normal">
+                                  {cls.course.courseName}
                                 </h4>
 
                                 <div className="flex items-center text-[10px] text-muted-foreground font-medium pt-1">
                                   <User className="h-2.5 w-2.5 mr-1" />
-                                  {slot.course.faculty?.user.name ??
+                                  {cls.course.faculty?.user.name ??
                                     "Unassigned"}
                                 </div>
 
                                 <div className="text-[10px] text-muted-foreground">
-                                  {to12HourTime(slot.startTime)} -{" "}
-                                  {to12HourTime(slot.endTime)}
+                                  {to12HourTime(cls.startTime)} -{" "}
+                                  {to12HourTime(cls.endTime)}
                                 </div>
                                 <AuditBadgeInline
                                   entity="Timetable"
-                                  entityId={slot.id}
+                                  entityId={cls.id}
                                 />
                               </div>
                             </motion.div>
-                          ) : (
-                            <div className="h-full min-h-25 m-1 rounded-xl bg-accent/20 border border-dotted border-muted-foreground/10 flex items-center justify-center group">
-                              <button
-                                onClick={() =>
-                                  openCreateDialog(day as TimetableDay, time)
-                                }
-                                className="text-[10px] text-muted-foreground/50 hover:text-brand-primary transition-colors"
-                              >
-                                + Add Slot
-                              </button>
-                            </div>
-                          )}
+                          </td>
+                        );
+                      }
+
+                      return (
+                        <td key={`${day}-${slot.start}`} className="p-0 align-top">
+                          <div className="h-full min-h-25 m-1 rounded-xl bg-accent/20 border border-dotted border-muted-foreground/10 flex items-center justify-center group">
+                            <button
+                              onClick={() =>
+                                openCreateDialog(day as TimetableDay, slot.start, slot.end)
+                              }
+                              className="text-[10px] text-muted-foreground/50 hover:text-brand-primary transition-colors"
+                            >
+                              + Add Slot
+                            </button>
+                          </div>
                         </td>
                       );
                     })}

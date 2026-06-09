@@ -249,7 +249,7 @@ export default function MyTimetablePage() {
                 {DAYS.map((day) => (
                   <th
                     key={day}
-                    className={`text-center py-3 px-2 font-semibold min-w-[120px] ${day === todayName
+                    className={`text-center py-3 px-2 font-semibold min-w-[90px] ${day === todayName
                         ? "text-brand-primary bg-brand-primary/5"
                         : "text-foreground"
                       }`}
@@ -294,13 +294,13 @@ export default function MyTimetablePage() {
                           >
                             <div>
                               <p
-                                className={`text-xs font-bold ${colors?.text} leading-tight truncate`}
+                                className={`text-xs font-bold ${colors?.text} leading-tight break-words whitespace-normal`}
                                 title={cls.course.courseCode}
                               >
                                 {cls.course.courseCode}
                               </p>
                               <p
-                                className="text-[10px] text-foreground/90 font-medium truncate mt-0.5"
+                                className="text-[10px] text-foreground/90 font-medium break-words whitespace-normal mt-0.5"
                                 title={cls.course.courseName}
                               >
                                 {cls.course.courseName}

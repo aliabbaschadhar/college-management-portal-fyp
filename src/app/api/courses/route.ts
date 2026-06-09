@@ -56,7 +56,8 @@ export async function GET() {
         // Self-healing enrollments sync
         await ensureStudentEnrollments(user.student.id, user.student.department, user.student.semester);
 
-        // Students only see courses they are enrolled in
+        // Students only see courses they are enrolled in for their current semester
+        whereClause.semester = user.student.semester;
         whereClause.enrollments = {
           some: { studentId: user.student.id },
         };
