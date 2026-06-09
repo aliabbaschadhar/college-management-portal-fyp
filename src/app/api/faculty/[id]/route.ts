@@ -98,13 +98,18 @@ export async function DELETE(
       }
     }
 
-    // 3. Delete onboarding request associated with this email
+    // 3. Delete onboarding requests and admissions associated with this email
     try {
-      await prisma.onboardingRequest.deleteMany({
-        where: { email: faculty.user.email },
-      });
+      await Promise.all([
+        prisma.onboardingRequest.deleteMany({
+          where: { email: faculty.user.email },
+        }),
+        prisma.admission.deleteMany({
+          where: { email: faculty.user.email },
+        }),
+      ]);
     } catch (reqError) {
-      console.error("Failed to delete onboarding request:", reqError);
+      console.error("Failed to delete associated setup requests during faculty delete:", reqError);
     }
 
     // 4. Delete User from PostgreSQL (which cascades to Faculty profile)

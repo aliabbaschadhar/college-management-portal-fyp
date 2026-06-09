@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "@/lib/axios";
 import { useTheme } from "next-themes";
 import {
@@ -62,15 +62,13 @@ function getInitials(name: string | null): string {
     .slice(0, 2);
 }
 
-const NAV_ITEMS = [
-  { id: "profile", label: "Profile", icon: User },
-  { id: "notifications", label: "Notifications", icon: Bell },
-  { id: "appearance", label: "Appearance", icon: Palette },
-  { id: "security", label: "Security", icon: Shield },
-  { id: "qr", label: "Verification QR", icon: QrCode },
-] as const;
-
-type SectionId = (typeof NAV_ITEMS)[number]["id"];
+type SectionId =
+  | "profile"
+  | "notifications"
+  | "appearance"
+  | "security"
+  | "qr"
+  | "admin-settings";
 
 // ─── Profile Section ─────────────────────────────────────────────────────────
 function ProfileSection({ user }: { user: SettingsUser }) {
@@ -469,9 +467,121 @@ function QRSection({ user }: { user: SettingsUser }) {
   );
 }
 
+// ─── Admin Settings Section ───────────────────────────────────────────────────
+function AdminSettingsSection() {
+  const [secret, setSecret] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const handleSave = async () => {
+    if (!secret.trim()) {
+      setErrorMsg("Secret key cannot be empty.");
+      return;
+    }
+    setLoading(true);
+    setErrorMsg("");
+    try {
+      await api.post("/api/settings/admin-secret", { secret });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } };
+      setErrorMsg(axiosErr.response?.data?.error || "Failed to update admin secret key.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const fetchSecret = async () => {
+      try {
+        const res = await api.get("/api/settings/admin-secret");
+        setSecret(res.data.secret || "");
+      } catch (err) {
+        console.error("Failed to fetch admin secret key:", err);
+      }
+    };
+    fetchSecret();
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-bold text-foreground mb-1">
+          Admin Portal Settings
+        </h3>
+        <p className="text-sm text-muted-foreground">
+          Configure security credentials and onboarding secret keys
+        </p>
+      </div>
+
+      <div className="p-5 rounded-2xl border border-border bg-card space-y-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="admin-secret-key" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            Admin Onboarding Secret Key
+          </Label>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            This secret key is required when a new user requests the ADMIN role during portal onboarding.
+          </p>
+          <div className="relative">
+            <Input
+              id="admin-secret-key"
+              type="text"
+              value={secret}
+              onChange={(e) => setSecret(e.target.value)}
+              className="h-11 rounded-xl pr-24 font-mono"
+              placeholder="e.g. GGC-ADMIN-SECRET-2026"
+            />
+          </div>
+        </div>
+
+        {errorMsg && (
+          <p className="text-xs text-rose-500 font-semibold">{errorMsg}</p>
+        )}
+
+        <div className="flex justify-end pt-2">
+          <Button
+            onClick={handleSave}
+            disabled={loading}
+            className={cn(
+              "h-11 px-8 rounded-xl gap-2 transition-all duration-200",
+              saved
+                ? "bg-emerald-600 text-white hover:bg-emerald-600"
+                : "bg-brand-primary text-white hover:opacity-90",
+            )}
+          >
+            {loading ? (
+              <>
+                <div className="h-4 w-4 animate-spin border-2 border-white/40 border-t-white rounded-full" />
+                Saving…
+              </>
+            ) : saved ? (
+              <>
+                <Check className="h-4 w-4" /> Secret Key Saved!
+              </>
+            ) : (
+              "Save Secret Key"
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Export ──────────────────────────────────────────────────────────────
 export function SettingsTabs({ user }: Props) {
   const [active, setActive] = useState<SectionId>("profile");
+
+  const navItems = [
+    { id: "profile" as const, label: "Profile", icon: User },
+    { id: "notifications" as const, label: "Notifications", icon: Bell },
+    { id: "appearance" as const, label: "Appearance", icon: Palette },
+    { id: "security" as const, label: "Security", icon: Shield },
+    ...(user.role === "STUDENT" ? [{ id: "qr" as const, label: "Verification QR", icon: QrCode }] : []),
+    ...(user.role === "ADMIN" ? [{ id: "admin-settings" as const, label: "Admin Settings", icon: Lock }] : []),
+  ];
 
   const contentMap: Record<SectionId, React.ReactNode> = {
     profile: <ProfileSection user={user} />,
@@ -479,6 +589,7 @@ export function SettingsTabs({ user }: Props) {
     appearance: <AppearanceSection />,
     security: <SecuritySection />,
     qr: <QRSection user={user} />,
+    "admin-settings": <AdminSettingsSection />,
   };
 
   return (
@@ -518,7 +629,7 @@ export function SettingsTabs({ user }: Props) {
 
           {/* Nav */}
           <nav className="rounded-2xl border border-border bg-card p-2 shadow-sm space-y-0.5">
-            {NAV_ITEMS.map((item) => {
+            {navItems.map((item) => {
               const isActive = active === item.id;
               return (
                 <button

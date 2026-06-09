@@ -101,13 +101,18 @@ export async function DELETE(
       console.log("User already deleted or database delete failed:", dbError);
     }
 
-    // 3. Delete any Admissions associated with this student's email
+    // 3. Delete any Admissions or Onboarding requests associated with this student's email
     try {
-      await prisma.admission.deleteMany({
-        where: { email: student.user.email },
-      });
+      await Promise.all([
+        prisma.admission.deleteMany({
+          where: { email: student.user.email },
+        }),
+        prisma.onboardingRequest.deleteMany({
+          where: { email: student.user.email },
+        }),
+      ]);
     } catch (admError) {
-      console.error("Failed to delete admissions during student delete:", admError);
+      console.error("Failed to delete admissions/onboarding requests during student delete:", admError);
     }
 
     if (adminClerkId) {

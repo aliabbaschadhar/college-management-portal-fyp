@@ -414,8 +414,18 @@ export default function ManageAdmissionsPage() {
     },
     {
       key: "specialization",
-      header: "Specialization",
-      render: (row) => row.specialization ?? <span className="text-muted-foreground">—</span>,
+      header: "Specialization / Designation",
+      render: (row) => {
+        if (!row.specialization) return <span className="text-muted-foreground">—</span>;
+        return (
+          <div>
+            <p className="font-medium text-foreground">{row.specialization}</p>
+            <p className="text-[10px] text-muted-foreground">
+              {row.role === "ADMIN" ? "Admin Designation" : "Faculty Specialization"}
+            </p>
+          </div>
+        );
+      }
     },
     {
       key: "createdAt",

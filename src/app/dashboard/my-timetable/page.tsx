@@ -25,22 +25,6 @@ interface TimetableEntry {
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-const SHIFT_SLOTS = {
-  Morning: [
-    { start: "07:45", end: "09:00" },
-    { start: "09:00", end: "10:00" },
-    { start: "10:00", end: "11:00" },
-    { start: "11:00", end: "12:00" },
-    { start: "12:00", end: "13:00" },
-  ],
-  Evening: [
-    { start: "12:00", end: "13:00" },
-    { start: "13:00", end: "14:00" },
-    { start: "14:00", end: "15:00" },
-    { start: "15:00", end: "16:00" },
-    { start: "16:00", end: "17:00" },
-  ],
-};
 
 const COLOR_PALETTE = [
   {
@@ -99,6 +83,11 @@ export default function MyTimetablePage() {
   const [studentProfile, setStudentProfile] = useState<StudentProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Dynamic grid configuration states
+  const [gridStart, setGridStart] = useState("07:45");
+  const [gridDuration, setGridDuration] = useState(45);
+  const [gridSlotsCount, setGridSlotsCount] = useState(7);
+
   useEffect(() => {
     Promise.all([
       api.get<TimetableEntry[]>("/api/timetable"),
@@ -117,6 +106,41 @@ export default function MyTimetablePage() {
       })
       .catch(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!studentProfile) return;
+    const shift = studentProfile.shift || "Morning";
+    api
+      .get(`/api/timetable/settings?shift=${shift}`)
+      .then((res) => {
+        if (res.data) {
+          setGridStart(res.data.startTime);
+          setGridDuration(res.data.duration);
+          setGridSlotsCount(res.data.slots);
+        }
+      })
+      .catch((err) => console.error("Error fetching student timetable settings:", err));
+  }, [studentProfile]);
+
+  const slots = useMemo(() => {
+    const list = [];
+    if (!gridStart || !/^([01]\d|2[0-3]):([0-5]\d)$/.test(gridStart)) {
+      return [];
+    }
+    let [h, m] = gridStart.split(":").map(Number);
+    for (let i = 0; i < gridSlotsCount; i++) {
+      const startStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      m += gridDuration;
+      if (m >= 60) {
+        h += Math.floor(m / 60);
+        m = m % 60;
+        h = h % 24;
+      }
+      const endStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      list.push({ start: startStr, end: endStr });
+    }
+    return list;
+  }, [gridStart, gridDuration, gridSlotsCount]);
 
   const uniqueCourses = useMemo(() => {
     const seen = new Set<string>();
@@ -146,9 +170,6 @@ export default function MyTimetablePage() {
     "Saturday",
   ];
   const todayName = days[new Date().getDay()];
-
-  const shiftKey = studentProfile?.shift && studentProfile.shift.toLowerCase() === "evening" ? "Evening" : "Morning";
-  const slots = SHIFT_SLOTS[shiftKey];
 
   const getClassForSlot = (day: string, slot: { start: string; end: string }) => {
     const slotStart = timeToMinutes(slot.start);

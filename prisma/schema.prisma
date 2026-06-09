@@ -258,11 +258,22 @@ model OnboardingRequest {
   updatedAt      DateTime @updatedAt
 }
 
+model TimetableSettings {
+  id        String   @id @default(uuid())
+  shift     String   @unique // "Morning" or "Evening"
+  startTime String   @default("07:45")
+  duration  Int      @default(45)
+  slots     Int      @default(7)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 enum Role {
   STUDENT
   FACULTY
   ADMIN
 }
+
 
 enum AttendanceStatus {
   Present
@@ -287,6 +298,15 @@ enum Priority {
   Medium
   Low
 }
+
+model SystemSettings {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 
 enum FeedbackType {
   Faculty

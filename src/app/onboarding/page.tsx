@@ -53,6 +53,8 @@ interface AdmissionDetails {
 
 const formatPhoneNumber = (val: string) => {
   let clean = val.replace(/\D/g, "");
+  if (clean === "0") return "0";
+  if (clean === "9" || clean === "92") return "+92 ";
   if (clean.startsWith("92")) {
     clean = clean.substring(2);
   } else if (clean.startsWith("0")) {
@@ -73,12 +75,14 @@ export default function OnboardingPage() {
   const [pendingRequest, setPendingRequest] = useState<RequestDetails | null>(null);
   const [pendingAdmission, setPendingAdmission] = useState<AdmissionDetails | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [isFirstAdmin, setIsFirstAdmin] = useState(false);
 
   // Form states
   const [selectedRole, setSelectedRole] = useState<"STUDENT" | "FACULTY" | "ADMIN" | null>(null);
   const [phone, setPhone] = useState("");
   const [department, setDepartment] = useState("");
   const [specialization, setSpecialization] = useState("");
+  const [adminSecret, setAdminSecret] = useState("");
   const [submitLoading, setSubmitLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -94,6 +98,7 @@ export default function OnboardingPage() {
         return;
       }
 
+      setIsFirstAdmin(!!statusData.isFirstAdmin);
       setPendingRequest(statusData.request || null);
       setPendingAdmission(statusData.admission || null);
     } catch (err) {
@@ -140,16 +145,33 @@ export default function OnboardingPage() {
       }
     }
 
+    if (selectedRole === "ADMIN") {
+      if (!specialization.trim()) {
+        setErrorMsg("Please enter your designation.");
+        return;
+      }
+      if (!isFirstAdmin && !adminSecret.trim()) {
+        setErrorMsg("Admin verification secret key is required.");
+        return;
+      }
+    }
+
     setSubmitLoading(true);
     try {
       const res = await api.post("/api/onboarding", {
         role: selectedRole,
         phone,
         department: selectedRole === "FACULTY" ? department : undefined,
-        specialization: selectedRole === "FACULTY" ? specialization : undefined,
+        specialization: (selectedRole === "FACULTY" || selectedRole === "ADMIN") ? specialization : undefined,
+        adminSecret: selectedRole === "ADMIN" ? adminSecret : undefined,
       });
 
-      setPendingRequest(res.data);
+      const data = res.data;
+      setPendingRequest(data);
+      if (data.status === "Approved") {
+        // Force full reload to dashboard to ensure Clerk claims are completely refreshed
+        window.location.href = "/dashboard";
+      }
     } catch (err: unknown) {
       console.error("Error submitting onboarding request:", err);
       const axiosErr = err as { response?: { data?: { error?: string } } };
@@ -171,6 +193,9 @@ export default function OnboardingPage() {
       setPhone("");
       setDepartment("");
       setSpecialization("");
+      setAdminSecret("");
+      // Recheck status to update isFirstAdmin
+      await checkStatus();
     } catch (err) {
       console.error("Error resetting request:", err);
     } finally {
@@ -350,6 +375,12 @@ export default function OnboardingPage() {
                           <span className="font-semibold text-zinc-900 dark:text-white text-right">{pendingRequest.specialization}</span>
                         </div>
                       </>
+                    )}
+                    {pendingRequest.role === "ADMIN" && (
+                      <div className="grid grid-cols-2 py-1">
+                        <span className="text-zinc-500">Designation</span>
+                        <span className="font-semibold text-zinc-900 dark:text-white text-right">{pendingRequest.specialization}</span>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
@@ -554,6 +585,50 @@ export default function OnboardingPage() {
                                   className="bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:border-brand-primary rounded-xl h-11 px-3"
                                 />
                               </div>
+                            </>
+                          )}
+
+                          {selectedRole === "ADMIN" && (
+                            <>
+                              <div className="space-y-1.5">
+                                <Label htmlFor="specialization" className="text-zinc-600 dark:text-zinc-400 font-semibold text-xs flex items-center gap-1">
+                                  <Shield className="h-3.5 w-3.5" /> Designation
+                                </Label>
+                                <Input
+                                  id="specialization"
+                                  type="text"
+                                  placeholder="e.g. Vice Principal, Registrar, IT Specialist"
+                                  value={specialization}
+                                  onChange={(e) => setSpecialization(e.target.value)}
+                                  className="bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:border-brand-primary rounded-xl h-11 px-3"
+                                />
+                              </div>
+
+                              {isFirstAdmin ? (
+                                <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 flex items-start gap-3 shadow-[0_0_20px_rgba(245,158,11,0.05)] mt-2">
+                                  <Shield className="h-5 w-5 shrink-0 mt-0.5 text-amber-500 animate-pulse" />
+                                  <div className="space-y-1 text-xs leading-relaxed text-left">
+                                    <p className="font-bold text-amber-600 dark:text-amber-400">Initial System Setup</p>
+                                    <p className="text-zinc-500 dark:text-zinc-400">
+                                      No active Administrators exist in the database. You are registering the primary system Administrator. No verification secret key is required.
+                                    </p>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="space-y-1.5">
+                                  <Label htmlFor="adminSecret" className="text-zinc-600 dark:text-zinc-400 font-semibold text-xs flex items-center gap-1">
+                                    <Shield className="h-3.5 w-3.5" /> Admin Verification Secret Key
+                                  </Label>
+                                  <Input
+                                    id="adminSecret"
+                                    type="password"
+                                    placeholder="Enter the secret key to request Admin access"
+                                    value={adminSecret}
+                                    onChange={(e) => setAdminSecret(e.target.value)}
+                                    className="bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:border-brand-primary rounded-xl h-11 px-3"
+                                  />
+                                </div>
+                              )}
                             </>
                           )}
 

@@ -10,6 +10,7 @@ import {
   Check,
   X,
   AlertTriangle,
+  Trash2,
 } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { StatsCard } from "@/components/dashboard/StatsCard";
@@ -93,6 +94,28 @@ export function UserManagementClient() {
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 3500);
+  };
+
+  const [pendingDelete, setPendingDelete] = useState<UserRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteUser = async () => {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/api/users/${pendingDelete.id}`);
+      setUsers((prev) => prev.filter((u) => u.id !== pendingDelete.id));
+      showToast(`User ${pendingDelete.name ?? pendingDelete.email} successfully deleted.`);
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } };
+      showToast(
+        axiosErr.response?.data?.error ?? "Failed to delete user — please try again",
+        false,
+      );
+    } finally {
+      setDeleting(false);
+      setPendingDelete(null);
+    }
   };
 
   const fetchUsers = useCallback(async () => {
@@ -368,6 +391,15 @@ export function UserManagementClient() {
                         >
                           Apply <ChevronRight className="h-3 w-3" />
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 rounded-lg text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                          onClick={() => setPendingDelete(user)}
+                          title="Delete User"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </td>
                   </motion.tr>
@@ -461,6 +493,73 @@ export function UserManagementClient() {
               ) : (
                 <>
                   <Check className="h-4 w-4" /> Confirm Change
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deletion Dialog */}
+      <Dialog
+        open={!!pendingDelete}
+        onOpenChange={() => setPendingDelete(null)}
+      >
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-foreground">
+              <AlertTriangle className="h-5 w-5 text-rose-500" />
+              Confirm User Deletion
+            </DialogTitle>
+          </DialogHeader>
+
+          {pendingDelete && (
+            <div className="space-y-4 py-2">
+              {/* User preview */}
+              <div className="flex items-center gap-3 p-4 rounded-xl bg-muted/30 border border-border">
+                <AvatarCircle
+                  name={pendingDelete.name}
+                  role={pendingDelete.role}
+                />
+                <div>
+                  <p className="font-semibold text-foreground">
+                    {pendingDelete.name ?? pendingDelete.email}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {pendingDelete.email}
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 dark:bg-rose-950/30 dark:border-rose-900/50">
+                <p className="text-xs text-rose-700 dark:text-rose-400 font-medium">
+                  WARNING: This action is permanent. Deleting this user will immediately remove their account from Clerk, clear their Postgres record, and delete all associated student/faculty data.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setPendingDelete(null)}
+              className="rounded-xl"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDeleteUser}
+              disabled={deleting}
+              className="bg-rose-600 text-white hover:bg-rose-700 rounded-xl gap-2"
+            >
+              {deleting ? (
+                <>
+                  <div className="h-4 w-4 animate-spin border-2 border-white/40 border-t-white rounded-full" />
+                  Deleting…
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" /> Delete Account
                 </>
               )}
             </Button>

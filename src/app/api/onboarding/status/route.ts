@@ -8,9 +8,18 @@ export async function GET() {
   if (!userId) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
 
   try {
+    // 2. Fetch email from Clerk to check pending requests
+    const clerkUser = await currentUser();
+    const email = clerkUser?.emailAddresses[0]?.emailAddress;
+
     // 1. Fetch user from DB
-    const dbUser = await prisma.user.findUnique({
-      where: { clerkId: userId },
+    const dbUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { clerkId: userId },
+          ...(email ? [{ email }] : [])
+        ]
+      },
       include: { student: true, faculty: true, admin: true },
     });
 
@@ -25,13 +34,19 @@ export async function GET() {
       }
     }
 
-    // 2. Fetch email from Clerk to check pending requests
-    const clerkUser = await currentUser();
-    const email = clerkUser?.emailAddresses[0]?.emailAddress;
+    const adminsCount = await prisma.user.count({
+      where: { role: "ADMIN" },
+    });
+    const isFirstAdmin = adminsCount === 0;
+
     const checkEmail = email || dbUser?.email;
 
     if (!checkEmail) {
-      return NextResponse.json({ hasProfile: false, role: dbUser?.role || "STUDENT" });
+      return NextResponse.json({
+        hasProfile: false,
+        role: dbUser?.role || "STUDENT",
+        isFirstAdmin,
+      });
     }
 
     // 3. Look up pending/rejected onboarding requests
@@ -51,6 +66,7 @@ export async function GET() {
       role: dbUser?.role || "STUDENT",
       request,
       admission,
+      isFirstAdmin,
     });
   } catch (error) {
     return handleApiError("GET /api/onboarding/status", error);

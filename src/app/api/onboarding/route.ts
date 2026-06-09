@@ -1,4 +1,4 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth, currentUser, clerkClient } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { errorResponse, handleApiError } from "@/lib/api-errors";
@@ -36,9 +36,10 @@ export async function POST(request: NextRequest) {
       phone?: string;
       department?: string;
       specialization?: string;
+      adminSecret?: string;
     };
 
-    const { role, phone, department, specialization } = body;
+    const { role, phone, department, specialization, adminSecret } = body;
 
     if (!role || !["FACULTY", "ADMIN"].includes(role)) {
       return errorResponse("BAD_REQUEST", "Invalid role selected", 400);
@@ -57,6 +58,30 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (role === "ADMIN") {
+      if (!specialization || !specialization.trim()) {
+        return errorResponse("BAD_REQUEST", "Designation is required for Admin", 400);
+      }
+
+      // If it is the first admin (0 admins in the DB), bypass secret key validation
+      const adminsCount = await prisma.user.count({
+        where: { role: "ADMIN" },
+      });
+      const isFirstAdmin = adminsCount === 0;
+
+      if (!isFirstAdmin) {
+        // Check admin secret key
+        const dbSettings = await prisma.systemSettings.findUnique({
+          where: { key: "admin_onboarding_secret" },
+        });
+        const expectedSecret = dbSettings?.value || "GGC-ADMIN-SECRET-2026";
+
+        if (!adminSecret || adminSecret.trim() !== expectedSecret.trim()) {
+          return errorResponse("FORBIDDEN", "Invalid Admin Verification Secret Key. Please obtain the correct key from the head administrator.", 403);
+        }
+      }
+    }
+
     const clerkUser = await currentUser();
     const email = clerkUser?.emailAddresses[0]?.emailAddress;
     if (!email) {
@@ -66,8 +91,13 @@ export async function POST(request: NextRequest) {
     const name = clerkUser ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") : "New User";
 
     // Check if user already has a profile in DB
-    const existingUser = await prisma.user.findUnique({
-      where: { clerkId: userId },
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { clerkId: userId },
+          { email }
+        ]
+      },
       include: { student: true, faculty: true, admin: true },
     });
 
@@ -86,11 +116,30 @@ export async function POST(request: NextRequest) {
       return errorResponse("BAD_REQUEST", "You already have a pending request under review", 400);
     }
 
-    // Update the base User role in database to match request (still redirects since profile is missing)
+    // Check if we need to auto-approve the first admin (fresh db setup, 0 existing admins)
+    let isAutoApproveAdmin = false;
+    if (role === "ADMIN") {
+      const adminsCount = await prisma.user.count({
+        where: { role: "ADMIN" },
+      });
+      if (adminsCount === 0) {
+        isAutoApproveAdmin = true;
+      }
+    }
+
+    // Update or create the base User and provision the Admin profile immediately if auto-approved
     if (existingUser) {
       await prisma.user.update({
         where: { id: existingUser.id },
-        data: { role },
+        data: {
+          role,
+          clerkId: userId, // Ensure clerkId is synchronized
+          ...(isAutoApproveAdmin ? {
+            admin: {
+              create: {},
+            },
+          } : {}),
+        },
       });
     } else {
       await prisma.user.create({
@@ -99,6 +148,11 @@ export async function POST(request: NextRequest) {
           email,
           name,
           role,
+          ...(isAutoApproveAdmin ? {
+            admin: {
+              create: {},
+            },
+          } : {}),
         },
       });
     }
@@ -111,8 +165,8 @@ export async function POST(request: NextRequest) {
         role,
         phone,
         department: role === "FACULTY" ? department : null,
-        specialization: role === "FACULTY" ? specialization : null,
-        status: "Pending",
+        specialization: role === "FACULTY" || role === "ADMIN" ? specialization : null,
+        status: isAutoApproveAdmin ? "Approved" : "Pending",
       },
       create: {
         email,
@@ -120,10 +174,22 @@ export async function POST(request: NextRequest) {
         role,
         phone,
         department: role === "FACULTY" ? department : null,
-        specialization: role === "FACULTY" ? specialization : null,
-        status: "Pending",
+        specialization: role === "FACULTY" || role === "ADMIN" ? specialization : null,
+        status: isAutoApproveAdmin ? "Approved" : "Pending",
       },
     });
+
+    // If auto-approved, sync role immediately to Clerk metadata
+    if (isAutoApproveAdmin) {
+      try {
+        const client = await clerkClient();
+        await client.users.updateUserMetadata(userId, {
+          publicMetadata: { role: "admin" },
+        });
+      } catch (clerkErr) {
+        console.error("Clerk role sync failed during auto-admin approval:", clerkErr);
+      }
+    }
 
     return NextResponse.json(onboardingRequest, { status: 201 });
   } catch (error) {

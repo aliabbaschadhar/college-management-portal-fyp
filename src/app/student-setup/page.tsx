@@ -49,6 +49,8 @@ interface Admission {
 
 const formatPhoneNumber = (val: string) => {
   let clean = val.replace(/\D/g, "");
+  if (clean === "0") return "0";
+  if (clean === "9" || clean === "92") return "+92 ";
   if (clean.startsWith("92")) {
     clean = clean.substring(2);
   } else if (clean.startsWith("0")) {
@@ -221,6 +223,20 @@ export default function StudentSetupPage() {
   const prevStep = () => {
     setErrorMsg("");
     setStep((prev) => Math.max(1, prev - 1));
+  };
+
+  const handleCancelAdmission = async () => {
+    setStatusLoading(true);
+    try {
+      await api.delete("/api/admissions/my-status");
+      setAdmission(null);
+      setStep(1);
+      router.push("/onboarding");
+    } catch (err) {
+      console.error("Error cancelling/resetting admission:", err);
+    } finally {
+      setStatusLoading(false);
+    }
   };
 
   if (!isLoaded || statusLoading) {
@@ -400,7 +416,7 @@ export default function StudentSetupPage() {
                   </CardContent>
                 </Card>
 
-                <div className="flex justify-center pt-2">
+                <div className="flex flex-col gap-3 pt-2">
                   <Button
                     onClick={() => checkStatus(true)}
                     disabled={refreshing}
@@ -408,6 +424,13 @@ export default function StudentSetupPage() {
                   >
                     <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
                     Check Approval Status
+                  </Button>
+                  <Button
+                    onClick={handleCancelAdmission}
+                    variant="outline"
+                    className="w-full border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 h-11 rounded-xl"
+                  >
+                    Cancel & Re-submit
                   </Button>
                 </div>
               </motion.div>
@@ -672,7 +695,15 @@ export default function StudentSetupPage() {
                               />
                             </div>
 
-                            <div className="flex justify-end pt-3">
+                            <div className="flex justify-between pt-3">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => router.push("/onboarding")}
+                                className="border-zinc-200 dark:border-zinc-800 bg-transparent text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-white/5 h-11 px-5 rounded-xl font-bold transition-all"
+                              >
+                                Back to Roles
+                              </Button>
                               <Button
                                 type="button"
                                 onClick={nextStep}

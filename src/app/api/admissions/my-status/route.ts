@@ -94,3 +94,39 @@ export async function GET() {
     return handleApiError("GET /api/admissions/my-status", error);
   }
 }
+
+export async function DELETE() {
+  const { userId } = await auth();
+  if (!userId) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
+
+  try {
+    const clerkUser = await currentUser();
+    const email =
+      clerkUser?.emailAddresses.find(
+        (emailAddress) => emailAddress.id === clerkUser.primaryEmailAddressId
+      )?.emailAddress ?? clerkUser?.emailAddresses[0]?.emailAddress;
+
+    if (!email) {
+      return errorResponse("BAD_REQUEST", "No email address found in Clerk", 400);
+    }
+
+    // Delete the pending/rejected admissions associated with this email (if not blocked)
+    await prisma.admission.deleteMany({
+      where: {
+        email,
+        status: { in: ["Pending", "Rejected"] },
+        blocked: false,
+      },
+    });
+
+    // Reset User's role back to STUDENT (default onboarding status)
+    await prisma.user.updateMany({
+      where: { clerkId: userId },
+      data: { role: "STUDENT" },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return handleApiError("DELETE /api/admissions/my-status", error);
+  }
+}

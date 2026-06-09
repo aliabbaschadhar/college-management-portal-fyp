@@ -13,7 +13,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 
 export default function SignInPage() {
   const { isLoaded, signIn, setActive } = useSignIn();
@@ -281,12 +280,12 @@ export default function SignInPage() {
                 </Button>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Separator className="bg-zinc-200 dark:bg-white/10 grow" />
-                <span className="text-zinc-400 dark:text-zinc-500 text-[10px] uppercase font-bold tracking-widest shrink-0">
+              <div className="flex items-center gap-2 w-full">
+                <div className="h-px bg-zinc-200 dark:bg-white/10 grow" />
+                <span className="text-zinc-400 dark:text-zinc-500 text-[10px] uppercase font-bold tracking-widest shrink-0 px-2">
                   Or continue with
                 </span>
-                <Separator className="bg-zinc-200 dark:bg-white/10 grow" />
+                <div className="h-px bg-zinc-200 dark:bg-white/10 grow" />
               </div>
 
               {/* Email / Password Form */}

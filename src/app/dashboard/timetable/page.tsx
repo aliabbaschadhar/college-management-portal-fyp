@@ -57,29 +57,13 @@ interface TimetableApiError {
 }
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const SHIFT_SLOTS = {
-  Morning: [
-    { start: "07:45", end: "09:00" },
-    { start: "09:00", end: "10:00" },
-    { start: "10:00", end: "11:00" },
-    { start: "11:00", end: "12:00" },
-    { start: "12:00", end: "13:00" },
-  ],
-  Evening: [
-    { start: "12:00", end: "13:00" },
-    { start: "13:00", end: "14:00" },
-    { start: "14:00", end: "15:00" },
-    { start: "15:00", end: "16:00" },
-    { start: "16:00", end: "17:00" },
-  ],
-};
 
 const EMPTY_FORM: TimetableMutationInput = {
   courseId: "",
   room: "",
   day: "Monday",
   startTime: "07:45",
-  endTime: "09:00",
+  endTime: "08:30",
   shift: "Morning",
 };
 
@@ -96,10 +80,15 @@ function to12HourTime(time: string): string {
   return `${String(normalized).padStart(2, "0")}:${minutePart} ${suffix}`;
 }
 
-function addOneHour(time: string): string {
+function add45Minutes(time: string, durationMinutes = 45): string {
   const [hours, minutes] = time.split(":").map(Number);
-  const nextHour = Math.min(hours + 1, 23);
-  return `${String(nextHour).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  let nextMinutes = minutes + durationMinutes;
+  let nextHours = hours;
+  if (nextMinutes >= 60) {
+    nextHours = (nextHours + Math.floor(nextMinutes / 60)) % 24;
+    nextMinutes = nextMinutes % 60;
+  }
+  return `${String(nextHours).padStart(2, "0")}:${String(nextMinutes).padStart(2, "0")}`;
 }
 
 export default function TimetablePage() {
@@ -119,6 +108,75 @@ export default function TimetablePage() {
   const [form, setForm] = useState<TimetableMutationInput>(EMPTY_FORM);
   const [error, setError] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
+
+  // Dynamic grid configuration states
+  const [gridStart, setGridStart] = useState("07:45");
+  const [gridDuration, setGridDuration] = useState(45);
+  const [gridSlotsCount, setGridSlotsCount] = useState(7);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
+
+  const slots = useMemo(() => {
+    const list = [];
+    if (!gridStart || !/^([01]\d|2[0-3]):([0-5]\d)$/.test(gridStart)) {
+      return [];
+    }
+    let [h, m] = gridStart.split(":").map(Number);
+    for (let i = 0; i < gridSlotsCount; i++) {
+      const startStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      m += gridDuration;
+      if (m >= 60) {
+        h += Math.floor(m / 60);
+        m = m % 60;
+        h = h % 24;
+      }
+      const endStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      list.push({ start: startStr, end: endStr });
+    }
+    return list;
+  }, [gridStart, gridDuration, gridSlotsCount]);
+
+  const loadSettings = useCallback((shift: string) => {
+    api
+      .get(`/api/timetable/settings?shift=${shift}`)
+      .then((res) => {
+        if (res.data) {
+          setGridStart(res.data.startTime);
+          setGridDuration(res.data.duration);
+          setGridSlotsCount(res.data.slots);
+        }
+      })
+      .catch((err) => console.error("Error loading timetable settings:", err));
+  }, []);
+
+  const handleSaveSettings = async () => {
+    setSettingsSaving(true);
+    setMutationError(null);
+    setSettingsSuccess(null);
+    try {
+      await api.post("/api/timetable/settings", {
+        shift: filterShift,
+        startTime: gridStart,
+        duration: Number(gridDuration),
+        slots: Number(gridSlotsCount),
+      });
+      setSettingsSuccess("Grid configuration saved successfully!");
+      setTimeout(() => setSettingsSuccess(null), 4000);
+      loadTimetable();
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } };
+      setMutationError(
+        axiosErr.response?.data?.error ?? "Failed to save settings"
+      );
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSettings(filterShift);
+  }, [filterShift, loadSettings]);
+
 
   const loadTimetable = useCallback(() => {
     setLoading(true);
@@ -211,10 +269,10 @@ export default function TimetablePage() {
   }, [editingEntry, filteredCourses, form.courseId]);
 
   const openCreateDialog = (day?: TimetableDay, startTime?: string, endTime?: string) => {
-    const defaultStart = filterShift === "Evening" ? "12:00" : "07:45";
-    const defaultEnd = filterShift === "Evening" ? "13:00" : "09:00";
+    const defaultStart = gridStart;
+    const defaultEnd = add45Minutes(gridStart, gridDuration);
     const selectedStart = startTime ?? defaultStart;
-    const selectedEnd = endTime ?? (startTime ? addOneHour(startTime) : defaultEnd);
+    const selectedEnd = endTime ?? (startTime ? add45Minutes(startTime, gridDuration) : defaultEnd);
     const availableCourses =
       filteredCourses.length > 0 ? filteredCourses : courses;
 
@@ -230,6 +288,7 @@ export default function TimetablePage() {
     });
     setDialogOpen(true);
   };
+
 
   const openEditDialog = (entry: TimetableApiEntry) => {
     setEditingEntry(entry);
@@ -298,8 +357,7 @@ export default function TimetablePage() {
     }
 
     const generatedAt = new Date().toLocaleString();
-    const currentShiftKey = filterShift.toLowerCase() === "evening" ? "Evening" : "Morning";
-    const currentSlots = SHIFT_SLOTS[currentShiftKey];
+    const currentSlots = slots;
 
     const rows = currentSlots.map((slot) => {
       const daySlots = DAYS.map((day) => {
@@ -360,9 +418,6 @@ export default function TimetablePage() {
     printWindow.focus();
     printWindow.print();
   };
-
-  const shiftKey = filterShift.toLowerCase() === "evening" ? "Evening" : "Morning";
-  const slots = SHIFT_SLOTS[shiftKey];
 
   const getClassForSlot = (day: string, slot: { start: string; end: string }) => {
     const slotStart = timeToMinutes(slot.start);
@@ -485,6 +540,62 @@ export default function TimetablePage() {
             </Select>
           </div>
         </div>
+
+        <div className="p-4 bg-card border rounded-2xl shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-2">
+            <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+              <Clock className="h-4 w-4 text-brand-primary" /> Shift Grid Settings ({filterShift})
+            </h3>
+            <span className="text-xs text-muted-foreground">Define grid start time, slot duration, and slots count</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-zinc-600 dark:text-zinc-400">Start Time</Label>
+              <Input
+                type="time"
+                value={gridStart}
+                onChange={(e) => setGridStart(e.target.value)}
+                className="h-9"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-zinc-600 dark:text-zinc-400">Slot Duration (Mins)</Label>
+              <Input
+                type="number"
+                min="5"
+                max="180"
+                value={gridDuration}
+                onChange={(e) => setGridDuration(Number(e.target.value))}
+                className="h-9"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-zinc-600 dark:text-zinc-400">Total Slots</Label>
+              <Input
+                type="number"
+                min="1"
+                max="20"
+                value={gridSlotsCount}
+                onChange={(e) => setGridSlotsCount(Number(e.target.value))}
+                className="h-9"
+              />
+            </div>
+            <Button
+              onClick={handleSaveSettings}
+              disabled={settingsSaving}
+              size="sm"
+              className="bg-brand-primary hover:bg-brand-primary/95 text-white h-9 shadow-sm"
+            >
+              {settingsSaving ? "Saving..." : "Save Grid Config"}
+            </Button>
+          </div>
+        </div>
+
+        {settingsSuccess && (
+          <div className="rounded-lg border border-emerald-250 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 font-semibold">
+            {settingsSuccess}
+          </div>
+        )}
 
         {error && (
           <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">

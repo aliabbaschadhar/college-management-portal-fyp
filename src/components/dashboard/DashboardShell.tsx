@@ -38,14 +38,17 @@ export function DashboardShell({ children, role, roleLabel }: DashboardShellProp
 
     const fetchPendingCounts = async () => {
       try {
-        const [admissionsRes, feedbackRes] = await Promise.all([
+        const [admissionsRes, onboardingRes, feedbackRes] = await Promise.all([
           api.get<unknown[]>("/api/admissions?status=Pending&limit=100"),
+          api.get<unknown[]>("/api/onboarding?status=Pending"),
           api.get<{ date: string }[]>("/api/feedback"),
         ]);
 
         if (!isMounted) return;
 
         const admissionsCount = Array.isArray(admissionsRes.data) ? admissionsRes.data.length : 0;
+        const onboardingCount = Array.isArray(onboardingRes.data) ? onboardingRes.data.length : 0;
+        const totalAdmissionsCount = admissionsCount + onboardingCount;
         
         let feedbackCount = 0;
         if (Array.isArray(feedbackRes.data) && pathname !== "/dashboard/feedback") {
@@ -59,7 +62,7 @@ export function DashboardShell({ children, role, roleLabel }: DashboardShellProp
         setNavItems((prev) =>
           prev.map((item) => {
             if (item.title === "Admissions") {
-              return { ...item, badge: admissionsCount > 0 ? admissionsCount : undefined };
+              return { ...item, badge: totalAdmissionsCount > 0 ? totalAdmissionsCount : undefined };
             }
             if (item.title === "Feedback") {
               return { ...item, badge: feedbackCount > 0 ? feedbackCount : undefined };
