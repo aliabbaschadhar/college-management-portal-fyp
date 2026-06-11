@@ -1,8 +1,26 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/axios";
-import { Plus, Pencil, Trash2, UserPlus } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  UserPlus,
+  Laptop,
+  Calculator,
+  Atom,
+  BookOpen,
+  FlaskConical,
+  Coins,
+  PenTool,
+  Book,
+  ChevronRight,
+  ArrowLeft,
+  GraduationCap,
+  Loader2
+} from "lucide-react";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
@@ -26,7 +44,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { motion } from "framer-motion";
+import { Card, CardContent } from "@/components/ui/card";
+import { motion, AnimatePresence } from "framer-motion";
+import { TableSkeleton } from "@/components/ui";
 
 interface CourseWithDetails {
   id: string;
@@ -62,7 +82,66 @@ const emptyCourse: CourseForm = {
   semester: 1,
 };
 
+const departmentMeta: Record<string, { icon: typeof Laptop; color: string; bg: string; border: string }> = {
+  "Computer Science": {
+    icon: Laptop,
+    color: "text-blue-600 dark:text-blue-400",
+    bg: "bg-blue-50 dark:bg-blue-950/20",
+    border: "border-blue-100 dark:border-blue-900/30"
+  },
+  "Mathematics": {
+    icon: Calculator,
+    color: "text-purple-600 dark:text-purple-400",
+    bg: "bg-purple-50 dark:bg-purple-950/20",
+    border: "border-purple-100 dark:border-purple-900/30"
+  },
+  "Physics": {
+    icon: Atom,
+    color: "text-emerald-600 dark:text-emerald-400",
+    bg: "bg-emerald-50 dark:bg-emerald-950/20",
+    border: "border-emerald-100 dark:border-emerald-900/30"
+  },
+  "English": {
+    icon: BookOpen,
+    color: "text-amber-600 dark:text-amber-400",
+    bg: "bg-amber-50 dark:bg-amber-950/20",
+    border: "border-amber-100 dark:border-amber-900/30"
+  },
+  "Chemistry": {
+    icon: FlaskConical,
+    color: "text-rose-600 dark:text-rose-400",
+    bg: "bg-rose-50 dark:bg-rose-950/20",
+    border: "border-rose-100 dark:border-rose-900/30"
+  },
+  "Economics": {
+    icon: Coins,
+    color: "text-cyan-600 dark:text-cyan-400",
+    bg: "bg-cyan-50 dark:bg-cyan-950/20",
+    border: "border-cyan-100 dark:border-cyan-900/30"
+  },
+  "Urdu": {
+    icon: PenTool,
+    color: "text-orange-600 dark:text-orange-400",
+    bg: "bg-orange-50 dark:bg-orange-950/20",
+    border: "border-orange-100 dark:border-orange-900/30"
+  },
+  "Islamic Studies": {
+    icon: Book,
+    color: "text-teal-600 dark:text-teal-400",
+    bg: "bg-teal-50 dark:bg-teal-950/20",
+    border: "border-teal-100 dark:border-teal-900/30"
+  }
+};
+
+const defaultMeta = {
+  icon: Book,
+  color: "text-zinc-600 dark:text-zinc-400",
+  bg: "bg-zinc-50 dark:bg-zinc-950/20",
+  border: "border-zinc-100 dark:border-zinc-900/30"
+};
+
 export default function ManageCoursesPage() {
+  const router = useRouter();
   const [courses, setCourses] = useState<CourseWithDetails[]>([]);
   const [facultyList, setFacultyList] = useState<FacultyOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,15 +157,16 @@ export default function ManageCoursesPage() {
     useState<CourseWithDetails | null>(null);
   const [form, setForm] = useState<CourseForm>(emptyCourse);
   const [selectedFaculty, setSelectedFaculty] = useState<string>("");
-  const [filterDept, setFilterDept] = useState<string>("all");
+  const [assigning, setAssigning] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Drill-down states
+  const [selectedDept, setSelectedDept] = useState<string | null>(null);
+  const [selectedSem, setSelectedSem] = useState<number | null>(null);
 
   useEffect(() => {
-    const url =
-      filterDept === "all"
-        ? "/api/courses"
-        : `/api/courses?department=${encodeURIComponent(filterDept)}`;
     Promise.all([
-      api.get<CourseWithDetails[]>(url),
+      api.get<CourseWithDetails[]>("/api/courses"),
       api.get<FacultyOption[]>("/api/faculty"),
     ])
       .then(([c, f]) => {
@@ -95,13 +175,20 @@ export default function ManageCoursesPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [filterDept]);
+  }, []);
 
   const openAdd = () => {
     setEditingCourse(null);
-    setForm(emptyCourse);
+    setForm({
+      courseCode: "",
+      courseName: "",
+      creditHours: 3,
+      department: selectedDept || "",
+      semester: selectedSem || 1,
+    });
     setDialogOpen(true);
   };
+
   const openEdit = (c: CourseWithDetails) => {
     setEditingCourse(c);
     setForm({
@@ -116,6 +203,7 @@ export default function ManageCoursesPage() {
 
   const handleSave = async () => {
     if (!form.courseCode || !form.courseName || !form.department) return;
+    setSaving(true);
     try {
       if (editingCourse) {
         const { data: updated } = await api.patch<CourseWithDetails>(
@@ -133,26 +221,34 @@ export default function ManageCoursesPage() {
         setCourses((prev) => [created, ...prev]);
       }
       setDialogOpen(false);
+      router.refresh();
     } catch {
       /* ignore */
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleDelete = async () => {
     if (!deletingCourse) return;
+    setSaving(true);
     try {
       await api.delete(`/api/courses/${deletingCourse.id}`);
       setCourses((prev) => prev.filter((c) => c.id !== deletingCourse.id));
       setDeleteDialogOpen(false);
       setDeletingCourse(null);
+      router.refresh();
     } catch {
       /* ignore */
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleAssign = async () => {
     if (!assigningCourse || !selectedFaculty) return;
     try {
+      setAssigning(true);
       const { data: updated } = await api.patch<CourseWithDetails>(
         `/api/courses/${assigningCourse.id}`,
         { assignedFaculty: selectedFaculty },
@@ -162,8 +258,11 @@ export default function ManageCoursesPage() {
       );
       setAssignDialogOpen(false);
       setSelectedFaculty("");
+      router.refresh();
     } catch {
       /* ignore */
+    } finally {
+      setAssigning(false);
     }
   };
 
@@ -195,7 +294,6 @@ export default function ManageCoursesPage() {
       sortable: true,
       render: (row) => <Badge variant="outline">{row.creditHours} CH</Badge>,
     },
-    { key: "department", header: "Department", sortable: true },
     {
       key: "faculty",
       header: "Faculty",
@@ -254,10 +352,22 @@ export default function ManageCoursesPage() {
     },
   ];
 
+  // Filter courses for DataTable in View 3
+  const filteredCourses = courses.filter(
+    (c) => c.department === selectedDept && c.semester === selectedSem
+  );
+
   if (loading) {
     return (
-      <div className="flex justify-center p-8">
-        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      <div className="space-y-6">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-2">
+            <div className="h-8 w-48 bg-muted animate-pulse border-2 border-border" />
+            <div className="h-4 w-64 bg-muted animate-pulse border-2 border-border" />
+          </div>
+          <div className="h-10 w-32 bg-muted animate-pulse border-2 border-border" />
+        </div>
+        <TableSkeleton rows={8} />
       </div>
     );
   }
@@ -267,64 +377,198 @@ export default function ManageCoursesPage() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
+      className="space-y-6"
     >
-      <PageHeader
-        title="Manage Courses"
-        subtitle={`${courses.length} courses offered this semester`}
-        breadcrumbs={[
-          { label: "Dashboard", href: "/dashboard" },
-          { label: "Manage Courses" },
-        ]}
-        action={
-          <div className="flex items-center gap-3">
-            <Select value={filterDept} onValueChange={setFilterDept}>
-              <SelectTrigger className="w-[180px] h-9">
-                <SelectValue placeholder="All Departments" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Departments</SelectItem>
-                {DEPARTMENTS.map((d) => (
-                  <SelectItem key={d} value={d}>
-                    {d}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              onClick={openAdd}
-              className="bg-brand-primary hover:bg-brand-primary/90 text-white"
-            >
-              <Plus className="h-4 w-4 mr-2" /> Add Course
-            </Button>
-          </div>
-        }
-      />
+      <AnimatePresence mode="wait">
+        {/* VIEW 1: DEPARTMENT SELECTOR */}
+        {selectedDept === null && (
+          <motion.div
+            key="departments"
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 10 }}
+            transition={{ duration: 0.25 }}
+            className="space-y-6"
+          >
+            <PageHeader
+              title="Manage Courses"
+              subtitle="Select a department to manage semesters and subjects."
+              breadcrumbs={[
+                { label: "Dashboard", href: "/dashboard" },
+                { label: "Manage Courses" },
+              ]}
+            />
 
-      <DataTable
-        data={courses as unknown as Record<string, unknown>[]}
-        columns={columns as unknown as Column<Record<string, unknown>>[]}
-        searchPlaceholder="Search by code or name..."
-        searchKeys={["courseCode", "courseName"]}
-      />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {DEPARTMENTS.map((dept) => {
+                const meta = departmentMeta[dept] || defaultMeta;
+                const Icon = meta.icon;
+                const deptCount = courses.filter((c) => c.department === dept).length;
 
-      {/* Add/Edit */}
+                return (
+                  <Card
+                    key={dept}
+                    onClick={() => setSelectedDept(dept)}
+                    className="group border border-border bg-card hover:bg-accent/40 dark:hover:bg-accent/10 hover:border-brand-primary/20 hover:shadow-lg transition-all duration-300 cursor-pointer overflow-hidden rounded-xl"
+                  >
+                    <CardContent className="p-6 flex flex-col gap-4 relative">
+                      <div className={`h-12 w-12 rounded-xl flex items-center justify-center border ${meta.bg} ${meta.border} ${meta.color} transition-transform duration-300 group-hover:scale-110`}>
+                        <Icon className="h-6 w-6" />
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <h3 className="font-bold text-base text-foreground group-hover:text-brand-primary transition-colors line-clamp-1">
+                          {dept}
+                        </h3>
+                        <p className="text-xs text-muted-foreground font-medium">
+                          {deptCount} Subject{deptCount !== 1 ? "s" : ""} Offered
+                        </p>
+                      </div>
+
+                      <div className="absolute right-4 bottom-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-300">
+                        <ChevronRight className="h-5 w-5 text-brand-primary" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+
+        {/* VIEW 2: SEMESTER SELECTOR */}
+        {selectedDept !== null && selectedSem === null && (
+          <motion.div
+            key="semesters"
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 10 }}
+            transition={{ duration: 0.25 }}
+            className="space-y-6"
+          >
+            <PageHeader
+              title={selectedDept}
+              subtitle="Select a semester to manage its subjects."
+              breadcrumbs={[
+                { label: "Dashboard", href: "/dashboard" },
+                { label: "Manage Courses", onClick: () => setSelectedDept(null), href: "#" },
+                { label: selectedDept },
+              ]}
+              action={
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedDept(null)}
+                  className="gap-2 border-border hover:bg-accent hover:text-accent-foreground"
+                >
+                  <ArrowLeft className="h-4 w-4" /> Back to Departments
+                </Button>
+              }
+            />
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => {
+                const semCount = courses.filter(
+                  (c) => c.department === selectedDept && c.semester === sem
+                ).length;
+
+                return (
+                  <Card
+                    key={sem}
+                    onClick={() => setSelectedSem(sem)}
+                    className="group border border-border bg-card hover:bg-accent/40 dark:hover:bg-accent/10 hover:border-brand-primary/20 hover:shadow-lg transition-all duration-300 cursor-pointer overflow-hidden rounded-xl"
+                  >
+                    <CardContent className="p-6 flex flex-col gap-3 relative">
+                      <div className="h-10 w-10 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary transition-transform duration-300 group-hover:scale-110">
+                        <GraduationCap className="h-5.5 w-5.5" />
+                      </div>
+
+                      <div className="space-y-1">
+                        <h4 className="font-bold text-sm text-foreground group-hover:text-brand-primary transition-colors">
+                          Semester {sem}
+                        </h4>
+                        <p className="text-xs text-muted-foreground font-medium">
+                          {semCount} Course{semCount !== 1 ? "s" : ""}
+                        </p>
+                      </div>
+
+                      <div className="absolute right-4 bottom-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-300">
+                        <ChevronRight className="h-4 w-4 text-brand-primary" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+
+        {/* VIEW 3: COURSES LIST & TABLE */}
+        {selectedDept !== null && selectedSem !== null && (
+          <motion.div
+            key="courses-table"
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 10 }}
+            transition={{ duration: 0.25 }}
+            className="space-y-6"
+          >
+            <PageHeader
+              title={`Semester ${selectedSem} Courses`}
+              subtitle={`Offered subjects in ${selectedDept}.`}
+              breadcrumbs={[
+                { label: "Dashboard", href: "/dashboard" },
+                { label: "Manage Courses", onClick: () => { setSelectedDept(null); setSelectedSem(null); }, href: "#" },
+                { label: selectedDept, onClick: () => setSelectedSem(null), href: "#" },
+                { label: `Semester ${selectedSem}` },
+              ]}
+              action={
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setSelectedSem(null)}
+                    className="gap-2 border-border hover:bg-accent hover:text-accent-foreground"
+                  >
+                    <ArrowLeft className="h-4 w-4" /> Back to Semesters
+                  </Button>
+                  <Button
+                    onClick={openAdd}
+                    className="bg-brand-primary hover:bg-brand-primary/90 text-white"
+                  >
+                    <Plus className="h-4 w-4 mr-2" /> Add Subject
+                  </Button>
+                </div>
+              }
+            />
+
+            <DataTable
+              data={filteredCourses as unknown as Record<string, unknown>[]}
+              columns={columns as unknown as Column<Record<string, unknown>>[]}
+              searchPlaceholder="Search by code or name..."
+              searchKeys={["courseCode", "courseName"]}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>
-              {editingCourse ? "Edit Course" : "Add New Course"}
+              {editingCourse ? "Edit Subject" : "Add New Subject"}
             </DialogTitle>
             <DialogDescription>
               {editingCourse
-                ? "Update course details."
-                : "Fill in the details for a new course."}
+                ? "Update subject details."
+                : `Add a subject to Semester ${form.semester} in ${form.department}.`}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Course Code</Label>
+                <Label htmlFor="courseCode">Subject Code</Label>
                 <Input
+                  id="courseCode"
                   value={form.courseCode}
                   onChange={(e) =>
                     setForm({ ...form, courseCode: e.target.value })
@@ -333,8 +577,9 @@ export default function ManageCoursesPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Course Name</Label>
+                <Label htmlFor="courseName">Subject Name</Label>
                 <Input
+                  id="courseName"
                   value={form.courseName}
                   onChange={(e) =>
                     setForm({ ...form, courseName: e.target.value })
@@ -345,14 +590,14 @@ export default function ManageCoursesPage() {
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>Credit Hours</Label>
+                <Label htmlFor="creditHours">Credit Hours</Label>
                 <Select
                   value={String(form.creditHours)}
                   onValueChange={(v) =>
                     setForm({ ...form, creditHours: Number(v) })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="creditHours">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -365,12 +610,13 @@ export default function ManageCoursesPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Department</Label>
+                <Label htmlFor="dept">Department</Label>
                 <Select
                   value={form.department}
                   onValueChange={(v) => setForm({ ...form, department: v })}
+                  disabled={!editingCourse && selectedDept !== null}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="dept">
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
                   <SelectContent>
@@ -383,14 +629,15 @@ export default function ManageCoursesPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Semester</Label>
+                <Label htmlFor="semester">Semester</Label>
                 <Select
                   value={String(form.semester)}
                   onValueChange={(v) =>
                     setForm({ ...form, semester: Number(v) })
                   }
+                  disabled={!editingCourse && selectedSem !== null}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="semester">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -405,20 +652,21 @@ export default function ManageCoursesPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+            <Button variant="outline" disabled={saving} onClick={() => setDialogOpen(false)}>
               Cancel
             </Button>
             <Button
               onClick={handleSave}
-              className="bg-brand-primary hover:bg-brand-primary/90 text-white"
+              disabled={saving}
+              className="bg-brand-primary hover:bg-brand-primary/90 text-white min-w-[120px]"
             >
-              {editingCourse ? "Update" : "Add Course"}
+              {saving ? "Saving..." : editingCourse ? "Update" : "Add Subject"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Assign Faculty */}
+      {/* Assign Faculty Dialog */}
       <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
@@ -430,16 +678,24 @@ export default function ManageCoursesPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <Select value={selectedFaculty} onValueChange={setSelectedFaculty}>
+            <Select value={selectedFaculty} onValueChange={setSelectedFaculty} disabled={assigning}>
               <SelectTrigger>
                 <SelectValue placeholder="Select faculty member" />
               </SelectTrigger>
               <SelectContent>
-                {facultyList.map((f) => (
-                  <SelectItem key={f.id} value={f.id}>
-                    {f.user.name ?? "—"} — {f.department}
+                {facultyList.filter((f) => f.department === assigningCourse?.department).length === 0 ? (
+                  <SelectItem value="none" disabled>
+                    No faculty available in {assigningCourse?.department}
                   </SelectItem>
-                ))}
+                ) : (
+                  facultyList
+                    .filter((f) => f.department === assigningCourse?.department)
+                    .map((f) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {f.user.name ?? "—"}
+                      </SelectItem>
+                    ))
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -447,38 +703,48 @@ export default function ManageCoursesPage() {
             <Button
               variant="outline"
               onClick={() => setAssignDialogOpen(false)}
+              disabled={assigning}
             >
               Cancel
             </Button>
             <Button
               onClick={handleAssign}
-              className="bg-brand-primary hover:bg-brand-primary/90 text-white"
+              disabled={assigning || !selectedFaculty || selectedFaculty === "none"}
+              className="bg-brand-primary hover:bg-brand-primary/90 text-white min-w-20"
             >
-              Assign
+              {assigning ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Assigning...
+                </>
+              ) : (
+                "Assign"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete */}
+      {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>Delete Course</DialogTitle>
+            <DialogTitle>Delete Subject</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete{" "}
-              <strong>{deletingCourse?.courseName}</strong>?
+              <strong>{deletingCourse?.courseName}</strong>? This will remove it from all student enrollments.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button
               variant="outline"
+              disabled={saving}
               onClick={() => setDeleteDialogOpen(false)}
             >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDelete}>
-              <Trash2 className="h-4 w-4 mr-2" /> Delete
+            <Button variant="destructive" disabled={saving} onClick={handleDelete} className="min-w-[100px]">
+              {saving ? "Deleting..." : <><Trash2 className="h-4 w-4 mr-2" /> Delete</>}
             </Button>
           </DialogFooter>
         </DialogContent>

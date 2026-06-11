@@ -1,11 +1,11 @@
 "use client";
 
 import { useSignIn } from "@clerk/nextjs";
+import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Sparkles, CheckCircle2, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
-import { useTheme } from "next-themes";
 import { ThemeToggle } from "@/components/dashboard/ThemeToggle";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
@@ -13,13 +13,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 
 export default function SignInPage() {
   const { isLoaded, signIn, setActive } = useSignIn();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
-  const { resolvedTheme } = useTheme();
 
   // Form states
   const [email, setEmail] = useState("");
@@ -53,9 +51,13 @@ export default function SignInPage() {
       } else {
         setError("Action incomplete. Please check authentication requirements.");
       }
-    } catch (err: any) {
-      console.error("Sign-in error:", err);
-      setError(err.errors?.[0]?.message || "Invalid email or password");
+    } catch (err) {
+      if (isClerkAPIResponseError(err)) {
+        setError(err.errors[0]?.message || "Invalid email or password");
+      } else {
+        console.error("Sign-in error:", err);
+        setError("Invalid email or password");
+      }
     } finally {
       setLoading(false);
     }
@@ -72,17 +74,21 @@ export default function SignInPage() {
         redirectUrl: "/sso-callback",
         redirectUrlComplete: "/dashboard",
       });
-    } catch (err: any) {
-      console.error("Social Sign-in error:", err);
-      setError(err.errors?.[0]?.message || "Social login redirect failed");
+    } catch (err) {
+      if (isClerkAPIResponseError(err)) {
+        setError(err.errors[0]?.message || "Social login redirect failed");
+      } else {
+        console.error("Social Sign-in error:", err);
+        setError("Social login redirect failed");
+      }
       setSocialLoading(null);
     }
   };
 
   if (!mounted) {
     return (
-      <div className="min-h-[100dvh] bg-brand-dark flex items-center justify-center">
-        <Loader2 className="animate-spin h-8 w-8 text-brand-primary" />
+      <div className="min-h-[100dvh] bg-white dark:bg-[#0e0c18] flex items-center justify-center transition-colors duration-300">
+        <Loader2 className="animate-spin h-8 w-8 text-brand-primary dark:text-brand-secondary" />
       </div>
     );
   }
@@ -274,12 +280,12 @@ export default function SignInPage() {
                 </Button>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Separator className="bg-zinc-200 dark:bg-white/10 grow" />
-                <span className="text-zinc-400 dark:text-zinc-500 text-[10px] uppercase font-bold tracking-widest shrink-0">
+              <div className="flex items-center gap-2 w-full">
+                <div className="h-px bg-zinc-200 dark:bg-white/10 grow" />
+                <span className="text-zinc-400 dark:text-zinc-500 text-[10px] uppercase font-bold tracking-widest shrink-0 px-2">
                   Or continue with
                 </span>
-                <Separator className="bg-zinc-200 dark:bg-white/10 grow" />
+                <div className="h-px bg-zinc-200 dark:bg-white/10 grow" />
               </div>
 
               {/* Email / Password Form */}
@@ -343,6 +349,7 @@ export default function SignInPage() {
                   {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                   Log in
                 </Button>
+                <div id="clerk-captcha" className="mt-4 flex justify-center" />
               </form>
             </CardContent>
           </Card>

@@ -8,6 +8,7 @@ import { StatsCard } from "@/components/dashboard/StatsCard";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
+import { StatsCardSkeleton, ChartSkeleton, TableSkeleton } from "@/components/ui";
 import {
   Select,
   SelectContent,
@@ -86,7 +87,7 @@ export default function MyAttendancePage() {
   const attendancePercent =
     totalCount > 0
       ? Math.round(((presentCount + lateCount) / totalCount) * 100)
-      : 100;
+      : 0;
 
   const chartData = courses.map((c) => {
     const courseAtt = allAttendance.filter((a) => a.courseId === c.id);
@@ -133,8 +134,19 @@ export default function MyAttendancePage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center p-8">
-        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <div className="h-8 w-48 bg-muted animate-pulse border-2 border-border" />
+          <div className="h-4 w-72 bg-muted animate-pulse border-2 border-border" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <StatsCardSkeleton />
+          <StatsCardSkeleton />
+          <StatsCardSkeleton />
+          <StatsCardSkeleton />
+        </div>
+        <ChartSkeleton />
+        <TableSkeleton rows={6} />
       </div>
     );
   }

@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "@/lib/axios";
 import { useTheme } from "next-themes";
 import {
   User,
-  Bell,
   Shield,
   Palette,
   QrCode,
@@ -14,9 +13,6 @@ import {
   Sun,
   Monitor,
   Lock,
-  Mail,
-  Smartphone,
-  Globe,
   ExternalLink,
 } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
@@ -62,15 +58,12 @@ function getInitials(name: string | null): string {
     .slice(0, 2);
 }
 
-const NAV_ITEMS = [
-  { id: "profile", label: "Profile", icon: User },
-  { id: "notifications", label: "Notifications", icon: Bell },
-  { id: "appearance", label: "Appearance", icon: Palette },
-  { id: "security", label: "Security", icon: Shield },
-  { id: "qr", label: "Verification QR", icon: QrCode },
-] as const;
-
-type SectionId = (typeof NAV_ITEMS)[number]["id"];
+type SectionId =
+  | "profile"
+  | "appearance"
+  | "security"
+  | "qr"
+  | "admin-settings";
 
 // ─── Profile Section ─────────────────────────────────────────────────────────
 function ProfileSection({ user }: { user: SettingsUser }) {
@@ -226,106 +219,7 @@ function ProfileSection({ user }: { user: SettingsUser }) {
   );
 }
 
-// ─── Notifications Section ────────────────────────────────────────────────────
-const NOTIFICATIONS = [
-  {
-    id: "new-student",
-    title: "New Student Applications",
-    desc: "Get notified when a new admission request is submitted",
-    icon: Smartphone,
-  },
-  {
-    id: "fee-payment",
-    title: "Fee Payment Alerts",
-    desc: "Alerts for upcoming or overdue fee payments",
-    icon: Mail,
-  },
-  {
-    id: "daily-report",
-    title: "Daily Analytics Summary",
-    desc: "Receive automated summary of portal activity",
-    icon: Globe,
-  },
-];
-
-function NotificationsSection() {
-  const [prefs, setPrefs] = useState<Record<string, boolean>>(() => {
-    if (typeof window === "undefined") return {};
-    try {
-      return JSON.parse(localStorage.getItem("notif-prefs") ?? "{}");
-    } catch {
-      return {};
-    }
-  });
-  const [saved, setSaved] = useState(false);
-
-  const toggle = (id: string) => setPrefs((p) => ({ ...p, [id]: !p[id] }));
-
-  const handleSave = () => {
-    localStorage.setItem("notif-prefs", JSON.stringify(prefs));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-bold text-foreground mb-1">
-          Notification Preferences
-        </h3>
-        <p className="text-sm text-muted-foreground">
-          Choose what alerts you receive in-app
-        </p>
-      </div>
-
-      <div className="space-y-3">
-        {NOTIFICATIONS.map((n) => (
-          <div
-            key={n.id}
-            className="flex items-center justify-between p-4 rounded-2xl bg-muted/20 border border-border hover:bg-muted/40 transition-colors"
-          >
-            <div className="flex gap-3">
-              <div className="p-2.5 bg-card border border-border rounded-xl shrink-0">
-                <n.icon className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <div>
-                <p className="font-semibold text-sm text-foreground">
-                  {n.title}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">{n.desc}</p>
-              </div>
-            </div>
-            <Switch
-              id={`notif-${n.id}`}
-              checked={prefs[n.id] !== false}
-              onCheckedChange={() => toggle(n.id)}
-            />
-          </div>
-        ))}
-      </div>
-
-      <div className="flex justify-end">
-        <Button
-          onClick={handleSave}
-          className={cn(
-            "h-11 px-8 rounded-xl gap-2",
-            saved
-              ? "bg-emerald-600 text-white"
-              : "bg-brand-primary text-white hover:opacity-90",
-          )}
-        >
-          {saved ? (
-            <>
-              <Check className="h-4 w-4" /> Saved!
-            </>
-          ) : (
-            "Save Preferences"
-          )}
-        </Button>
-      </div>
-    </div>
-  );
-}
+// Notifications tab removed
 
 // ─── Appearance Section ───────────────────────────────────────────────────────
 function AppearanceSection() {
@@ -469,16 +363,162 @@ function QRSection({ user }: { user: SettingsUser }) {
   );
 }
 
+// ─── Admin Settings Section ───────────────────────────────────────────────────
+function AdminSettingsSection() {
+  const [secret, setSecret] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState<string>("");
+
+  useEffect(() => {
+    if (!expiresAt) {
+      setTimeLeft("");
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const remaining = new Date(expiresAt).getTime() - Date.now();
+      if (remaining <= 0) {
+        setSecret("");
+        setExpiresAt(null);
+        setTimeLeft("");
+        clearInterval(interval);
+      } else {
+        const mins = Math.floor(remaining / 60000);
+        const secs = Math.floor((remaining % 60000) / 1000);
+        setTimeLeft(`${mins}:${String(secs).padStart(2, "0")}`);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [expiresAt]);
+
+  const handleGenerate = async () => {
+    setLoading(true);
+    setErrorMsg("");
+    try {
+      const res = await api.post("/api/settings/admin-secret");
+      setSecret(res.data.secret || "");
+      if (res.data.expiresAt) {
+        setExpiresAt(res.data.expiresAt);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } };
+      setErrorMsg(axiosErr.response?.data?.error || "Failed to generate admin secret key.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const fetchSecret = async () => {
+      try {
+        const res = await api.get("/api/settings/admin-secret");
+        if (res.data.secret) {
+          setSecret(res.data.secret);
+          if (res.data.expiresAt) {
+            setExpiresAt(res.data.expiresAt);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch admin secret key:", err);
+      }
+    };
+    fetchSecret();
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-bold text-foreground mb-1">
+          Admin Portal Settings
+        </h3>
+        <p className="text-sm text-muted-foreground">
+          Configure security credentials and onboarding secret keys
+        </p>
+      </div>
+
+      <div className="p-5 rounded-2xl border border-border bg-card space-y-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="admin-secret-key" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            Admin Onboarding Secret Key
+          </Label>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            This secret key is required when a new user requests the ADMIN role during portal onboarding. It is valid for 5 minutes after generation.
+          </p>
+          <div className="relative">
+            <Input
+              id="admin-secret-key"
+              type="text"
+              value={secret}
+              readOnly
+              className="h-11 rounded-xl pr-28 font-mono bg-muted/30"
+              placeholder="No active secret key generated"
+            />
+            {timeLeft && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md animate-pulse">
+                Expires in {timeLeft}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {errorMsg && (
+          <p className="text-xs text-rose-500 font-semibold">{errorMsg}</p>
+        )}
+
+        <div className="flex justify-end pt-2">
+          <Button
+            onClick={handleGenerate}
+            disabled={loading}
+            className={cn(
+              "h-11 px-8 rounded-xl gap-2 transition-all duration-200",
+              saved
+                ? "bg-emerald-600 text-white hover:bg-emerald-600"
+                : "bg-brand-primary text-white hover:opacity-90",
+            )}
+          >
+            {loading ? (
+              <>
+                <div className="h-4 w-4 animate-spin border-2 border-white/40 border-t-white rounded-full" />
+                Generating…
+              </>
+            ) : saved ? (
+              <>
+                <Check className="h-4 w-4" /> Secret Key Generated!
+              </>
+            ) : (
+              "Generate Secret Key"
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Export ──────────────────────────────────────────────────────────────
 export function SettingsTabs({ user }: Props) {
   const [active, setActive] = useState<SectionId>("profile");
 
+  const navItems = [
+    { id: "profile" as const, label: "Profile", icon: User },
+    { id: "appearance" as const, label: "Appearance", icon: Palette },
+    { id: "security" as const, label: "Security", icon: Shield },
+    ...(user.role === "STUDENT" ? [{ id: "qr" as const, label: "Verification QR", icon: QrCode }] : []),
+    ...(user.role === "ADMIN" ? [{ id: "admin-settings" as const, label: "Admin Settings", icon: Lock }] : []),
+  ];
+
   const contentMap: Record<SectionId, React.ReactNode> = {
     profile: <ProfileSection user={user} />,
-    notifications: <NotificationsSection />,
     appearance: <AppearanceSection />,
     security: <SecuritySection />,
     qr: <QRSection user={user} />,
+    "admin-settings": <AdminSettingsSection />,
   };
 
   return (
@@ -518,7 +558,7 @@ export function SettingsTabs({ user }: Props) {
 
           {/* Nav */}
           <nav className="rounded-2xl border border-border bg-card p-2 shadow-sm space-y-0.5">
-            {NAV_ITEMS.map((item) => {
+            {navItems.map((item) => {
               const isActive = active === item.id;
               return (
                 <button

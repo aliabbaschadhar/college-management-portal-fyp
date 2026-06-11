@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { api } from "@/lib/axios";
-import { Filter } from "lucide-react";
-import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
+import { ClipboardCheck, Filter, Eye, Loader2, Calendar } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { TableSkeleton } from "@/components/ui";
 import {
   Select,
   SelectContent,
@@ -14,7 +15,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { motion } from "framer-motion";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { motion, AnimatePresence } from "framer-motion";
+import { DEPARTMENTS } from "@/lib/constants";
 
 interface AttendanceWithDetails {
   id: string;
@@ -23,13 +32,39 @@ interface AttendanceWithDetails {
   date: string;
   status: "Present" | "Absent" | "Late";
   markedBy: string;
-  student: { rollNo: string; user: { name: string | null } };
+  student: {
+    id: string;
+    rollNo: string;
+    department: string;
+    semester: number;
+    shift: string;
+    user: { name: string | null };
+  };
   course: { courseCode: string };
 }
 
-interface CourseOption {
+interface StudentItem {
   id: string;
-  courseCode: string;
+  userId: string;
+  rollNo: string;
+  phone: string | null;
+  department: string;
+  semester: number;
+  shift: string;
+  enrollmentDate: string;
+  avatar: string | null;
+  user: { name: string | null; email: string };
+  _count?: { enrollments: number };
+}
+
+interface StudentStatsItem extends StudentItem {
+  stats: {
+    total: number;
+    present: number;
+    absent: number;
+    late: number;
+    rate: number;
+  };
 }
 
 const statusColors: Record<"Present" | "Absent" | "Late", string> = {
@@ -39,120 +74,212 @@ const statusColors: Record<"Present" | "Absent" | "Late", string> = {
   Late: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
 };
 
+const departmentIcons: Record<string, string> = {
+  "Computer Science": "💻",
+  "Mathematics": "📐",
+  "Physics": "⚛️",
+  "English": "📚",
+  "Chemistry": "🧪",
+  "Economics": "📊",
+  "Urdu": "✍️",
+  "Islamic Studies": "🕌",
+};
+
 export default function ManageAttendancePage() {
+  const [students, setStudents] = useState<StudentItem[]>([]);
   const [attendance, setAttendance] = useState<AttendanceWithDetails[]>([]);
-  const [courses, setCourses] = useState<CourseOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterCourse, setFilterCourse] = useState<string>("all");
-  const [filterStatus, setFilterStatus] = useState<string>("all");
+
+  // Drill-down states
+  const [selectedDept, setSelectedDept] = useState<string | null>(null);
+  const [selectedSemester, setSelectedSemester] = useState<number | null>(null);
+  const [selectedShift, setSelectedShift] = useState<string>("Morning");
+
+  // Detailed Log dialog
+  const [logDialogOpen, setLogDialogOpen] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<StudentStatsItem | null>(null);
+  const [updatingLogId, setUpdatingLogId] = useState<string | null>(null);
 
   useEffect(() => {
-    api
-      .get<CourseOption[]>("/api/courses")
-      .then((r) => setCourses(Array.isArray(r.data) ? r.data : []))
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (filterCourse !== "all") params.set("courseId", filterCourse);
-    const url = `/api/attendance${params.size ? "?" + params.toString() : ""}`;
-    api
-      .get<AttendanceWithDetails[]>(url)
-      .then((r) => {
-        setAttendance(Array.isArray(r.data) ? r.data : []);
+    setLoading(true);
+    Promise.all([
+      api.get<StudentItem[]>("/api/students"),
+      api.get<AttendanceWithDetails[]>("/api/attendance"),
+    ])
+      .then(([studentsRes, attendanceRes]) => {
+        setStudents(Array.isArray(studentsRes.data) ? studentsRes.data : []);
+        setAttendance(Array.isArray(attendanceRes.data) ? attendanceRes.data : []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [filterCourse]);
+  }, []);
 
   const handleStatusChange = async (
     id: string,
-    newStatus: "Present" | "Absent" | "Late",
+    newStatus: "Present" | "Absent" | "Late"
   ) => {
+    setUpdatingLogId(id);
     try {
       await api.patch(`/api/attendance/${id}`, { status: newStatus });
       setAttendance((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, status: newStatus } : a)),
+        prev.map((a) => (a.id === id ? { ...a, status: newStatus } : a))
       );
     } catch {
       /* ignore */
+    } finally {
+      setUpdatingLogId(null);
     }
   };
 
-  const filtered = attendance.filter((a) => {
-    return filterStatus === "all" || a.status === filterStatus;
-  });
+  // Filter students in the selected class/shift
+  const classStudents = useMemo(() => {
+    if (!selectedDept || !selectedSemester) return [];
+    return students.filter(
+      (s) =>
+        s.department === selectedDept &&
+        s.semester === selectedSemester &&
+        s.shift === selectedShift
+    );
+  }, [students, selectedDept, selectedSemester, selectedShift]);
 
-  const columns: Column<AttendanceWithDetails>[] = [
+  // Compute stats for each student in the selected class/shift
+  const studentStats = useMemo(() => {
+    return classStudents.map((student) => {
+      const studentRecords = attendance.filter((a) => a.studentId === student.id);
+      const total = studentRecords.length;
+      const present = studentRecords.filter((a) => a.status === "Present").length;
+      const absent = studentRecords.filter((a) => a.status === "Absent").length;
+      const late = studentRecords.filter((a) => a.status === "Late").length;
+      const rate = total > 0 ? Math.round(((present + late) / total) * 100) : 0;
+
+      return {
+        ...student,
+        stats: {
+          total,
+          present,
+          absent,
+          late,
+          rate,
+        },
+      };
+    });
+  }, [classStudents, attendance]);
+
+  // Compute class-wide overall stats
+  const classStats = useMemo(() => {
+    let overallTotal = 0;
+    let overallPresent = 0;
+    let overallAbsent = 0;
+    let overallLate = 0;
+
+    studentStats.forEach((s) => {
+      overallTotal += s.stats.total;
+      overallPresent += s.stats.present;
+      overallAbsent += s.stats.absent;
+      overallLate += s.stats.late;
+    });
+
+    const overallRate =
+      overallTotal > 0
+        ? Math.round(((overallPresent + overallLate) / overallTotal) * 100)
+        : 0;
+
+    return {
+      totalStudents: classStudents.length,
+      overallTotal,
+      overallPresent,
+      overallAbsent,
+      overallLate,
+      overallRate,
+    };
+  }, [studentStats, classStudents]);
+
+  // Fetch detailed logs of selected student
+  const selectedStudentLogs = useMemo(() => {
+    if (!selectedStudent) return [];
+    return attendance.filter((a) => a.studentId === selectedStudent.id);
+  }, [selectedStudent, attendance]);
+
+  const columns: Column<StudentStatsItem>[] = [
     {
-      key: "student",
+      key: "user",
       header: "Student",
-      sortable: false,
+      sortable: true,
       render: (row) => (
         <div>
-          <p className="font-medium text-foreground">
-            {row.student.user.name ?? "—"}
-          </p>
-          <p className="text-xs text-muted-foreground">{row.student.rollNo}</p>
-          <AuditBadgeInline entity="Attendance" entityId={row.id} />
+          <p className="font-semibold text-foreground">{row.user?.name ?? "—"}</p>
+          <p className="text-xs text-muted-foreground font-mono">{row.rollNo}</p>
         </div>
       ),
     },
     {
-      key: "course",
-      header: "Course",
-      sortable: false,
+      key: "present",
+      header: "Present",
       render: (row) => (
-        <span className="text-sm font-mono">{row.course.courseCode}</span>
-      ),
-    },
-    {
-      key: "date",
-      header: "Date",
-      sortable: true,
-      render: (row) => (
-        <span className="text-muted-foreground">
-          {new Date(row.date).toLocaleDateString()}
+        <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+          {row.stats.present}
         </span>
       ),
     },
     {
-      key: "status",
-      header: "Status",
+      key: "absent",
+      header: "Absent",
+      render: (row) => (
+        <span className="text-rose-600 dark:text-rose-400 font-bold">
+          {row.stats.absent}
+        </span>
+      ),
+    },
+    {
+      key: "late",
+      header: "Late",
+      render: (row) => (
+        <span className="text-amber-600 dark:text-amber-400 font-bold">
+          {row.stats.late}
+        </span>
+      ),
+    },
+    {
+      key: "rate",
+      header: "Attendance Rate",
       sortable: true,
       render: (row) => (
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary" className={statusColors[row.status]}>
-            {row.status}
-          </Badge>
-          <Select
-            value={row.status}
-            onValueChange={(v) =>
-              handleStatusChange(row.id, v as "Present" | "Absent" | "Late")
-            }
-          >
-            <SelectTrigger className="h-7 w-[24px] p-0 border-none bg-transparent hover:bg-accent/50">
-              <Filter className="h-3 w-3 text-muted-foreground" />
-            </SelectTrigger>
-            <SelectContent align="end">
-              <SelectItem value="Present">Present</SelectItem>
-              <SelectItem value="Absent">Absent</SelectItem>
-              <SelectItem value="Late">Late</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="flex items-center gap-3">
+          <span className="font-bold text-sm min-w-10">{row.stats.rate}%</span>
+          <div className="w-24 bg-muted h-2 rounded-full overflow-hidden shrink-0">
+            <div
+              className={`h-full transition-all duration-500 ${
+                row.stats.rate >= 75
+                  ? "bg-emerald-500"
+                  : row.stats.rate >= 60
+                  ? "bg-amber-500"
+                  : "bg-rose-500"
+              }`}
+              style={{ width: `${row.stats.rate}%` }}
+            />
+          </div>
         </div>
       ),
     },
+    {
+      key: "id",
+      header: "Actions",
+      render: (row) => (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setSelectedStudent(row);
+            setLogDialogOpen(true);
+          }}
+          className="h-8 text-xs gap-1 border-brand-primary/20 hover:bg-brand-primary hover:text-white transition-all rounded-lg"
+        >
+          <Eye className="h-3.5 w-3.5" />
+          View Logs
+        </Button>
+      ),
+    },
   ];
-
-  if (loading) {
-    return (
-      <div className="flex justify-center p-8">
-        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
-      </div>
-    );
-  }
 
   return (
     <motion.div
@@ -161,50 +288,274 @@ export default function ManageAttendancePage() {
       transition={{ duration: 0.4 }}
     >
       <PageHeader
-        title="Manage Attendance"
-        subtitle="Tracking student presence across all active courses"
+        title={
+          selectedDept === null
+            ? "Manage Attendance"
+            : selectedSemester === null
+            ? selectedDept
+            : `${selectedDept} - Semester ${selectedSemester}`
+        }
+        subtitle={
+          selectedDept === null
+            ? "Track and audit attendance histories across departments"
+            : selectedSemester === null
+            ? "Select a semester to inspect student stats"
+            : `Class Attendance Details (${selectedShift} Shift)`
+        }
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
-          { label: "Attendance" },
+          ...(selectedDept === null
+            ? [{ label: "Attendance" }]
+            : [
+                {
+                  label: "Attendance",
+                  onClick: () => {
+                    setSelectedDept(null);
+                    setSelectedSemester(null);
+                  },
+                },
+                ...(selectedSemester === null
+                  ? [{ label: selectedDept }]
+                  : [
+                      {
+                        label: selectedDept,
+                        onClick: () => {
+                          setSelectedSemester(null);
+                        },
+                      },
+                      { label: `Semester ${selectedSemester}` },
+                    ]),
+              ]),
         ]}
-        action={
-          <div className="flex items-center gap-3">
-            <Select value={filterCourse} onValueChange={setFilterCourse}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="All Courses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Courses</SelectItem>
-                {courses.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.courseCode}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="All Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="Present">Present</SelectItem>
-                <SelectItem value="Absent">Absent</SelectItem>
-                <SelectItem value="Late">Late</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        }
       />
 
-      <div className="bg-card/50 backdrop-blur-sm border rounded-xl overflow-hidden shadow-sm">
-        <DataTable
-          data={filtered as unknown as Record<string, unknown>[]}
-          columns={columns as unknown as Column<Record<string, unknown>>[]}
-          searchPlaceholder="Search by student name or roll no..."
-          searchKeys={["studentId"]}
-        />
-      </div>
+      <AnimatePresence mode="wait">
+        {loading ? (
+          <motion.div
+            key="loading"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <TableSkeleton rows={10} />
+          </motion.div>
+        ) : selectedDept === null ? (
+          /* Department Selection View */
+          <motion.div
+            key="departments"
+            initial={{ opacity: 0, x: -15 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 15 }}
+            transition={{ duration: 0.25 }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+          >
+            {DEPARTMENTS.map((dept) => {
+              const count = students.filter((s) => s.department === dept).length;
+              return (
+                <motion.div
+                  whileHover={{ scale: 1.03, y: -4 }}
+                  whileTap={{ scale: 0.98 }}
+                  key={dept}
+                  onClick={() => setSelectedDept(dept)}
+                  className="cursor-pointer p-6 bg-card border-2 border-border rounded-2xl shadow-sm hover:shadow-md hover:border-brand-primary transition-all duration-200 flex flex-col justify-between h-40 group relative overflow-hidden"
+                >
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-brand-primary/5 rounded-bl-full flex items-center justify-center text-4xl opacity-50 group-hover:scale-110 transition-transform duration-300">
+                    {departmentIcons[dept] || "🎓"}
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-foreground group-hover:text-brand-primary transition-colors">
+                      {dept}
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-2">Department</p>
+                  </div>
+                  <div className="flex items-center justify-between mt-4">
+                    <span className="text-sm font-semibold bg-brand-primary/10 text-brand-primary px-3 py-1 rounded-full">
+                      {count} {count === 1 ? "Student" : "Students"}
+                    </span>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </motion.div>
+        ) : selectedSemester === null ? (
+          /* Semester Selection View */
+          <motion.div
+            key="semesters"
+            initial={{ opacity: 0, x: -15 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 15 }}
+            transition={{ duration: 0.25 }}
+            className="space-y-6"
+          >
+            <div className="flex items-center gap-4">
+              <Button
+                variant="outline"
+                onClick={() => setSelectedDept(null)}
+                className="rounded-xl border-2"
+              >
+                ← Back to Departments
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => {
+                const count = students.filter(
+                  (s) => s.department === selectedDept && s.semester === sem
+                ).length;
+                return (
+                  <motion.div
+                    whileHover={{ scale: 1.03, y: -4 }}
+                    whileTap={{ scale: 0.98 }}
+                    key={sem}
+                    onClick={() => setSelectedSemester(sem)}
+                    className="cursor-pointer p-6 bg-card border-2 border-border rounded-2xl shadow-sm hover:shadow-md hover:border-brand-primary transition-all duration-200 flex flex-col justify-between h-36 group relative overflow-hidden"
+                  >
+                    <div>
+                      <h3 className="text-lg font-bold text-foreground">Semester {sem}</h3>
+                      <p className="text-xs text-muted-foreground mt-1">Active Class</p>
+                    </div>
+                    <div className="flex items-center justify-between mt-4">
+                      <span className="text-xs font-semibold bg-brand-primary/10 text-brand-primary px-2.5 py-1 rounded-full">
+                        {count} {count === 1 ? "Student" : "Students"}
+                      </span>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </motion.div>
+        ) : (
+          /* Student Attendance Table with Stats & Shift Dropdown */
+          <motion.div
+            key="details"
+            initial={{ opacity: 0, x: -15 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 15 }}
+            transition={{ duration: 0.25 }}
+            className="space-y-6"
+          >
+            {/* Top Panel Actions */}
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <Button
+                variant="outline"
+                onClick={() => setSelectedSemester(null)}
+                className="rounded-xl border-2"
+              >
+                ← Back to Semesters
+              </Button>
+
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-semibold text-muted-foreground uppercase">Shift:</span>
+                <Select value={selectedShift} onValueChange={setSelectedShift}>
+                  <SelectTrigger className="w-[150px] h-10 border-2 rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Morning">Morning</SelectItem>
+                    <SelectItem value="Evening">Evening</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Stats Summary Panel */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="p-5 bg-card border-2 border-border rounded-2xl flex flex-col justify-between shadow-sm">
+                <span className="text-sm font-semibold text-muted-foreground uppercase">Total Students</span>
+                <span className="text-3xl font-extrabold text-foreground mt-2">{classStats.totalStudents}</span>
+              </div>
+              <div className="p-5 bg-card border-2 border-border rounded-2xl flex flex-col justify-between shadow-sm">
+                <span className="text-sm font-semibold text-muted-foreground uppercase">Overall Attendance Rate</span>
+                <span className="text-3xl font-extrabold text-brand-primary mt-2">{classStats.overallRate}%</span>
+              </div>
+              <div className="p-5 bg-card border-2 border-border rounded-2xl flex flex-col justify-between shadow-sm">
+                <span className="text-sm font-semibold text-muted-foreground uppercase">Presents / Lates</span>
+                <span className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-2">
+                  {classStats.overallPresent} <span className="text-lg font-medium text-muted-foreground">/ {classStats.overallLate}</span>
+                </span>
+              </div>
+              <div className="p-5 bg-card border-2 border-border rounded-2xl flex flex-col justify-between shadow-sm">
+                <span className="text-sm font-semibold text-muted-foreground uppercase">Absents</span>
+                <span className="text-3xl font-extrabold text-rose-600 dark:text-rose-400 mt-2">{classStats.overallAbsent}</span>
+              </div>
+            </div>
+
+            {/* Student Table */}
+            <div className="bg-card border-2 border-border rounded-2xl overflow-hidden shadow-sm p-4">
+              <DataTable
+                data={studentStats}
+                columns={columns}
+                searchPlaceholder="Search by student name or roll no..."
+                searchKeys={["rollNo"]}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Detailed Logs Dialog */}
+      <Dialog open={logDialogOpen} onOpenChange={setLogDialogOpen}>
+        <DialogContent className="sm:max-w-[600px] border-none shadow-2xl overflow-hidden rounded-3xl">
+          <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-r from-brand-primary via-brand-secondary to-brand-primary" />
+          <DialogHeader className="pt-6">
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <ClipboardCheck className="h-6 w-6 text-brand-primary" />
+              Attendance History Log
+            </DialogTitle>
+            <DialogDescription>
+              Reviewing marked attendance for <strong>{selectedStudent?.user?.name}</strong> ({selectedStudent?.rollNo})
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 max-h-[60vh] overflow-y-auto pr-1">
+            {selectedStudentLogs.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No attendance records found for this student.</p>
+            ) : (
+              <div className="space-y-3">
+                {selectedStudentLogs.map((log) => (
+                  <div key={log.id} className="p-4 bg-accent/40 border border-border rounded-2xl flex items-center justify-between gap-4">
+                    <div>
+                      <p className="font-semibold text-sm text-foreground">Course: {log.course.courseCode}</p>
+                      <p className="text-xs text-muted-foreground font-mono flex items-center gap-1.5 mt-1">
+                        <Calendar className="h-3 w-3" />
+                        {new Date(log.date).toLocaleDateString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <Badge className={`${statusColors[log.status]} font-bold`}>{log.status}</Badge>
+
+                      <Select
+                        value={log.status}
+                        disabled={updatingLogId === log.id}
+                        onValueChange={(v) => handleStatusChange(log.id, v as "Present" | "Absent" | "Late")}
+                      >
+                        <SelectTrigger className="h-8 w-8 p-0 border-none bg-transparent hover:bg-accent/80 flex items-center justify-center rounded-lg">
+                          {updatingLogId === log.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          ) : (
+                            <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+                          )}
+                        </SelectTrigger>
+                        <SelectContent align="end">
+                          <SelectItem value="Present">Mark Present</SelectItem>
+                          <SelectItem value="Absent">Mark Absent</SelectItem>
+                          <SelectItem value="Late">Mark Late</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 }

@@ -1,11 +1,11 @@
 "use client";
 
 import { useSignUp } from "@clerk/nextjs";
+import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Sparkles, UserCheck, Eye, EyeOff, Loader2, AlertCircle, ShieldCheck } from "lucide-react";
-import { useTheme } from "next-themes";
 import { ThemeToggle } from "@/components/dashboard/ThemeToggle";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
@@ -13,13 +13,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 
 export default function SignUpPage() {
   const { isLoaded, signUp, setActive } = useSignUp();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
-  const { resolvedTheme } = useTheme();
 
   // Registration Form states
   const [firstName, setFirstName] = useState("");
@@ -49,19 +47,28 @@ export default function SignUpPage() {
 
     try {
       // 1. Initiate sign-up creation
+      const usernamePrefix = email.split("@")[0].replace(/[^a-zA-Z0-9]/g, "") || "user";
+      const randomSuffix = Math.random().toString(36).substring(2, 6);
+      const username = `${usernamePrefix}_${randomSuffix}`;
+
       await signUp.create({
         emailAddress: email,
         password,
         firstName,
         lastName,
+        username,
       });
 
       // 2. Request OTP email verification
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
       setVerifying(true);
-    } catch (err: any) {
-      console.error("Sign-up error:", err);
-      setError(err.errors?.[0]?.message || "Failed to create account. Please check inputs.");
+    } catch (err) {
+      if (isClerkAPIResponseError(err)) {
+        setError(err.errors[0]?.message || "Failed to create account. Please check inputs.");
+      } else {
+        console.error("Sign-up error:", err);
+        setError("Failed to create account. Please check inputs.");
+      }
     } finally {
       setLoading(false);
     }
@@ -81,13 +88,29 @@ export default function SignUpPage() {
 
       if (completeSignUp.status === "complete") {
         await setActive({ session: completeSignUp.createdSessionId });
-        router.push("/dashboard");
+        router.push("/onboarding");
       } else {
-        setError("Verification incomplete. Please retry.");
+        console.warn("Clerk sign-up verification not complete. Status:", completeSignUp.status, "Missing fields:", completeSignUp.missingFields, "Unverified fields:", completeSignUp.unverifiedFields);
+        
+        let msg = "Verification incomplete. Please retry.";
+        if (completeSignUp.status === "missing_requirements") {
+          const missing = completeSignUp.missingFields;
+          const unverified = completeSignUp.unverifiedFields;
+          if (missing && missing.length > 0) {
+            msg = `Sign-up incomplete. Missing required fields: ${missing.join(", ")}`;
+          } else if (unverified && unverified.length > 0) {
+            msg = `Sign-up incomplete. Unverified fields: ${unverified.join(", ")}`;
+          }
+        }
+        setError(msg);
       }
-    } catch (err: any) {
-      console.error("Verification error:", err);
-      setError(err.errors?.[0]?.message || "Invalid verification code.");
+    } catch (err) {
+      if (isClerkAPIResponseError(err)) {
+        setError(err.errors[0]?.message || "Invalid verification code.");
+      } else {
+        console.error("Verification error:", err);
+        setError("Invalid verification code.");
+      }
     } finally {
       setLoading(false);
     }
@@ -99,9 +122,13 @@ export default function SignUpPage() {
     try {
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
       alert("Verification code has been resent to your email.");
-    } catch (err: any) {
-      console.error("Resend error:", err);
-      setError(err.errors?.[0]?.message || "Failed to resend code.");
+    } catch (err) {
+      if (isClerkAPIResponseError(err)) {
+        setError(err.errors[0]?.message || "Failed to resend code.");
+      } else {
+        console.error("Resend error:", err);
+        setError("Failed to resend code.");
+      }
     }
   };
 
@@ -114,19 +141,23 @@ export default function SignUpPage() {
       await signUp.authenticateWithRedirect({
         strategy,
         redirectUrl: "/sso-callback",
-        redirectUrlComplete: "/dashboard",
+        redirectUrlComplete: "/onboarding",
       });
-    } catch (err: any) {
-      console.error("Social Sign-up error:", err);
-      setError(err.errors?.[0]?.message || "Social registration redirect failed");
+    } catch (err) {
+      if (isClerkAPIResponseError(err)) {
+        setError(err.errors[0]?.message || "Social registration redirect failed");
+      } else {
+        console.error("Social Sign-up error:", err);
+        setError("Social registration redirect failed");
+      }
       setSocialLoading(null);
     }
   };
 
   if (!mounted) {
     return (
-      <div className="min-h-[100dvh] bg-brand-dark flex items-center justify-center">
-        <Loader2 className="animate-spin h-8 w-8 text-brand-primary" />
+      <div className="min-h-[100dvh] bg-white dark:bg-[#0e0c18] flex items-center justify-center transition-colors duration-300">
+        <Loader2 className="animate-spin h-8 w-8 text-brand-primary dark:text-brand-secondary" />
       </div>
     );
   }
@@ -326,12 +357,12 @@ export default function SignUpPage() {
                       </Button>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <Separator className="bg-zinc-200 dark:bg-white/10 grow" />
-                      <span className="text-zinc-400 dark:text-zinc-500 text-[10px] uppercase font-bold tracking-widest shrink-0">
+                    <div className="flex items-center gap-2 w-full">
+                      <div className="h-px bg-zinc-200 dark:bg-white/10 grow" />
+                      <span className="text-zinc-400 dark:text-zinc-500 text-[10px] uppercase font-bold tracking-widest shrink-0 px-2">
                         Or continue with
                       </span>
-                      <Separator className="bg-zinc-200 dark:bg-white/10 grow" />
+                      <div className="h-px bg-zinc-200 dark:bg-white/10 grow" />
                     </div>
 
                     {/* Standard Registration Fields */}
@@ -421,6 +452,7 @@ export default function SignUpPage() {
                         {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                         Register
                       </Button>
+                      <div id="clerk-captcha" className="mt-4 flex justify-center" />
                     </form>
                   </CardContent>
                 </Card>

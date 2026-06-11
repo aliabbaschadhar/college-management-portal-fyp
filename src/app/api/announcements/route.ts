@@ -8,10 +8,13 @@ export async function GET(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    // Load user role to filter allowed audiences
+    // Load user role and student info to filter allowed audiences
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { role: true },
+      select: {
+        role: true,
+        student: { select: { id: true } },
+      },
     });
 
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -21,7 +24,12 @@ export async function GET(request: NextRequest) {
 
     // Determine allowed audiences based on role
     const allowedAudiences: AnnouncementAudience[] = ["All"];
-    if (user.role === "STUDENT") allowedAudiences.push("Students");
+    if (user.role === "STUDENT") {
+      if (!user.student) {
+        return NextResponse.json({ error: "Forbidden: Student profile not found" }, { status: 403 });
+      }
+      allowedAudiences.push("Students");
+    }
     if (user.role === "FACULTY") allowedAudiences.push("Faculty");
     if (user.role === "ADMIN") allowedAudiences.push("Students", "Faculty");
 

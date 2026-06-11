@@ -76,11 +76,18 @@ export function handleApiError(route: string, error: unknown): NextResponse<ApiE
     }
   }
 
-  if (
+  const err = error as { code?: string; name?: string; message?: string } & Record<string, unknown>;
+  const isDbUnavailable =
     error instanceof Prisma.PrismaClientInitializationError ||
     error instanceof Prisma.PrismaClientRustPanicError ||
-    error instanceof Prisma.PrismaClientUnknownRequestError
-  ) {
+    error instanceof Prisma.PrismaClientUnknownRequestError ||
+    err?.code === "ECONNREFUSED" ||
+    err?.code === "P2021" ||
+    err?.message?.includes("does not exist") ||
+    err?.message?.includes("connect") ||
+    err?.message?.includes("ECONNREFUSED");
+
+  if (isDbUnavailable) {
     console.error("Database error", { route, error });
     return errorResponse("DATABASE_ERROR", "Database temporarily unavailable", 503);
   }

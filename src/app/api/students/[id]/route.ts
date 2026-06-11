@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-guard";
@@ -20,6 +20,7 @@ export async function PATCH(
       department?: string;
       semester?: number;
       avatar?: string;
+      shift?: string;
     };
 
     const student = await prisma.student.update({
@@ -29,6 +30,7 @@ export async function PATCH(
         ...(body.department !== undefined ? { department: body.department } : {}),
         ...(body.semester !== undefined ? { semester: body.semester } : {}),
         ...(body.avatar !== undefined ? { avatar: body.avatar } : {}),
+        ...(body.shift !== undefined ? { shift: body.shift } : {}),
       },
       include: { user: { select: { name: true } } },
     });
@@ -67,25 +69,61 @@ export async function DELETE(
   if (denied) return denied;
 
   try {
-    const { userId } = await auth();
+    const { userId: adminClerkId } = await auth();
     const { id } = await params;
 
     const student = await prisma.student.findUnique({
       where: { id },
-      include: { user: { select: { name: true } } },
+      include: { user: true },
     });
 
-    await prisma.student.delete({ where: { id } });
+    if (!student) {
+      return NextResponse.json({ error: "Student not found" }, { status: 404 });
+    }
 
-    if (userId && student) {
+    // 1. Delete from Clerk if clerkId exists
+    if (student.user.clerkId) {
       try {
-        const adminName = await getAdminName(userId);
+        const client = await clerkClient();
+        await client.users.deleteUser(student.user.clerkId);
+      } catch (clerkError) {
+        console.error("Clerk user deletion failed:", clerkError);
+        // Continue database cleanup even if Clerk delete fails
+      }
+    }
+
+    // 2. Delete User from PostgreSQL (which cascades to Student profile and all other student tables)
+    try {
+      await prisma.user.delete({
+        where: { id: student.userId },
+      });
+    } catch (dbError) {
+      console.log("User already deleted or database delete failed:", dbError);
+    }
+
+    // 3. Delete any Admissions or Onboarding requests associated with this student's email
+    try {
+      await Promise.all([
+        prisma.admission.deleteMany({
+          where: { email: student.user.email },
+        }),
+        prisma.onboardingRequest.deleteMany({
+          where: { email: student.user.email },
+        }),
+      ]);
+    } catch (admError) {
+      console.error("Failed to delete admissions/onboarding requests during student delete:", admError);
+    }
+
+    if (adminClerkId) {
+      try {
+        const adminName = await getAdminName(adminClerkId);
         await logAuditAction({
           action: "DELETED",
           entity: "Student",
           entityId: id,
-          description: `Deleted student: ${student.user.name ?? student.rollNo}`,
-          adminClerkId: userId,
+          description: `Deleted student: ${student.user.name ?? student.rollNo} and all associated records from portal and authentication`,
+          adminClerkId: adminClerkId,
           adminName,
         });
       } catch (auditError) {
@@ -95,9 +133,6 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
-      return NextResponse.json({ error: "Student not found" }, { status: 404 });
-    }
     console.error("DELETE /api/students/[id] error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }

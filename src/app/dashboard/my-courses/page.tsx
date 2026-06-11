@@ -6,6 +6,7 @@ import { BookOpen, Users, Clock, GraduationCap } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
+import { GridSkeleton } from "@/components/ui";
 
 interface CourseWithDetails {
   id: string;
@@ -53,8 +54,12 @@ export default function MyCoursesPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center p-8">
-        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <div className="h-8 w-40 bg-muted animate-pulse border-2 border-border" />
+          <div className="h-4 w-64 bg-muted animate-pulse border-2 border-border" />
+        </div>
+        <GridSkeleton count={6} />
       </div>
     );
   }
@@ -74,7 +79,7 @@ export default function MyCoursesPage() {
         ]}
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mt-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 mt-6">
         {courses.map((course, idx) => {
           const facultyName = course.faculty?.user?.name ?? "TBA";
           const studentCount = course._count.enrollments;
@@ -84,59 +89,61 @@ export default function MyCoursesPage() {
               key={course.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.1 }}
-              className={`group relative rounded-xl border bg-linear-to-br ${COURSE_COLORS[idx % COURSE_COLORS.length]} p-5 hover:shadow-lg hover:shadow-brand-primary/5 transition-all duration-300`}
+              transition={{ delay: idx * 0.08 }}
+              className={`group relative rounded-2xl border-2 border-border/60 bg-linear-to-br ${COURSE_COLORS[idx % COURSE_COLORS.length]} p-5 hover:shadow-xl hover:shadow-brand-primary/5 hover:-translate-y-1 transition-all duration-300`}
             >
               {/* Course Icon */}
               <div
-                className="flex h-12 w-12 items-center justify-center rounded-xl mb-4"
+                className="flex h-12 w-12 items-center justify-center rounded-xl mb-4 border border-border/20 shadow-sm"
                 style={{
-                  backgroundColor: `color-mix(in oklab, ${ICON_COLORS[idx % ICON_COLORS.length]} 15%, transparent)`,
+                  backgroundColor: `color-mix(in oklab, ${ICON_COLORS[idx % ICON_COLORS.length]} 20%, transparent)`,
                 }}
               >
                 <BookOpen
-                  className="h-6 w-6"
+                  className="h-6 w-6 transition-transform duration-300 group-hover:scale-110"
                   style={{ color: ICON_COLORS[idx % ICON_COLORS.length] }}
                 />
               </div>
 
               {/* Course Info */}
-              <div className="space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-base font-semibold text-foreground leading-tight">
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-4">
+                  <h3 className="text-base font-semibold text-foreground leading-snug group-hover:text-brand-primary transition-colors line-clamp-2 pr-12">
                     {course.courseName}
                   </h3>
-                  <Badge
-                    variant="secondary"
-                    className="shrink-0 text-xs font-mono"
-                  >
-                    {course.courseCode}
-                  </Badge>
                 </div>
 
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   {course.department}
                 </p>
 
-                <div className="flex flex-wrap gap-2 mt-3">
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <GraduationCap className="h-3.5 w-3.5" />
-                    <span>{facultyName}</span>
+                <div className="h-px bg-border/40 my-2" />
+
+                <div className="flex flex-col gap-2 pt-1">
+                  <div className="flex items-center gap-2 text-xs text-foreground/80 font-medium">
+                    <GraduationCap className="h-4 w-4 text-brand-primary shrink-0" />
+                    <span className="truncate">Faculty: {facultyName}</span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Users className="h-3.5 w-3.5" />
-                    <span>{studentCount} students</span>
+                  <div className="flex items-center gap-2 text-xs text-foreground/80 font-medium">
+                    <Users className="h-4 w-4 text-brand-secondary shrink-0" />
+                    <span>Enrolled: {studentCount} students</span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Clock className="h-3.5 w-3.5" />
-                    <span>{course.creditHours} credit hrs</span>
+                  <div className="flex items-center gap-2 text-xs text-foreground/80 font-medium">
+                    <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span>Credit Hours: {course.creditHours} Credits</span>
                   </div>
                 </div>
               </div>
 
-              {/* Semester Badge */}
-              <div className="absolute top-4 right-4">
-                <Badge variant="outline" className="text-[10px]">
+              {/* Top-Right Badges */}
+              <div className="absolute top-5 right-5 flex flex-col items-end gap-1.5">
+                <Badge
+                  variant="secondary"
+                  className="shrink-0 text-[10px] font-bold border border-border bg-card py-0.5 px-1.5"
+                >
+                  {course.courseCode}
+                </Badge>
+                <Badge variant="outline" className="text-[10px] font-semibold bg-card border border-border py-0.5 px-1.5">
                   Sem {course.semester}
                 </Badge>
               </div>

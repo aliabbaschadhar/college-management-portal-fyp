@@ -131,6 +131,7 @@ export interface TimetableApiEntry {
   day: TimetableDay;
   startTime: string;
   endTime: string;
+  shift: string;
   course: TimetableCourseSummary;
 }
 
@@ -140,6 +141,7 @@ export interface TimetableMutationInput {
   day: TimetableDay;
   startTime: string;
   endTime: string;
+  shift: string;
 }
 
 // ─── Quiz & Question Bank ────────────────────────────────

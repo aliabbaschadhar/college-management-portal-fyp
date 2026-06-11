@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-guard";
 import { Prisma } from "@prisma/client";
@@ -17,7 +17,7 @@ export async function PATCH(
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { id } = await params;
-    const body = (await request.json()) as { status: "Approved" | "Rejected" | "Pending" };
+    const body = (await request.json()) as { status: "Approved" | "Rejected" | "Pending"; unblock?: boolean };
 
     if (!body.status || !["Approved", "Rejected", "Pending"].includes(body.status)) {
       return NextResponse.json(
@@ -26,127 +26,197 @@ export async function PATCH(
       );
     }
 
-    const admission = await prisma.admission.update({
-      where: { id },
-      data: { status: body.status },
-    });
+    let updatedAdmission;
 
-    const adminName = await getAdminName(userId);
-
-    // Auto-provision Student + User + Fees when approved
+    // Auto-provision Student + User + Enrollments when approved
     if (body.status === "Approved") {
       try {
-        // Check if a user with this email already exists
-        const existingUser = await prisma.user.findUnique({
-          where: { email: admission.email },
-          include: { student: true },
-        });
+        updatedAdmission = await prisma.$transaction(async (tx) => {
+          // 1. Update status
+          const adm = await tx.admission.update({
+            where: { id },
+            data: { status: "Approved" },
+          });
 
-        if (!existingUser) {
-          // Create User + Student + initial fees in a transaction
-          await prisma.$transaction(async (tx) => {
+          // 2. Check if a user with this email already exists
+          const existingUser = await tx.user.findUnique({
+            where: { email: adm.email },
+            include: { student: true },
+          });
+
+
+          if (!existingUser) {
+            // Create User + Student + enrollments
             const newUser = await tx.user.create({
               data: {
-                email: admission.email,
-                name: admission.studentName,
+                email: adm.email,
+                name: adm.studentName,
                 role: "STUDENT",
               },
             });
 
-            if (!admission.appliedDepartment) throw new Error("Missing appliedDepartment");
-            const safeDept = admission.appliedDepartment.length >= 2 ? admission.appliedDepartment.substring(0, 2).toUpperCase() : "XX";
-            const rollNo = `${safeDept}-${new Date().getFullYear()}-${admission.id.substring(0, 8).toUpperCase()}`;
+            if (!adm.appliedDepartment) throw new Error("Missing appliedDepartment");
+            const safeDept = adm.appliedDepartment.length >= 2 ? adm.appliedDepartment.substring(0, 2).toUpperCase() : "XX";
+            const rollNo = `${safeDept}-${new Date().getFullYear()}-${adm.id.substring(0, 8).toUpperCase()}`;
 
             const student = await tx.student.create({
               data: {
                 userId: newUser.id,
                 rollNo,
-                phone: admission.phone,
-                department: admission.appliedDepartment,
-                semester: 1,
+                phone: adm.phone,
+                department: adm.appliedDepartment,
+                semester: adm.semester,
+                shift: adm.shift,
+                enrollmentDate: new Date(),
               },
             });
 
-            // Create initial fees
-            const currentYear = new Date().getFullYear();
-            await tx.fee.createMany({
-              data: [
-                {
-                  studentId: student.id,
-                  type: "Tuition Fee",
-                  amount: 45000,
-                  dueDate: new Date(`${currentYear}-09-01`),
-                  semester: 1,
-                },
-                {
-                  studentId: student.id,
-                  type: "Admission Fee",
-                  amount: 15000,
-                  dueDate: new Date(`${currentYear}-08-01`),
-                  semester: 1,
-                },
-              ],
+            // Auto-enroll student in ALL courses matching department and semester
+            const courses = await tx.course.findMany({
+              where: {
+                department: adm.appliedDepartment,
+                semester: adm.semester,
+              },
             });
-          });
+            for (const course of courses) {
+              await tx.enrollment.create({
+                data: {
+                  studentId: student.id,
+                  courseId: course.id,
+                  semester: course.semester,
+                },
+              });
+            }
+          } else if (!existingUser.student) {
+            // User exists but has no Student record. Provision it!
+            await tx.user.update({
+              where: { id: existingUser.id },
+              data: { role: "STUDENT" },
+            });
 
-          try {
-            await logAuditAction({
-              action: "UPDATED",
-              entity: "Admission",
-              entityId: id,
-              description: `Approved admission for ${admission.studentName} — Student record, roll number, and initial fees auto-created`,
-              adminClerkId: userId,
-              adminName,
+            if (!adm.appliedDepartment) throw new Error("Missing appliedDepartment");
+            const safeDept = adm.appliedDepartment.length >= 2 ? adm.appliedDepartment.substring(0, 2).toUpperCase() : "XX";
+            const rollNo = `${safeDept}-${new Date().getFullYear()}-${adm.id.substring(0, 8).toUpperCase()}`;
+
+            const student = await tx.student.create({
+              data: {
+                userId: existingUser.id,
+                rollNo,
+                phone: adm.phone,
+                department: adm.appliedDepartment,
+                semester: adm.semester,
+                shift: adm.shift,
+                enrollmentDate: new Date(),
+              },
             });
-          } catch (auditError) {
-            console.error("Audit log failed:", auditError);
+
+            // Auto-enroll student in ALL courses matching department and semester
+            const courses = await tx.course.findMany({
+              where: {
+                department: adm.appliedDepartment,
+                semester: adm.semester,
+              },
+            });
+            for (const course of courses) {
+              await tx.enrollment.create({
+                data: {
+                  studentId: student.id,
+                  courseId: course.id,
+                  semester: course.semester,
+                },
+              });
+            }
           }
-        } else {
+
+          return adm;
+        });
+
+        // 3. Sync Clerk role to publicMetadata if linked account exists
+        const clerkUser = await prisma.user.findUnique({
+          where: { email: updatedAdmission.email },
+          select: { clerkId: true },
+        });
+
+        if (clerkUser?.clerkId) {
           try {
-            await logAuditAction({
-              action: "UPDATED",
-              entity: "Admission",
-              entityId: id,
-              description: `Approved admission for ${admission.studentName} — User already exists, skipped auto-creation`,
-              adminClerkId: userId,
-              adminName,
+            const client = await clerkClient();
+            await client.users.updateUserMetadata(clerkUser.clerkId, {
+              publicMetadata: { role: "student" },
             });
-          } catch (auditError) {
-            console.error("Audit log failed:", auditError);
+          } catch (clerkErr) {
+            console.error("Clerk metadata sync failed during admission approval:", clerkErr);
           }
         }
-      } catch (provisionError) {
-        console.error("Auto-provision error:", provisionError);
-        // Don't fail the status update — just log
-        try {
-          await logAuditAction({
-            action: "UPDATED",
-            entity: "Admission",
-            entityId: id,
-            description: `Approved admission for ${admission.studentName} — Auto-provisioning failed, manual setup needed`,
-            adminClerkId: userId,
-            adminName,
-          });
-        } catch (auditError) {
-          console.error("Audit log failed:", auditError);
-        }
-      }
-    } else {
-      try {
+
+        const adminName = await getAdminName(userId);
         await logAuditAction({
           action: "UPDATED",
           entity: "Admission",
           entityId: id,
-          description: `Changed admission status for ${admission.studentName} to ${body.status}`,
+          description: `Approved admission for ${updatedAdmission.studentName} — Student record and course enrollments auto-created`,
           adminClerkId: userId,
           adminName,
         });
-      } catch (auditError) {
-        console.error("Audit log failed:", auditError);
+      } catch (provisionError) {
+        console.error("Auto-provision error:", provisionError);
+        return NextResponse.json(
+          { error: provisionError instanceof Error ? provisionError.message : "Failed to auto-provision student account" },
+          { status: 500 }
+        );
       }
+    } else if (body.status === "Pending" && body.unblock) {
+      // Admin is unblocking a student — reset status and clear block flag
+      updatedAdmission = await prisma.admission.update({
+        where: { id },
+        data: { status: "Pending", blocked: false },
+      });
+
+      // Also clear blocked flag on ALL admissions for this email
+      await prisma.admission.updateMany({
+        where: { email: updatedAdmission.email, blocked: true },
+        data: { blocked: false },
+      });
+
+      const adminName = await getAdminName(userId);
+      await logAuditAction({
+        action: "UPDATED",
+        entity: "Admission",
+        entityId: id,
+        description: `Unblocked and reset admission for ${updatedAdmission.studentName} to Pending`,
+        adminClerkId: userId,
+        adminName,
+      });
+    } else {
+      updatedAdmission = await prisma.admission.update({
+        where: { id },
+        data: { status: body.status },
+      });
+
+      // Auto-block on 2nd rejection
+      if (body.status === "Rejected") {
+        const rejectedCount = await prisma.admission.count({
+          where: { email: updatedAdmission.email, status: "Rejected" },
+        });
+        if (rejectedCount >= 2) {
+          await prisma.admission.updateMany({
+            where: { email: updatedAdmission.email },
+            data: { blocked: true },
+          });
+        }
+      }
+
+      const adminName = await getAdminName(userId);
+      await logAuditAction({
+        action: "UPDATED",
+        entity: "Admission",
+        entityId: id,
+        description: `Changed admission status for ${updatedAdmission.studentName} to ${body.status}`,
+        adminClerkId: userId,
+        adminName,
+      });
     }
 
-    return NextResponse.json(admission);
+    return NextResponse.json(updatedAdmission);
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
       return NextResponse.json({ error: "Admission not found" }, { status: 404 });

@@ -75,20 +75,49 @@ export async function POST(req: Request) {
     }
 
     try {
-      await prisma.user.upsert({
-        where: { clerkId: id },
-        create: {
-          clerkId: id!,
-          email: email,
-          name: name,
-          role: role,
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { clerkId: id },
+            { email: email }
+          ]
         },
-        update: {
-          email: email,
-          name: name,
-          role: role,
-        },
+        include: { student: true }
       });
+
+      if (existingUser) {
+        if (existingUser.email === email && existingUser.clerkId && existingUser.clerkId !== id) {
+          // Stale Clerk user recreated. Clean up stale student profile
+          if (existingUser.student) {
+            await prisma.student.delete({
+              where: { id: existingUser.student.id }
+            });
+          }
+          // Delete admission records for the user's email to reset their onboarding form status
+          await prisma.admission.deleteMany({
+            where: { email }
+          });
+        }
+
+        await prisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            clerkId: id!,
+            email: email,
+            name: name,
+            role: role,
+          },
+        });
+      } else {
+        await prisma.user.create({
+          data: {
+            clerkId: id!,
+            email: email,
+            name: name,
+            role: role,
+          },
+        });
+      }
       console.log(
         `User ${id} successfully synced to database with role ${role}.`,
       );

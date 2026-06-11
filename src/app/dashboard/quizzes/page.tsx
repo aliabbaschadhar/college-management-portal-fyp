@@ -6,6 +6,7 @@ import { api } from "@/lib/axios";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion, AnimatePresence } from "framer-motion";
+import { ListSkeleton } from "@/components/ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -154,8 +155,15 @@ export default function ManageQuizzesPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground">
-        Loading quizzes...
+      <div className="space-y-6">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-2">
+            <div className="h-8 w-48 bg-muted animate-pulse border-2 border-border" />
+            <div className="h-4 w-72 bg-muted animate-pulse border-2 border-border" />
+          </div>
+          <div className="h-10 w-36 bg-muted animate-pulse border-2 border-border" />
+        </div>
+        <ListSkeleton count={4} />
       </div>
     );
   }

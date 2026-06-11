@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
+import { ListSkeleton } from "@/components/ui";
 
 interface AuditLogEntry {
   id: string;
@@ -86,8 +87,17 @@ export default function AuditLogPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center p-8">
-        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <div className="h-8 w-48 bg-muted animate-pulse border-2 border-border" />
+          <div className="h-4 w-72 bg-muted animate-pulse border-2 border-border" />
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="h-10 flex-1 min-w-[200px] bg-muted animate-pulse border-2 border-border" />
+          <div className="h-10 w-[160px] bg-muted animate-pulse border-2 border-border" />
+          <div className="h-10 w-[160px] bg-muted animate-pulse border-2 border-border" />
+        </div>
+        <ListSkeleton count={6} />
       </div>
     );
   }

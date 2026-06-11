@@ -4,6 +4,7 @@ import Link from "next/link";
 interface BreadcrumbItem {
   label: string;
   href?: string;
+  onClick?: () => void;
 }
 
 interface PageHeaderProps {
@@ -23,7 +24,14 @@ export function PageHeader({ title, subtitle, breadcrumbs, action }: PageHeaderP
             {breadcrumbs.map((crumb, index) => (
               <span key={index} className="flex items-center gap-1">
                 {index > 0 && <ChevronRight className="h-3.5 w-3.5" />}
-                {crumb.href ? (
+                {crumb.onClick ? (
+                  <button
+                    onClick={crumb.onClick}
+                    className="hover:text-foreground transition-colors bg-transparent border-none p-0 cursor-pointer focus:outline-none"
+                  >
+                    {crumb.label}
+                  </button>
+                ) : crumb.href ? (
                   <Link href={crumb.href} className="hover:text-foreground transition-colors">
                     {crumb.label}
                   </Link>

@@ -27,6 +27,30 @@ export async function GET(
     });
 
     if (!quiz) return NextResponse.json({ error: "Quiz not found" }, { status: 404 });
+
+    // Enforce authorization for student users
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true, student: { select: { id: true } } },
+    });
+
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    if (user.role === "STUDENT") {
+      if (!user.student) {
+        return NextResponse.json({ error: "Forbidden: Student profile not found" }, { status: 403 });
+      }
+      const enrollment = await prisma.enrollment.findFirst({
+        where: {
+          studentId: user.student.id,
+          courseId: quiz.courseId,
+        },
+      });
+      if (!enrollment) {
+        return NextResponse.json({ error: "Forbidden: Not enrolled in this course" }, { status: 403 });
+      }
+    }
+
     return NextResponse.json(quiz);
   } catch (error) {
     console.error("GET /api/quizzes/[id] error:", error);

@@ -15,6 +15,9 @@ interface AdmissionCreateBody {
   previousInstitution: string;
   marksObtained: number;
   totalMarks: number;
+  shift: string;
+  semester: number;
+  selectedCourses: string[];
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -51,6 +54,15 @@ function validateAdmissionBody(body: AdmissionCreateBody) {
   }
   if (body.marksObtained > body.totalMarks) {
     throw new ApiError("BAD_REQUEST", "marksObtained cannot exceed totalMarks", 400);
+  }
+  if (body.shift !== "Morning" && body.shift !== "Evening") {
+    throw new ApiError("BAD_REQUEST", "shift must be Morning or Evening", 400);
+  }
+  if (!Number.isInteger(body.semester) || body.semester < 1 || body.semester > 8) {
+    throw new ApiError("BAD_REQUEST", "semester must be an integer between 1 and 8", 400);
+  }
+  if (!Array.isArray(body.selectedCourses) || !body.selectedCourses.every(item => typeof item === "string")) {
+    throw new ApiError("BAD_REQUEST", "selectedCourses must be an array of strings", 400);
   }
 }
 
@@ -97,6 +109,11 @@ export async function GET(request: NextRequest) {
         previousInstitution: true,
         marksObtained: true,
         totalMarks: true,
+        fatherName: true,
+        cnic: true,
+        shift: true,
+        semester: true,
+        selectedCourses: true,
       },
       skip,
       take: limit,
@@ -113,8 +130,75 @@ export async function POST(request: NextRequest) {
   if (!userId) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
 
   try {
+    const adminsCount = await prisma.user.count({
+      where: { role: "ADMIN" },
+    });
+    if (adminsCount === 0) {
+      return errorResponse(
+        "BAD_REQUEST",
+        "Registration is currently disabled because no system administrators are registered. Please try again later.",
+        400
+      );
+    }
+
     const body = await parseJsonBody<AdmissionCreateBody>(request);
     validateAdmissionBody(body);
+
+    // --- Attempt Limiting ---
+    // 1. Check if student is blocked (2+ rejections)
+    const blockedAdmission = await prisma.admission.findFirst({
+      where: { email: body.email, blocked: true },
+    });
+    if (blockedAdmission) {
+      return errorResponse(
+        "FORBIDDEN",
+        "Your account has been blocked after multiple rejected applications. Please contact the admin office to request reactivation.",
+        403
+      );
+    }
+
+    // 2. Prevent duplicate submissions — cannot submit if a Pending one exists
+    const pendingAdmission = await prisma.admission.findFirst({
+      where: { email: body.email, status: "Pending" },
+    });
+    if (pendingAdmission) {
+      return errorResponse(
+        "BAD_REQUEST",
+        "You already have a pending admission application. Please wait for admin review.",
+        400
+      );
+    }
+
+    // 3. Count rejected admissions to warn / enforce limit
+    const rejectedCount = await prisma.admission.count({
+      where: { email: body.email, status: "Rejected" },
+    });
+    if (rejectedCount >= 2) {
+      return errorResponse(
+        "FORBIDDEN",
+        "Your account has been blocked after 2 rejected applications. Please contact the admin office.",
+        403
+      );
+    }
+
+    // 4. Validate selected courses matching target department and semester
+    if (body.selectedCourses.length > 0) {
+      const validCoursesCount = await prisma.course.count({
+        where: {
+          id: { in: body.selectedCourses },
+          department: body.appliedDepartment,
+          semester: body.semester,
+        },
+      });
+
+      if (validCoursesCount !== body.selectedCourses.length) {
+        return errorResponse(
+          "BAD_REQUEST",
+          "One or more selected courses are invalid for the chosen department and semester.",
+          400
+        );
+      }
+    }
 
     const admission = await prisma.admission.create({
       data: {
@@ -127,6 +211,9 @@ export async function POST(request: NextRequest) {
         previousInstitution: body.previousInstitution,
         marksObtained: body.marksObtained,
         totalMarks: body.totalMarks,
+        shift: body.shift,
+        semester: body.semester,
+        selectedCourses: body.selectedCourses,
       },
     });
 

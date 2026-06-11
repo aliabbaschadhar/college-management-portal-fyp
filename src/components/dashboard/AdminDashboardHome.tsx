@@ -18,6 +18,14 @@ import { PageHeader } from "@/components/dashboard/PageHeader";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
+  StatsCardSkeleton,
+  ChartSkeleton,
+  ListSkeleton,
+  TableSkeleton,
+} from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
+import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
@@ -86,13 +94,6 @@ interface AdminDashboardApiResponse {
 }
 
 const quickActions = [
-  {
-    title: "Add Student",
-    href: "/dashboard/students",
-    icon: UserPlus,
-    iconClass: "text-brand-primary",
-    bgClass: "bg-brand-primary/10",
-  },
   {
     title: "Mark Attendance",
     href: "/dashboard/attendance",
@@ -184,31 +185,36 @@ export default function AdminDashboardHome() {
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    api
-      .get<AdminDashboardApiResponse>("/api/dashboard/admin")
-      .then((r) => {
-        const payload = r.data;
-        if (payload.error) {
-          return { data: defaultData, logs: [] as AuditLogEntry[] };
-        }
-        return {
-          data: normalizeAdminDashboardData(payload),
-          logs: Array.isArray(payload.recentAuditLogs)
-            ? payload.recentAuditLogs
-            : [],
-        };
-      })
-      .then(({ data: d, logs }) => {
-        setData(d);
-        setAuditLogs(logs);
-      })
-      .catch(() => {
+  const fetchData = async (isRefresh = false) => {
+    if (!isRefresh) setLoading(true);
+    try {
+      const r = await api.get<AdminDashboardApiResponse>("/api/dashboard/admin");
+      const payload = r.data;
+      if (payload.error) {
         setData(defaultData);
         setAuditLogs([]);
-      })
-      .finally(() => setLoading(false));
+      } else {
+        setData(normalizeAdminDashboardData(payload));
+        setAuditLogs(
+          Array.isArray(payload.recentAuditLogs) ? payload.recentAuditLogs : []
+        );
+      }
+    } catch {
+      setData(defaultData);
+      setAuditLogs([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
   }, []);
+
+  const handleRefresh = () => {
+    setLoading(true);
+    fetchData(true);
+  };
 
   const barChartData = data.studentsPerDepartment.map((item, i) => ({
     department:
@@ -232,8 +238,36 @@ export default function AdminDashboardHome() {
 
   if (loading) {
     return (
-      <div className="flex justify-center p-8">
-        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      <div className="space-y-6">
+        <PageHeader
+          title="Dashboard Overview"
+          subtitle="Welcome back! Here's what's happening at your college today."
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              disabled
+              className="geo-pressable flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-not-allowed opacity-50"
+            >
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              Refresh
+            </Button>
+          }
+        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <StatsCardSkeleton />
+          <StatsCardSkeleton />
+          <StatsCardSkeleton />
+          <StatsCardSkeleton />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <ChartSkeleton />
+          <ChartSkeleton />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <ListSkeleton count={3} />
+          <TableSkeleton rows={5} />
+        </div>
       </div>
     );
   }
@@ -248,6 +282,17 @@ export default function AdminDashboardHome() {
       <PageHeader
         title="Dashboard Overview"
         subtitle="Welcome back! Here's what's happening at your college today."
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            className="geo-pressable flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </Button>
+        }
       />
 
       {/* Stats Cards */}
@@ -258,8 +303,9 @@ export default function AdminDashboardHome() {
         <StatsCard
           title="Total Students"
           value={data.stats.totalStudents}
-          trend="12%"
+          trend="Enrolled"
           trendDirection="up"
+          trendLabel="Current Status"
           icon={Users}
           iconColor="var(--color-brand-primary)"
           iconBg="rgb(var(--color-brand-primary-rgb) / 0.1)"
@@ -267,8 +313,9 @@ export default function AdminDashboardHome() {
         <StatsCard
           title="Total Faculty"
           value={data.stats.totalFaculty}
-          trend="3%"
+          trend="Active"
           trendDirection="up"
+          trendLabel="Current Status"
           icon={GraduationCap}
           iconColor="var(--color-brand-secondary)"
           iconBg="rgb(var(--color-brand-secondary-rgb) / 0.1)"
@@ -276,8 +323,9 @@ export default function AdminDashboardHome() {
         <StatsCard
           title="Active Courses"
           value={data.stats.activeCourses}
-          trend="5%"
+          trend="Offered"
           trendDirection="up"
+          trendLabel="Current Status"
           icon={BookOpen}
           iconColor="var(--color-data-3)"
           iconBg="color-mix(in oklab, var(--color-data-3) 10%, transparent)"
@@ -285,8 +333,9 @@ export default function AdminDashboardHome() {
         <StatsCard
           title="Pending Admissions"
           value={data.stats.pendingAdmissions}
-          trend="2"
-          trendDirection="down"
+          trend={data.stats.pendingAdmissions > 0 ? "Action Req." : "Clear"}
+          trendDirection={data.stats.pendingAdmissions > 0 ? "down" : "up"}
+          trendLabel="Admissions Status"
           icon={UserPlus}
           iconColor="var(--color-data-4)"
           iconBg="color-mix(in oklab, var(--color-data-4) 10%, transparent)"

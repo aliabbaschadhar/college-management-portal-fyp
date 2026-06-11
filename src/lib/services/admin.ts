@@ -30,7 +30,10 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     prisma.user.count({ where: { role: "FACULTY", faculty: { isNot: null } } }),
     prisma.course.count(),
     prisma.admission.count({ where: { status: "Pending" } }),
-    prisma.fee.findMany({ select: { amount: true, status: true } }),
+    prisma.fee.groupBy({
+      by: ["status"],
+      _sum: { amount: true },
+    }),
     prisma.attendance.groupBy({ by: ["status"], _count: { _all: true } }),
     prisma.student.groupBy({ by: ["department"], _count: { _all: true } }),
     prisma.announcement.findMany({
@@ -42,11 +45,11 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
   const totalFeeCollected = fees
     .filter((f) => f.status === "Paid")
-    .reduce((sum, f) => sum + f.amount, 0);
+    .reduce((sum, f) => sum + (f._sum.amount ?? 0), 0);
 
   const totalFeePending = fees
     .filter((f) => f.status !== "Paid")
-    .reduce((sum, f) => sum + f.amount, 0);
+    .reduce((sum, f) => sum + (f._sum.amount ?? 0), 0);
 
   const attendanceMap: Record<string, number> = {};
   let totalAttendance = 0;

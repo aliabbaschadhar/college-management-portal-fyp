@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     if (user.role === "STUDENT") {
       if (!user.student?.id) {
-        return NextResponse.json([]);
+        return NextResponse.json({ error: "Forbidden: Student profile not found" }, { status: 403 });
       }
 
       whereClause.course = {

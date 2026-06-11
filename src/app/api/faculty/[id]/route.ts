@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-guard";
@@ -66,26 +66,70 @@ export async function DELETE(
   if (denied) return denied;
 
   try {
-    const { userId } = await auth();
+    const { userId: adminClerkId } = await auth();
     const { id } = await params;
 
     const faculty = await prisma.faculty.findUnique({
       where: { id },
-      include: { user: { select: { name: true } } },
+      include: { user: true },
     });
 
-    await prisma.faculty.delete({ where: { id } });
+    if (!faculty) {
+      return NextResponse.json({ error: "Faculty not found" }, { status: 404 });
+    }
 
-    if (!userId) throw new Error("Missing userId after requireRole");
-    if (faculty) {
+    // 1. Release assigned courses
+    try {
+      await prisma.course.updateMany({
+        where: { assignedFaculty: id },
+        data: { assignedFaculty: null },
+      });
+    } catch (courseErr) {
+      console.error("Failed to release course assignments:", courseErr);
+    }
+
+    // 2. Delete from Clerk if clerkId exists
+    if (faculty.user.clerkId) {
       try {
-        const adminName = await getAdminName(userId);
+        const client = await clerkClient();
+        await client.users.deleteUser(faculty.user.clerkId);
+      } catch (clerkError) {
+        console.error("Clerk user deletion failed:", clerkError);
+      }
+    }
+
+    // 3. Delete onboarding requests and admissions associated with this email
+    try {
+      await Promise.all([
+        prisma.onboardingRequest.deleteMany({
+          where: { email: faculty.user.email },
+        }),
+        prisma.admission.deleteMany({
+          where: { email: faculty.user.email },
+        }),
+      ]);
+    } catch (reqError) {
+      console.error("Failed to delete associated setup requests during faculty delete:", reqError);
+    }
+
+    // 4. Delete User from PostgreSQL (which cascades to Faculty profile)
+    try {
+      await prisma.user.delete({
+        where: { id: faculty.userId },
+      });
+    } catch (dbError) {
+      console.log("User already deleted or database delete failed:", dbError);
+    }
+
+    if (adminClerkId) {
+      try {
+        const adminName = await getAdminName(adminClerkId);
         await logAuditAction({
           action: "DELETED",
           entity: "Faculty",
           entityId: id,
-          description: `Deleted faculty: ${faculty.user.name ?? "Unknown"}`,
-          adminClerkId: userId,
+          description: `Deleted faculty: ${faculty.user.name ?? "Unknown"} and all associated records from portal and authentication`,
+          adminClerkId: adminClerkId,
           adminName,
         });
       } catch (auditError) {

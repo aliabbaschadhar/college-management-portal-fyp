@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       select: {
         role: true,
         faculty: { select: { id: true } },
-        student: { select: { id: true } },
+        student: { select: { id: true, semester: true } },
       },
     });
 
@@ -89,11 +89,62 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Auto-initialize Grade records for enrolled students who do not have one yet
+    if (courseId) {
+      try {
+        const enrollments = await prisma.enrollment.findMany({
+          where: { courseId },
+          select: { studentId: true },
+        });
+
+        if (enrollments.length > 0) {
+          const existingGrades = await prisma.grade.findMany({
+            where: { courseId },
+            select: { studentId: true },
+          });
+
+          const existingStudentIds = new Set(existingGrades.map((g) => g.studentId));
+          const missingEnrollments = enrollments.filter(
+            (e) => !existingStudentIds.has(e.studentId)
+          );
+
+          if (missingEnrollments.length > 0) {
+            await prisma.grade.createMany({
+              data: missingEnrollments.map((e) => ({
+                studentId: e.studentId,
+                courseId,
+                quizMarks: 0,
+                assignmentMarks: 0,
+                midMarks: 0,
+                finalMarks: 0,
+                total: 0,
+                gpa: 0,
+              })),
+            });
+          }
+        }
+      } catch (initErr) {
+        console.error("Failed to auto-initialize grades:", initErr);
+      }
+    }
+
     const grades = await prisma.grade.findMany({
       where: {
         ...(courseId ? { courseId } : {}),
-        ...(studentId ? { studentId } : {}),
-        ...(!isAdmin && !isFaculty && user.student ? { studentId: user.student.id } : {}),
+        ...(studentId ? {
+          studentId,
+          ...(!isAdmin && !isFaculty && user.student ? {
+            course: {
+              semester: user.student.semester,
+            },
+          } : {}),
+        } : {}),
+        ...(!isAdmin && !isFaculty && user.student ? {
+          studentId: user.student.id,
+          course: {
+            semester: user.student.semester,
+          },
+        } : {}),
       },
       include: {
         student: {

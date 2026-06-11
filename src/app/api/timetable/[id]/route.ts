@@ -86,6 +86,7 @@ export async function PATCH(
         day: true,
         startTime: true,
         endTime: true,
+        shift: true,
       },
     });
 
@@ -99,6 +100,7 @@ export async function PATCH(
       day: string;
       startTime: string;
       endTime: string;
+      shift: string;
     }>;
 
     const mergedPayload = {
@@ -107,6 +109,7 @@ export async function PATCH(
       day: incoming.day ?? existing.day,
       startTime: incoming.startTime ?? existing.startTime,
       endTime: incoming.endTime ?? existing.endTime,
+      shift: incoming.shift ?? existing.shift,
     };
 
     const parsed = parseTimetablePayload(mergedPayload);
@@ -168,6 +171,7 @@ export async function PATCH(
         day: body.day,
         startTime: body.startTime,
         endTime: body.endTime,
+        shift: body.shift,
       },
       include: {
         course: {

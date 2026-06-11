@@ -4,6 +4,7 @@ export const TIMETABLE_DAYS = [
   "Wednesday",
   "Thursday",
   "Friday",
+  "Saturday",
 ] as const;
 
 export type TimetableDay = (typeof TIMETABLE_DAYS)[number];
@@ -24,6 +25,7 @@ export interface TimetablePayload {
   day: TimetableDay;
   startTime: string;
   endTime: string;
+  shift: string;
 }
 
 export function normalizeTimetableDay(input: string): TimetableDay | null {
@@ -66,6 +68,7 @@ export function parseTimetablePayload(payload: unknown):
   const dayRaw = String(input.day ?? "").trim();
   const startTime = String(input.startTime ?? "").trim();
   const endTime = String(input.endTime ?? "").trim();
+  const shift = String(input.shift ?? "Morning").trim();
 
   if (!courseId || !room || !dayRaw || !startTime || !endTime) {
     return {
@@ -79,6 +82,13 @@ export function parseTimetablePayload(payload: unknown):
     return {
       ok: false,
       error: `day must be one of: ${TIMETABLE_DAYS.join(", ")}`,
+    };
+  }
+
+  if (shift !== "Morning" && shift !== "Evening") {
+    return {
+      ok: false,
+      error: "shift must be either 'Morning' or 'Evening'",
     };
   }
 
@@ -104,6 +114,7 @@ export function parseTimetablePayload(payload: unknown):
       day,
       startTime,
       endTime,
+      shift,
     },
   };
 }

@@ -1,15 +1,24 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { errorResponse, handleApiError } from "@/lib/api-errors";
 
 export async function GET(request: NextRequest) {
-  const { userId } = await auth();
+  const { userId, sessionClaims } = await auth();
   if (!userId) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
 
-  const clerkUser = await currentUser();
-  const role = clerkUser?.publicMetadata?.role as string | undefined;
-  if (role?.toUpperCase() !== "ADMIN") {
+  const metadata = sessionClaims?.metadata as Record<string, unknown> | undefined;
+  let role = typeof metadata?.role === "string" ? metadata.role.toUpperCase() : undefined;
+
+  if (!role) {
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true },
+    });
+    role = dbUser?.role;
+  }
+
+  if (role !== "ADMIN") {
     return errorResponse("FORBIDDEN", "Admin access required", 403);
   }
 

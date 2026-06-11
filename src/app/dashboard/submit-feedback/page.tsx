@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Star, Send, MessageSquare, CheckCircle } from "lucide-react";
+import { Star, Send, MessageSquare, CheckCircle, Loader2 } from "lucide-react";
 import { api } from "@/lib/axios";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion } from "framer-motion";
@@ -33,6 +33,7 @@ interface PastFeedback {
   id: string;
   type: "Faculty" | "Course";
   targetId: string;
+  targetName?: string;
   rating: number;
   comment: string;
   date: string;
@@ -49,26 +50,35 @@ export default function SubmitFeedbackPage() {
   const [comment, setComment] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [initialLoading, setInitialLoading] = useState(true);
 
   useEffect(() => {
+    setInitialLoading(true);
     Promise.all([
-      api.get<CourseOption[]>("/courses"),
-      api.get<FacultyOption[]>("/faculty"),
-      api.get<PastFeedback[]>("/feedback"),
+      api.get<CourseOption[]>("/api/courses"),
+      api.get<FacultyOption[]>("/api/faculty"),
+      api.get<PastFeedback[]>("/api/feedback"),
     ])
       .then(([crsRes, facRes, fbRes]) => {
         setCourses(crsRes.data);
         setFacultyList(facRes.data);
         setPastFeedback(fbRes.data);
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error("Error loading feedback lists:", err);
+      })
+      .finally(() => {
+        setInitialLoading(false);
+      });
   }, []);
 
   const handleSubmit = async () => {
     if (!targetId || rating === 0) return;
     setSubmitting(true);
+    setErrorMsg("");
     try {
-      const res = await api.post<PastFeedback>("/feedback", {
+      const res = await api.post<PastFeedback>("/api/feedback", {
         type: feedbackType,
         targetId,
         rating,
@@ -83,8 +93,9 @@ export default function SubmitFeedbackPage() {
         setRating(0);
         setComment("");
       }, 3000);
-    } catch {
-      // silent fail
+    } catch (err) {
+      const axiosErr = err as { response?: { data?: { error?: string } } };
+      setErrorMsg(axiosErr.response?.data?.error ?? "Failed to submit feedback. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -100,14 +111,13 @@ export default function SubmitFeedbackPage() {
             onMouseEnter={() => setHoverRating(star)}
             onMouseLeave={() => setHoverRating(0)}
             onClick={() => setRating(star)}
-            className="p-0.5 transition-transform hover:scale-110"
+            className="p-0.5 transition-transform hover:scale-110 cursor-pointer"
           >
             <Star
-              className={`h-8 w-8 transition-colors ${
-                star <= (hoverRating || rating)
+              className={`h-8 w-8 transition-colors ${star <= (hoverRating || rating)
                   ? "fill-amber-400 text-amber-400"
                   : "text-muted-foreground/30"
-              }`}
+                }`}
             />
           </button>
         ))}
@@ -120,21 +130,34 @@ export default function SubmitFeedbackPage() {
     </div>
   );
 
-  const SubmitButton = () =>
-    submitted ? (
-      <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-        <CheckCircle className="h-5 w-5" />
-        <span className="text-sm font-medium">Feedback submitted successfully!</span>
-      </div>
-    ) : (
-      <Button
-        onClick={handleSubmit}
-        disabled={!targetId || rating === 0 || submitting}
-        className="w-full gap-2"
-      >
-        <Send className="h-4 w-4" /> {submitting ? "Submitting..." : "Submit Feedback"}
-      </Button>
-    );
+  const SubmitButton = () => (
+    <div className="space-y-3">
+      {errorMsg && (
+        <div className="p-3 rounded-lg border border-rose-500/25 bg-rose-500/5 text-rose-600 dark:text-rose-400 text-xs font-bold leading-normal">
+          ⚠️ {errorMsg}
+        </div>
+      )}
+      {submitted ? (
+        <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+          <CheckCircle className="h-5 w-5" />
+          <span className="text-sm font-medium">Feedback submitted successfully!</span>
+        </div>
+      ) : (
+        <Button
+          onClick={handleSubmit}
+          disabled={!targetId || rating === 0 || submitting}
+          className="w-full gap-2 cursor-pointer font-bold border-2 border-border shadow-[2px_2px_0px_0px_var(--border)] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_var(--border)] active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_var(--border)] transition-all"
+        >
+          {submitting ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Send className="h-4 w-4" />
+          )}
+          {submitting ? "Submitting..." : "Submit Feedback"}
+        </Button>
+      )}
+    </div>
+  );
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-6">
@@ -144,8 +167,16 @@ export default function SubmitFeedbackPage() {
         breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Feedback" }]}
       />
 
-      <div className="max-w-2xl mx-auto">
-        <Tabs value={feedbackType} onValueChange={(v) => { setFeedbackType(v as "Faculty" | "Course"); setTargetId(""); setRating(0); }}>
+      {initialLoading ? (
+        <div className="flex flex-col items-center justify-center py-20 bg-card border-2 border-border rounded-xl shadow-[4px_4px_0px_0px_var(--border)] max-w-2xl mx-auto">
+          <Loader2 className="h-8 w-8 animate-spin text-brand-primary mb-3" />
+          <p className="text-sm font-semibold text-muted-foreground animate-pulse">
+            Loading feedback details...
+          </p>
+        </div>
+      ) : (
+        <div className="max-w-2xl mx-auto">
+        <Tabs value={feedbackType} onValueChange={(v) => { setFeedbackType(v as "Faculty" | "Course"); setTargetId(""); setRating(0); setErrorMsg(""); }}>
           <TabsList className="w-full">
             <TabsTrigger value="Faculty" className="flex-1">Faculty Feedback</TabsTrigger>
             <TabsTrigger value="Course" className="flex-1">Course Feedback</TabsTrigger>
@@ -213,9 +244,15 @@ export default function SubmitFeedbackPage() {
           {pastFeedback.length === 0 ? (
             <p className="text-sm text-muted-foreground">No feedback submitted yet.</p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {pastFeedback.slice(0, 5).map((f) => (
-                <div key={f.id} className="flex items-center gap-3 rounded-lg p-3 bg-accent/20">
+                <div key={f.id} className="flex flex-col gap-2 rounded-lg p-4 bg-accent/20 border border-border/30">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-extrabold text-xs text-foreground truncate">
+                      {f.targetName || `Target ID: ${f.targetId.slice(0, 8)}...`}
+                    </span>
+                    <Badge variant="outline" className="text-[10px] px-1.5 uppercase font-bold tracking-wider">{f.type}</Badge>
+                  </div>
                   <div className="flex items-center gap-1">
                     {[1, 2, 3, 4, 5].map((s) => (
                       <Star
@@ -224,16 +261,17 @@ export default function SubmitFeedbackPage() {
                       />
                     ))}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-foreground truncate">{f.comment || "No comment"}</p>
-                  </div>
-                  <Badge variant="outline" className="text-xs">{f.type}</Badge>
+                  <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                    {f.comment || "No comment provided."}
+                  </p>
                 </div>
               ))}
             </div>
           )}
         </div>
       </div>
+    )}
     </motion.div>
   );
 }
+

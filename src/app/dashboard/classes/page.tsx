@@ -6,6 +6,7 @@ import { BookOpen, Users, ChevronDown, ChevronUp } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
+import { ListSkeleton } from "@/components/ui";
 
 interface StudentInCourse {
   id: string;
@@ -48,8 +49,12 @@ export default function ClassesPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center p-8">
-        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <div className="h-8 w-40 bg-muted animate-pulse border-2 border-border" />
+          <div className="h-4 w-72 bg-muted animate-pulse border-2 border-border" />
+        </div>
+        <ListSkeleton count={4} />
       </div>
     );
   }

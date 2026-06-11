@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/axios";
-import { Plus, Bell, Trash2, Calendar, Target, Info } from "lucide-react";
+import { Plus, Bell, Trash2, Calendar, Target, Info, Loader2 } from "lucide-react";
 import { AuditBadge } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
+import { ListSkeleton } from "@/components/ui";
 
 interface Announcement {
   id: string;
@@ -64,6 +65,8 @@ export default function AnnouncementsPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<AnnouncementForm>(emptyForm);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     api
@@ -77,6 +80,7 @@ export default function AnnouncementsPage() {
 
   const handleSave = async () => {
     if (!form.title || !form.content) return;
+    setCreating(true);
     try {
       const { data: created } = await api.post<Announcement>(
         "/api/announcements",
@@ -87,22 +91,34 @@ export default function AnnouncementsPage() {
       setForm(emptyForm);
     } catch {
       /* ignore */
+    } finally {
+      setCreating(false);
     }
   };
 
   const handleDelete = async (id: string) => {
+    setDeletingId(id);
     try {
       await api.delete(`/api/announcements/${id}`);
       setAnnouncements((prev) => prev.filter((a) => a.id !== id));
     } catch {
       /* ignore */
+    } finally {
+      setDeletingId(null);
     }
   };
 
   if (loading) {
     return (
-      <div className="flex justify-center p-8">
-        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      <div className="space-y-6">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-2">
+            <div className="h-8 w-48 bg-muted animate-pulse border-2 border-border" />
+            <div className="h-4 w-72 bg-muted animate-pulse border-2 border-border" />
+          </div>
+          <div className="h-10 w-44 bg-muted animate-pulse border-2 border-border" />
+        </div>
+        <ListSkeleton count={4} />
       </div>
     );
   }
@@ -168,10 +184,15 @@ export default function AnnouncementsPage() {
 
                   <button
                     onClick={() => handleDelete(a.id)}
-                    className="opacity-0 group-hover:opacity-100 p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all"
+                    disabled={deletingId !== null}
+                    className="opacity-0 group-hover:opacity-100 p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Delete announcement"
                   >
-                    <Trash2 className="h-5 w-5" />
+                    {deletingId === a.id ? (
+                      <Loader2 className="h-5 w-5 animate-spin text-destructive" />
+                    ) : (
+                      <Trash2 className="h-5 w-5" />
+                    )}
                   </button>
                 </div>
 
@@ -215,7 +236,7 @@ export default function AnnouncementsPage() {
       </div>
 
       {/* New Announcement Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!creating) setDialogOpen(open); }}>
         <DialogContent className="sm:max-w-[600px] border-none shadow-2xl overflow-hidden rounded-3xl">
           <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-r from-brand-primary via-brand-secondary to-brand-primary" />
           <DialogHeader className="pt-6">
@@ -238,6 +259,7 @@ export default function AnnouncementsPage() {
               </Label>
               <Input
                 id="title"
+                disabled={creating}
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
                 placeholder="e.g., Midterm Exam Schedule Released"
@@ -252,6 +274,7 @@ export default function AnnouncementsPage() {
                 </Label>
                 <Select
                   value={form.audience}
+                  disabled={creating}
                   onValueChange={(v) =>
                     setForm({
                       ...form,
@@ -275,6 +298,7 @@ export default function AnnouncementsPage() {
                 </Label>
                 <Select
                   value={form.priority}
+                  disabled={creating}
                   onValueChange={(v) =>
                     setForm({
                       ...form,
@@ -303,6 +327,7 @@ export default function AnnouncementsPage() {
               </Label>
               <Textarea
                 id="content"
+                disabled={creating}
                 value={form.content}
                 onChange={(e) => setForm({ ...form, content: e.target.value })}
                 placeholder="Detailed information goes here..."
@@ -314,6 +339,7 @@ export default function AnnouncementsPage() {
           <DialogFooter className="pb-6">
             <Button
               variant="ghost"
+              disabled={creating}
               onClick={() => setDialogOpen(false)}
               className="rounded-xl h-12 px-6"
             >
@@ -321,9 +347,11 @@ export default function AnnouncementsPage() {
             </Button>
             <Button
               onClick={handleSave}
-              className="bg-brand-primary hover:bg-brand-primary/90 text-white rounded-xl h-12 px-8 shadow-lg shadow-brand-primary/20"
+              disabled={creating || !form.title || !form.content}
+              className="bg-brand-primary hover:bg-brand-primary/90 text-white rounded-xl h-12 px-8 shadow-lg shadow-brand-primary/20 flex items-center justify-center gap-2"
             >
-              Post Announcement
+              {creating && <Loader2 className="h-4 w-4 animate-spin" />}
+              {creating ? "Posting..." : "Post Announcement"}
             </Button>
           </DialogFooter>
         </DialogContent>

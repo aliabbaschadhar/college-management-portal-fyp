@@ -1,4 +1,4 @@
-import { currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { SettingsTabs } from "./SettingsTabs";
@@ -8,11 +8,11 @@ import { SettingsTabs } from "./SettingsTabs";
  * Fetches the full profile record to power the split-panel settings UI.
  */
 export default async function SettingsPage() {
-  const clerkUser = await currentUser();
-  if (!clerkUser) redirect("/sign-in");
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
 
   const dbUser = await prisma.user.findUnique({
-    where: { clerkId: clerkUser.id },
+    where: { clerkId: userId },
     select: {
       id: true,
       name: true,

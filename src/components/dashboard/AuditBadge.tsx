@@ -89,7 +89,7 @@ export function AuditBadgeInline({ entity, entityId }: AuditBadgeProps) {
     <motion.span
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/70"
+      className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/70 ml-2"
     >
       {getIcon(latest.action)}
       <span>by {latest.adminName}</span>

@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
       select: {
         role: true,
         faculty: { select: { id: true } },
-        student: { select: { id: true } },
+        student: { select: { id: true, semester: true } },
       },
     });
 
@@ -51,7 +51,14 @@ export async function GET(request: NextRequest) {
     const attendances = await prisma.attendance.findMany({
       where: {
         ...(courseId ? { courseId } : {}),
-        ...(studentId ? { studentId } : {}),
+        ...(studentId ? {
+          studentId,
+          ...(user.role === "STUDENT" && user.student ? {
+            course: {
+              semester: user.student.semester,
+            },
+          } : {}),
+        } : {}),
         ...(date ? { date: new Date(date) } : {}),
       },
       include: {

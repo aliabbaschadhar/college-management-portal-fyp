@@ -29,6 +29,7 @@ model Student {
   semester       Int           @default(1)
   enrollmentDate DateTime      @default(now())
   avatar         String?
+  shift          String        @default("Morning")
   attendances    Attendance[]
   enrollments    Enrollment[]
   fees           Fee[]
@@ -81,6 +82,7 @@ model Enrollment {
   student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, courseId])
+  @@index([courseId])
 }
 
 model Attendance {
@@ -94,6 +96,7 @@ model Attendance {
   student   Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, courseId, date])
+  @@index([courseId])
 }
 
 model Fee {
@@ -106,6 +109,8 @@ model Fee {
   semester  Int
   paidDate  DateTime?
   student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
 }
 
 model Announcement {
@@ -129,6 +134,7 @@ model Feedback {
   student   Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, targetId, type])
+  @@index([studentId])
 }
 
 model Timetable {
@@ -138,7 +144,10 @@ model Timetable {
   day       String
   startTime String
   endTime   String
+  shift     String @default("Morning")
   course    Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
 }
 
 model Quiz {
@@ -153,6 +162,8 @@ model Quiz {
   questions  Question[]
   course     Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
   attempts   QuizAttempt[]
+
+  @@index([courseId])
 }
 
 model Question {
@@ -162,6 +173,8 @@ model Question {
   correctOption Int
   quizId        String
   quiz          Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@index([quizId])
 }
 
 model QuizAttempt {
@@ -174,6 +187,9 @@ model QuizAttempt {
   answers     Int[]
   quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
   student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([quizId])
+  @@index([studentId])
 }
 
 model Grade {
@@ -189,6 +205,9 @@ model Grade {
   locked          Boolean @default(false)
   course          Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
   student         Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([courseId])
 }
 
 model Admission {
@@ -204,6 +223,10 @@ model Admission {
   previousInstitution String
   marksObtained       Float
   totalMarks          Float
+  shift               String   @default("Morning")
+  semester            Int      @default(1)
+  selectedCourses     String[]
+  blocked             Boolean  @default(false)
 }
 
 model AuditLog {
@@ -222,11 +245,35 @@ model AuditLog {
   @@index([createdAt])
 }
 
+model OnboardingRequest {
+  id             String   @id @default(uuid())
+  email          String   @unique
+  name           String
+  role           Role
+  phone          String?
+  department     String?
+  specialization String?
+  status         String   @default("Pending") // "Pending" | "Approved" | "Rejected"
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model TimetableSettings {
+  id        String   @id @default(uuid())
+  shift     String   @unique // "Morning" or "Evening"
+  startTime String   @default("07:45")
+  duration  Int      @default(45)
+  slots     Int      @default(7)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 enum Role {
   STUDENT
   FACULTY
   ADMIN
 }
+
 
 enum AttendanceStatus {
   Present
@@ -251,6 +298,15 @@ enum Priority {
   Medium
   Low
 }
+
+model SystemSettings {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 
 enum FeedbackType {
   Faculty

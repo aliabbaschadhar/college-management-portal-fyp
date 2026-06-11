@@ -1,4 +1,4 @@
-import { auth, currentUser, clerkClient } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-guard";
@@ -68,8 +68,7 @@ export async function PATCH(
 
     // Audit log
     try {
-      const adminClerkUser = await currentUser();
-      const adminName = adminClerkUser?.fullName ?? (await getAdminName(adminClerkId));
+      const adminName = await getAdminName(adminClerkId);
       await logAuditAction({
         action: "UPDATED",
         entity: "User",
@@ -90,6 +89,86 @@ export async function PATCH(
     });
   } catch (error) {
     console.error("[PATCH /api/users/[id]] error:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const denied = await requireRole(["ADMIN"]);
+  if (denied) return denied;
+
+  try {
+    const { userId: adminClerkId } = await auth();
+    if (!adminClerkId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id } = await params;
+
+    // Find the target user
+    const targetUser = await prisma.user.findUnique({
+      where: { id },
+      include: { student: true, faculty: true },
+    });
+
+    if (!targetUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // Block self-deletion
+    if (targetUser.clerkId === adminClerkId) {
+      return NextResponse.json(
+        { error: "You cannot delete your own account" },
+        { status: 403 }
+      );
+    }
+
+    // 1. Delete from Clerk if clerkId exists
+    if (targetUser.clerkId) {
+      try {
+        const client = await clerkClient();
+        await client.users.deleteUser(targetUser.clerkId);
+      } catch (clerkError) {
+        console.error("Clerk user deletion failed:", clerkError);
+      }
+    }
+
+    // 2. Delete any Admissions or Onboarding requests associated with this email
+    try {
+      await Promise.all([
+        prisma.admission.deleteMany({ where: { email: targetUser.email } }),
+        prisma.onboardingRequest.deleteMany({ where: { email: targetUser.email } }),
+      ]);
+    } catch (admError) {
+      console.error("Failed to delete associated setup requests:", admError);
+    }
+
+    // 3. Delete from PostgreSQL (this cascades to Student / Faculty profiles automatically)
+    await prisma.user.delete({
+      where: { id },
+    });
+
+    // Audit log
+    try {
+      const adminName = await getAdminName(adminClerkId);
+      await logAuditAction({
+        action: "DELETED",
+        entity: "User",
+        entityId: id,
+        description: `Deleted user account: ${targetUser.name ?? targetUser.email} (${targetUser.role})`,
+        adminClerkId,
+        adminName,
+      });
+    } catch (auditError) {
+      console.error("Audit log failed:", auditError);
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("[DELETE /api/users/[id]] error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

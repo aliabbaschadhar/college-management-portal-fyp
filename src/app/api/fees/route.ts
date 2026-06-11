@@ -6,11 +6,14 @@ import { ApiError, errorResponse, handleApiError, parseJsonBody } from "@/lib/ap
 import { logAuditAction, getAdminName } from "@/lib/audit-log";
 
 interface FeeCreateBody {
-  studentId: string;
+  studentId?: string;
   type: string;
   amount: number;
   dueDate: string;
   semester: number;
+  isBulk?: boolean;
+  department?: string;
+  shift?: string;
 }
 
 const FEE_STATUSES = new Set<FeeStatus>(["Paid", "Unpaid", "Overdue"]);
@@ -28,8 +31,17 @@ function parseValidDate(value: string, fieldName: string): Date {
 }
 
 function validateFeeBody(body: FeeCreateBody) {
-  if (!isNonEmptyString(body.studentId)) {
-    throw new ApiError("BAD_REQUEST", "studentId is required", 400);
+  if (body.isBulk) {
+    if (!isNonEmptyString(body.department)) {
+      throw new ApiError("BAD_REQUEST", "department is required for bulk creation", 400);
+    }
+    if (!isNonEmptyString(body.shift)) {
+      throw new ApiError("BAD_REQUEST", "shift is required for bulk creation", 400);
+    }
+  } else {
+    if (!isNonEmptyString(body.studentId)) {
+      throw new ApiError("BAD_REQUEST", "studentId is required", 400);
+    }
   }
   if (!isNonEmptyString(body.type)) {
     throw new ApiError("BAD_REQUEST", "type is required", 400);
@@ -131,9 +143,57 @@ export async function POST(request: NextRequest) {
     validateFeeBody(body);
     const dueDate = parseValidDate(body.dueDate, "dueDate");
 
+    if (body.isBulk) {
+      // Find matching students
+      const targetStudents = await prisma.student.findMany({
+        where: {
+          department: body.department!,
+          semester: body.semester,
+          shift: body.shift!,
+        },
+        select: {
+          id: true,
+          user: { select: { name: true } },
+        },
+      });
+
+      if (targetStudents.length === 0) {
+        return errorResponse("BAD_REQUEST", "No students found in the specified class/shift", 400);
+      }
+
+      const feeRecords = targetStudents.map((student) => ({
+        studentId: student.id,
+        type: body.type,
+        amount: body.amount,
+        dueDate,
+        semester: body.semester,
+        status: "Unpaid" as const,
+      }));
+
+      await prisma.fee.createMany({
+        data: feeRecords,
+      });
+
+      try {
+        const adminName = await getAdminName(userId);
+        await logAuditAction({
+          action: "CREATED",
+          entity: "Fee",
+          entityId: "bulk-create",
+          description: `Bulk created ${body.type} of Rs. ${body.amount.toLocaleString()} for ${targetStudents.length} students in ${body.department} Semester ${body.semester} (${body.shift})`,
+          adminClerkId: userId,
+          adminName,
+        });
+      } catch (auditError) {
+        console.error("Audit log failed:", auditError);
+      }
+
+      return NextResponse.json({ count: targetStudents.length }, { status: 201 });
+    }
+
     const fee = await prisma.fee.create({
       data: {
-        studentId: body.studentId,
+        studentId: body.studentId!,
         type: body.type,
         amount: body.amount,
         dueDate,

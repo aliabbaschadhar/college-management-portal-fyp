@@ -5,6 +5,7 @@ import { BookOpen, Plus, Pencil, Trash2, CheckCircle } from "lucide-react";
 import { api } from "@/lib/axios";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion, AnimatePresence } from "framer-motion";
+import { ListSkeleton } from "@/components/ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -129,8 +130,18 @@ export default function QuestionBankPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center p-8">
-        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      <div className="space-y-6">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-2">
+            <div className="h-8 w-48 bg-muted animate-pulse border-2 border-border" />
+            <div className="h-4 w-72 bg-muted animate-pulse border-2 border-border" />
+          </div>
+          <div className="flex gap-3">
+            <div className="h-10 w-[200px] bg-muted animate-pulse border-2 border-border" />
+            <div className="h-10 w-36 bg-muted animate-pulse border-2 border-border" />
+          </div>
+        </div>
+        <ListSkeleton count={5} />
       </div>
     );
   }

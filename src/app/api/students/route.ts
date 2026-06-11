@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
       phone: s.phone,
       department: s.department,
       semester: s.semester,
+      shift: s.shift,
       enrollmentDate: s.enrollmentDate.toISOString(),
       avatar: s.avatar,
       user: {

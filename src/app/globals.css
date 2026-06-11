@@ -202,6 +202,17 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  button,
+  select,
+  input[type="button"],
+  input[type="submit"],
+  [role="button"],
+  [role="option"],
+  [role="menuitem"],
+  .cursor-pointer {
+    cursor: pointer !important;
+  }
 }
 
 /* Custom Neo-Brutalist / Sharp Geometric Utilities */

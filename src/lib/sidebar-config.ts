@@ -31,7 +31,7 @@ const adminNav: NavItem[] = [
   { title: "Manage Students", href: "/dashboard/students", icon: Users },
   { title: "Manage Faculty", href: "/dashboard/faculty", icon: GraduationCap },
   { title: "Manage Courses", href: "/dashboard/courses", icon: BookOpen },
-  { title: "Admissions", href: "/dashboard/admissions", icon: UserPlus, badge: 4 },
+  { title: "Admissions", href: "/dashboard/admissions", icon: UserPlus },
   { title: "Attendance", href: "/dashboard/attendance", icon: ClipboardCheck },
   { title: "Manage Dues", href: "/dashboard/dues", icon: CreditCard },
   { title: "Announcements", href: "/dashboard/announcements", icon: MessageSquare },

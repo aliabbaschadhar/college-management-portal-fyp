@@ -1,14 +1,24 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { UserManagementClient } from "./UserManagementClient";
+import prisma from "@/lib/prisma";
 
 export default async function UsersPage() {
-  const { userId } = await auth();
+  const { userId, sessionClaims } = await auth();
   if (!userId) redirect("/sign-in");
 
-  const clerkUser = await currentUser();
-  const role = clerkUser?.publicMetadata?.role as string | undefined;
-  if (role?.toUpperCase() !== "ADMIN") redirect("/dashboard");
+  const metadata = sessionClaims?.metadata as Record<string, unknown> | undefined;
+  let role = typeof metadata?.role === "string" ? metadata.role.toUpperCase() : undefined;
+
+  if (!role) {
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true },
+    });
+    role = dbUser?.role;
+  }
+
+  if (role !== "ADMIN") redirect("/dashboard");
 
   return <UserManagementClient />;
 }

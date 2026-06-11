@@ -65,7 +65,16 @@ export async function GET(request: NextRequest) {
       ...(type ? { type } : {}),
     };
 
-    if (!isAdmin && !isFaculty) {
+    if (isFaculty) {
+      if (!user.faculty) {
+        return errorResponse("FORBIDDEN", "Forbidden: Faculty profile not found", 403);
+      }
+      whereClause = {
+        ...whereClause,
+        type: "Faculty",
+        targetId: user.faculty.id,
+      };
+    } else if (!isAdmin) {
       // Students can only see their own feedback
       if (!user.student) {
         return errorResponse("FORBIDDEN", "Forbidden", 403);
@@ -75,18 +84,42 @@ export async function GET(request: NextRequest) {
 
     const feedbacks = await prisma.feedback.findMany({
       where: whereClause,
-      select: {
-        id: true,
-        type: true,
-        targetId: true,
-        rating: true,
-        comment: true,
-        date: true,
-        // studentId intentionally excluded from public response
-      },
+      orderBy: { date: "desc" },
     });
 
-    return NextResponse.json(feedbacks);
+    const courseIds = feedbacks.filter((f) => f.type === "Course").map((f) => f.targetId);
+    const facultyIds = feedbacks.filter((f) => f.type === "Faculty").map((f) => f.targetId);
+
+    const [courses, faculties] = await Promise.all([
+      prisma.course.findMany({
+        where: { id: { in: courseIds } },
+        select: { id: true, courseCode: true, courseName: true },
+      }),
+      prisma.faculty.findMany({
+        where: { id: { in: facultyIds } },
+        select: {
+          id: true,
+          user: { select: { name: true } },
+        },
+      }),
+    ]);
+
+    const courseMap = new Map(courses.map((c) => [c.id, `${c.courseCode} — ${c.courseName}`]));
+    const facultyMap = new Map(faculties.map((f) => [f.id, f.user.name || "Unknown"]));
+
+    const result = feedbacks.map((f) => ({
+      id: f.id,
+      type: f.type,
+      targetId: f.targetId,
+      targetName: f.type === "Course"
+        ? (courseMap.get(f.targetId) || "Unknown Course")
+        : (facultyMap.get(f.targetId) || "Unknown Faculty"),
+      rating: f.rating,
+      comment: f.comment,
+      date: f.date.toISOString(),
+    }));
+
+    return NextResponse.json(result);
   } catch (error) {
     return handleApiError("GET /api/feedback", error);
   }
@@ -135,18 +168,32 @@ export async function POST(request: NextRequest) {
         rating: body.rating,
         comment: body.comment ?? "",
       },
-      select: {
-        id: true,
-        type: true,
-        targetId: true,
-        rating: true,
-        comment: true,
-        date: true,
-        // studentId not returned — anonymization
-      },
     });
 
-    return NextResponse.json(feedback, { status: 201 });
+    let targetName = "Unknown";
+    if (body.type === "Course") {
+      const c = await prisma.course.findUnique({
+        where: { id: body.targetId },
+        select: { courseCode: true, courseName: true },
+      });
+      if (c) targetName = `${c.courseCode} — ${c.courseName}`;
+    } else {
+      const f = await prisma.faculty.findUnique({
+        where: { id: body.targetId },
+        select: { user: { select: { name: true } } },
+      });
+      if (f) targetName = f.user.name || "Unknown";
+    }
+
+    return NextResponse.json({
+      id: feedback.id,
+      type: feedback.type,
+      targetId: feedback.targetId,
+      targetName,
+      rating: feedback.rating,
+      comment: feedback.comment,
+      date: feedback.date.toISOString(),
+    }, { status: 201 });
   } catch (error) {
     return handleApiError("POST /api/feedback", error);
   }

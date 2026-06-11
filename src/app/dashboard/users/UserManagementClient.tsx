@@ -10,10 +10,12 @@ import {
   Check,
   X,
   AlertTriangle,
+  Trash2,
 } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
+import { CardSkeleton, TableSkeleton } from "@/components/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -94,6 +96,28 @@ export function UserManagementClient() {
     setTimeout(() => setToast(null), 3500);
   };
 
+  const [pendingDelete, setPendingDelete] = useState<UserRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteUser = async () => {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/api/users/${pendingDelete.id}`);
+      setUsers((prev) => prev.filter((u) => u.id !== pendingDelete.id));
+      showToast(`User ${pendingDelete.name ?? pendingDelete.email} successfully deleted.`);
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } };
+      showToast(
+        axiosErr.response?.data?.error ?? "Failed to delete user — please try again",
+        false,
+      );
+    } finally {
+      setDeleting(false);
+      setPendingDelete(null);
+    }
+  };
+
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
@@ -148,7 +172,6 @@ export function UserManagementClient() {
     }
   };
 
-  const adminCount = users.filter((u) => u.role === "ADMIN").length;
   const facultyCount = users.filter((u) => u.role === "FACULTY").length;
   const studentCount = users.filter((u) => u.role === "STUDENT").length;
 
@@ -169,35 +192,43 @@ export function UserManagementClient() {
       />
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatsCard
-          title="Total Users"
-          value={users.length}
-          trend="Registered accounts"
-          trendDirection="up"
-          icon={Users2}
-          iconColor="#6366f1"
-          iconBg="#6366f120"
-        />
-        <StatsCard
-          title="Faculty"
-          value={facultyCount}
-          trend="Teaching staff"
-          trendDirection="up"
-          icon={Shield}
-          iconColor="#10b981"
-          iconBg="#10b98120"
-        />
-        <StatsCard
-          title="Students"
-          value={studentCount}
-          trend="Enrolled learners"
-          trendDirection="up"
-          icon={Users2}
-          iconColor="#f59e0b"
-          iconBg="#f59e0b20"
-        />
-      </div>
+      {loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <StatsCard
+            title="Total Users"
+            value={users.length}
+            trend="Registered accounts"
+            trendDirection="up"
+            icon={Users2}
+            iconColor="#6366f1"
+            iconBg="#6366f120"
+          />
+          <StatsCard
+            title="Faculty"
+            value={facultyCount}
+            trend="Teaching staff"
+            trendDirection="up"
+            icon={Shield}
+            iconColor="#10b981"
+            iconBg="#10b98120"
+          />
+          <StatsCard
+            title="Students"
+            value={studentCount}
+            trend="Enrolled learners"
+            trendDirection="up"
+            icon={Users2}
+            iconColor="#f59e0b"
+            iconBg="#f59e0b20"
+          />
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
@@ -231,55 +262,48 @@ export function UserManagementClient() {
       </div>
 
       {/* Table */}
-      <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/40">
-                <th className="text-left py-3 px-4 font-semibold text-foreground">
-                  User
-                </th>
-                <th className="text-center py-3 px-3 font-semibold text-foreground">
-                  Role
-                </th>
-                <th className="text-center py-3 px-3 font-semibold text-foreground hidden md:table-cell">
-                  ID
-                </th>
-                <th className="text-center py-3 px-3 font-semibold text-foreground hidden lg:table-cell">
-                  Joined
-                </th>
-                <th className="text-center py-3 px-3 font-semibold text-foreground hidden xl:table-cell">
-                  Audit
-                </th>
-                <th className="text-center py-3 px-4 font-semibold text-foreground">
-                  Change Role
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i} className="border-b border-border/50">
-                    {Array.from({ length: 6 }).map((__, j) => (
-                      <td key={j} className="py-3 px-4">
-                        <div className="h-4 rounded-md bg-muted/60 animate-pulse w-full" />
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              ) : users.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="text-center py-16 text-muted-foreground"
-                  >
-                    <Users2 className="h-10 w-10 mx-auto mb-3 opacity-30" />
-                    <p className="font-medium">No users found</p>
-                    <p className="text-xs mt-1">
-                      Try adjusting your search or role filter
-                    </p>
-                  </td>
+      {loading ? (
+        <TableSkeleton rows={8} />
+      ) : (
+        <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/40">
+                  <th className="text-left py-3 px-4 font-semibold text-foreground">
+                    User
+                  </th>
+                  <th className="text-center py-3 px-3 font-semibold text-foreground">
+                    Role
+                  </th>
+                  <th className="text-center py-3 px-3 font-semibold text-foreground hidden md:table-cell">
+                    ID
+                  </th>
+                  <th className="text-center py-3 px-3 font-semibold text-foreground hidden lg:table-cell">
+                    Joined
+                  </th>
+                  <th className="text-center py-3 px-3 font-semibold text-foreground hidden xl:table-cell">
+                    Audit
+                  </th>
+                  <th className="text-center py-3 px-4 font-semibold text-foreground">
+                    Change Role
+                  </th>
                 </tr>
+              </thead>
+              <tbody>
+                {users.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="text-center py-16 text-muted-foreground"
+                    >
+                      <Users2 className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                      <p className="font-medium">No users found</p>
+                      <p className="text-xs mt-1">
+                        Try adjusting your search or role filter
+                      </p>
+                    </td>
+                  </tr>
               ) : (
                 users.map((user, idx) => (
                   <motion.tr
@@ -367,6 +391,15 @@ export function UserManagementClient() {
                         >
                           Apply <ChevronRight className="h-3 w-3" />
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 rounded-lg text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                          onClick={() => setPendingDelete(user)}
+                          title="Delete User"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </td>
                   </motion.tr>
@@ -376,6 +409,7 @@ export function UserManagementClient() {
           </table>
         </div>
       </div>
+      )}
 
       {/* Confirmation Dialog */}
       <Dialog
@@ -459,6 +493,73 @@ export function UserManagementClient() {
               ) : (
                 <>
                   <Check className="h-4 w-4" /> Confirm Change
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deletion Dialog */}
+      <Dialog
+        open={!!pendingDelete}
+        onOpenChange={() => setPendingDelete(null)}
+      >
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-foreground">
+              <AlertTriangle className="h-5 w-5 text-rose-500" />
+              Confirm User Deletion
+            </DialogTitle>
+          </DialogHeader>
+
+          {pendingDelete && (
+            <div className="space-y-4 py-2">
+              {/* User preview */}
+              <div className="flex items-center gap-3 p-4 rounded-xl bg-muted/30 border border-border">
+                <AvatarCircle
+                  name={pendingDelete.name}
+                  role={pendingDelete.role}
+                />
+                <div>
+                  <p className="font-semibold text-foreground">
+                    {pendingDelete.name ?? pendingDelete.email}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {pendingDelete.email}
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 dark:bg-rose-950/30 dark:border-rose-900/50">
+                <p className="text-xs text-rose-700 dark:text-rose-400 font-medium">
+                  WARNING: This action is permanent. Deleting this user will immediately remove their account from Clerk, clear their Postgres record, and delete all associated student/faculty data.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setPendingDelete(null)}
+              className="rounded-xl"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDeleteUser}
+              disabled={deleting}
+              className="bg-rose-600 text-white hover:bg-rose-700 rounded-xl gap-2"
+            >
+              {deleting ? (
+                <>
+                  <div className="h-4 w-4 animate-spin border-2 border-white/40 border-t-white rounded-full" />
+                  Deleting…
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" /> Delete Account
                 </>
               )}
             </Button>

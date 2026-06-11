@@ -1,26 +1,71 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { ensureStudentEnrollments } from "@/lib/services/student";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     // Load user to determine filtering
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { role: true, faculty: { select: { id: true } } },
+      select: {
+        role: true,
+        faculty: { select: { id: true } },
+        student: { select: { id: true, department: true, semester: true } },
+      },
     });
 
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    // Faculty users only see courses assigned to them
-    const whereClause: { assignedFaculty?: string } = {};
-    if (user.role === "FACULTY" && user.faculty) {
-      whereClause.assignedFaculty = user.faculty.id;
+    if (!user) {
+      // Provision user as STUDENT by default if authenticated in Clerk
+      const clerkUser = await currentUser();
+      if (!clerkUser) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      const email = clerkUser.emailAddresses[0]?.emailAddress;
+      if (!email) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      const name = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ");
+      user = await prisma.user.create({
+        data: {
+          clerkId: userId,
+          email,
+          name: name || "New User",
+          role: "STUDENT",
+        },
+        select: {
+          role: true,
+          faculty: { select: { id: true } },
+          student: { select: { id: true, department: true, semester: true } },
+        },
+      });
     }
+
+    // Build where clause based on role
+    const whereClause: Prisma.CourseWhereInput = {};
+
+    if (user.role === "FACULTY" && user.faculty) {
+      // Faculty only see courses assigned to them
+      whereClause.assignedFaculty = user.faculty.id;
+    } else if (user.role === "STUDENT") {
+      if (user.student) {
+        // Self-healing enrollments sync
+        await ensureStudentEnrollments(user.student.id, user.student.department, user.student.semester);
+
+        // Students only see courses they are enrolled in for their current semester
+        whereClause.semester = user.student.semester;
+        whereClause.enrollments = {
+          some: { studentId: user.student.id },
+        };
+      }
+      // If no student profile exists, they are onboarding.
+      // Do not filter by enrollment (allows listing all courses in the catalog).
+    }
+    // Admin sees all courses (no filter)
 
     const courses = await prisma.course.findMany({
       where: whereClause,

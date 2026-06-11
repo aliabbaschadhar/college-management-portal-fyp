@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { TableSkeleton } from "@/components/ui";
 import { motion } from "framer-motion";
 
 interface FacultyWithUser {
@@ -79,6 +80,7 @@ export default function ManageFacultyPage() {
     useState<FacultyWithUser | null>(null);
   const [form, setForm] = useState<FacultyForm>(emptyForm);
   const [filterDept, setFilterDept] = useState<string>("all");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     api
@@ -107,6 +109,7 @@ export default function ManageFacultyPage() {
 
   const handleSave = async () => {
     if (!editingFaculty || !form.department) return;
+    setSaving(true);
     try {
       const { data: updated } = await api.patch<FacultyWithUser>(
         `/api/faculty/${editingFaculty.id}`,
@@ -118,11 +121,14 @@ export default function ManageFacultyPage() {
       setDialogOpen(false);
     } catch {
       /* ignore */
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleDelete = async () => {
     if (!deletingFaculty) return;
+    setSaving(true);
     try {
       await api.delete(`/api/faculty/${deletingFaculty.id}`);
       setFaculty((prev) => prev.filter((f) => f.id !== deletingFaculty.id));
@@ -130,6 +136,8 @@ export default function ManageFacultyPage() {
       setDeletingFaculty(null);
     } catch {
       /* ignore */
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -213,8 +221,15 @@ export default function ManageFacultyPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center p-8">
-        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      <div className="space-y-6">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-2">
+            <div className="h-8 w-48 bg-muted animate-pulse border-2 border-border" />
+            <div className="h-4 w-64 bg-muted animate-pulse border-2 border-border" />
+          </div>
+          <div className="h-10 w-32 bg-muted animate-pulse border-2 border-border" />
+        </div>
+        <TableSkeleton rows={8} />
       </div>
     );
   }
@@ -247,16 +262,6 @@ export default function ManageFacultyPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Button
-              onClick={() =>
-                alert(
-                  "Faculty are created automatically when they register via the Clerk sign-up flow with the 'faculty' role.",
-                )
-              }
-              className="bg-brand-primary hover:bg-brand-primary/90 text-white"
-            >
-              <Plus className="h-4 w-4 mr-2" /> Add Faculty
-            </Button>
           </div>
         }
       />
@@ -317,14 +322,15 @@ export default function ManageFacultyPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+            <Button variant="outline" disabled={saving} onClick={() => setDialogOpen(false)}>
               Cancel
             </Button>
             <Button
               onClick={handleSave}
-              className="bg-brand-primary hover:bg-brand-primary/90 text-white"
+              disabled={saving}
+              className="bg-brand-primary hover:bg-brand-primary/90 text-white min-w-[140px]"
             >
-              Update Faculty
+              {saving ? "Saving..." : "Update Faculty"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -343,12 +349,13 @@ export default function ManageFacultyPage() {
           <DialogFooter>
             <Button
               variant="outline"
+              disabled={saving}
               onClick={() => setDeleteDialogOpen(false)}
             >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDelete}>
-              <Trash2 className="h-4 w-4 mr-2" /> Delete
+            <Button variant="destructive" disabled={saving} onClick={handleDelete} className="min-w-[100px]">
+              {saving ? "Deleting..." : <><Trash2 className="h-4 w-4 mr-2" /> Delete</>}
             </Button>
           </DialogFooter>
         </DialogContent>

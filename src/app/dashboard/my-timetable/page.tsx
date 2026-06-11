@@ -5,6 +5,7 @@ import { api } from "@/lib/axios";
 import { Clock } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion } from "framer-motion";
+import { TableSkeleton } from "@/components/ui";
 
 interface TimetableEntry {
   id: string;
@@ -22,19 +23,8 @@ interface TimetableEntry {
   };
 }
 
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-const TIME_SLOTS = [
-  "08:00",
-  "09:00",
-  "10:00",
-  "11:00",
-  "12:00",
-  "13:00",
-  "14:00",
-  "15:00",
-  "16:00",
-  "17:00",
-];
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
 
 const COLOR_PALETTE = [
   {
@@ -69,19 +59,88 @@ const COLOR_PALETTE = [
   },
 ];
 
+interface StudentProfile {
+  department: string;
+  semester: number;
+  shift: string;
+}
+
+const timeToMinutes = (t: string) => {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+};
+
+const format12Hour = (timeStr: string) => {
+  const [hStr, mStr] = timeStr.split(":");
+  const h = parseInt(hStr);
+  const ampm = h >= 12 ? "PM" : "AM";
+  const hour12 = h % 12 === 0 ? 12 : h % 12;
+  return `${hour12}:${mStr} ${ampm}`;
+};
+
 export default function MyTimetablePage() {
   const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
+  const [studentProfile, setStudentProfile] = useState<StudentProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Dynamic grid configuration states
+  const [gridStart, setGridStart] = useState("07:45");
+  const [gridDuration, setGridDuration] = useState(45);
+  const [gridSlotsCount, setGridSlotsCount] = useState(7);
+
   useEffect(() => {
-    api
-      .get<TimetableEntry[]>("/api/timetable")
-      .then((r) => {
-        setTimetable(r.data);
+    Promise.all([
+      api.get<TimetableEntry[]>("/api/timetable"),
+      api.get<{ studentProfile?: StudentProfile }>("/api/dashboard/student").catch(() => null)
+    ])
+      .then(([ttRes, profileRes]) => {
+        const rawTimetable = Array.isArray(ttRes.data) ? ttRes.data : [];
+        const filteredTimetable = rawTimetable.filter(
+          (t) => t.course?.courseCode?.toUpperCase() !== "CC-411"
+        );
+        setTimetable(filteredTimetable);
+        if (profileRes && profileRes.data && profileRes.data.studentProfile) {
+          setStudentProfile(profileRes.data.studentProfile);
+        }
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!studentProfile) return;
+    const shift = studentProfile.shift || "Morning";
+    api
+      .get(`/api/timetable/settings?shift=${shift}`)
+      .then((res) => {
+        if (res.data) {
+          setGridStart(res.data.startTime);
+          setGridDuration(res.data.duration);
+          setGridSlotsCount(res.data.slots);
+        }
+      })
+      .catch((err) => console.error("Error fetching student timetable settings:", err));
+  }, [studentProfile]);
+
+  const slots = useMemo(() => {
+    const list = [];
+    if (!gridStart || !/^([01]\d|2[0-3]):([0-5]\d)$/.test(gridStart)) {
+      return [];
+    }
+    let [h, m] = gridStart.split(":").map(Number);
+    for (let i = 0; i < gridSlotsCount; i++) {
+      const startStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      m += gridDuration;
+      if (m >= 60) {
+        h += Math.floor(m / 60);
+        m = m % 60;
+        h = h % 24;
+      }
+      const endStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      list.push({ start: startStr, end: endStr });
+    }
+    return list;
+  }, [gridStart, gridDuration, gridSlotsCount]);
 
   const uniqueCourses = useMemo(() => {
     const seen = new Set<string>();
@@ -112,27 +171,55 @@ export default function MyTimetablePage() {
   ];
   const todayName = days[new Date().getDay()];
 
-  const getClassForSlot = (day: string, time: string) => {
+  const getClassForSlot = (day: string, slot: { start: string; end: string }) => {
+    const slotStart = timeToMinutes(slot.start);
+    const slotEnd = timeToMinutes(slot.end);
     return timetable.find((t) => {
       if (t.day !== day) return false;
-      const slotHour = parseInt(time.split(":")[0]);
-      const startHour = parseInt(t.startTime.split(":")[0]);
-      const endHour = parseInt(t.endTime.split(":")[0]);
-      return slotHour >= startHour && slotHour < endHour;
+      const classStart = timeToMinutes(t.startTime);
+      const classEnd = timeToMinutes(t.endTime);
+      return classStart < slotEnd && classEnd > slotStart;
     });
   };
 
-  const isCurrentSlot = (day: string, time: string) => {
+  const isFirstSlotForClass = (cls: TimetableEntry, slot: { start: string; end: string }, slotsList: typeof slots) => {
+    const classStart = timeToMinutes(cls.startTime);
+    const classEnd = timeToMinutes(cls.endTime);
+    const firstMatch = slotsList.find((s) => {
+      const sStart = timeToMinutes(s.start);
+      const sEnd = timeToMinutes(s.end);
+      return classStart < sEnd && classEnd > sStart;
+    });
+    return firstMatch && firstMatch.start === slot.start && firstMatch.end === slot.end;
+  };
+
+  const getClassRowSpan = (cls: TimetableEntry, slotsList: typeof slots) => {
+    const classStart = timeToMinutes(cls.startTime);
+    const classEnd = timeToMinutes(cls.endTime);
+    return slotsList.filter((s) => {
+      const sStart = timeToMinutes(s.start);
+      const sEnd = timeToMinutes(s.end);
+      return classStart < sEnd && classEnd > sStart;
+    }).length;
+  };
+
+  const isCurrentSlot = (day: string, slot: { start: string; end: string }) => {
     if (day !== todayName) return false;
     const now = new Date();
-    const slotHour = parseInt(time.split(":")[0]);
-    return now.getHours() === slotHour;
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const startM = timeToMinutes(slot.start);
+    const endM = timeToMinutes(slot.end);
+    return currentMinutes >= startM && currentMinutes < endM;
   };
 
   if (loading) {
     return (
-      <div className="flex justify-center p-8">
-        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <div className="h-8 w-48 bg-muted animate-pulse border-2 border-border" />
+          <div className="h-4 w-56 bg-muted animate-pulse border-2 border-border" />
+        </div>
+        <TableSkeleton rows={6} />
       </div>
     );
   }
@@ -164,7 +251,7 @@ export default function MyTimetablePage() {
             >
               <div className={`h-2.5 w-2.5 rounded-full ${colors?.bg}`} />
               <span className={`text-xs font-medium ${colors?.text}`}>
-                {t.course.courseCode}
+                {t.course.courseCode} - {t.course.courseName}
               </span>
             </div>
           );
@@ -176,18 +263,17 @@ export default function MyTimetablePage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border bg-muted/50">
-                <th className="text-left py-3 px-4 font-semibold text-foreground w-20">
+              <tr className="border-b border-border bg-muted/55">
+                <th className="text-left py-3 px-4 font-semibold text-foreground w-24">
                   <Clock className="h-4 w-4" />
                 </th>
                 {DAYS.map((day) => (
                   <th
                     key={day}
-                    className={`text-center py-3 px-2 font-semibold min-w-[140px] ${
-                      day === todayName
+                    className={`text-center py-3 px-2 font-semibold min-w-[90px] ${day === todayName
                         ? "text-brand-primary bg-brand-primary/5"
                         : "text-foreground"
-                    }`}
+                      }`}
                   >
                     {day}
                     {day === todayName && (
@@ -200,26 +286,23 @@ export default function MyTimetablePage() {
               </tr>
             </thead>
             <tbody>
-              {TIME_SLOTS.map((time) => (
-                <tr key={time} className="border-b border-border/50">
-                  <td className="py-2 px-4 text-xs font-mono text-muted-foreground whitespace-nowrap">
-                    {time}
+              {slots.map((slot) => (
+                <tr key={`${slot.start}-${slot.end}`} className="border-b border-border/50">
+                  <td className="py-3 px-4 text-[10px] sm:text-xs font-mono text-muted-foreground whitespace-nowrap">
+                    {format12Hour(slot.start)} - {format12Hour(slot.end)}
                   </td>
                   {DAYS.map((day) => {
-                    const cls = getClassForSlot(day, time);
-                    const isCurrent = isCurrentSlot(day, time);
+                    const cls = getClassForSlot(day, slot);
+                    const isCurrent = isCurrentSlot(day, slot);
                     const colors = cls
                       ? courseColors[cls.course.courseCode]
                       : null;
 
                     if (cls) {
-                      const startHour = parseInt(cls.startTime.split(":")[0]);
-                      const slotHour = parseInt(time.split(":")[0]);
-                      if (slotHour !== startHour) {
+                      if (!isFirstSlotForClass(cls, slot, slots)) {
                         return null;
                       }
-                      const endHour = parseInt(cls.endTime.split(":")[0]);
-                      const span = endHour - startHour;
+                      const span = getClassRowSpan(cls, slots);
 
                       return (
                         <td
@@ -228,32 +311,35 @@ export default function MyTimetablePage() {
                           className={`p-1 ${isCurrent ? "ring-2 ring-brand-primary ring-inset" : ""}`}
                         >
                           <div
-                            className={`rounded-lg p-2.5 h-full ${colors?.bg} border ${colors?.border} hover:scale-[1.02] transition-transform`}
+                            className={`rounded-lg p-2.5 h-full ${colors?.bg} border ${colors?.border} hover:scale-[1.02] transition-transform flex flex-col justify-between`}
                           >
-                            <p
-                              className={`text-xs font-semibold ${colors?.text}`}
-                            >
-                              {cls.course.courseCode}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">
-                              {cls.room}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {cls.startTime}–{cls.endTime}
+                            <div>
+                              <p
+                                className={`text-xs font-bold ${colors?.text} leading-tight break-words whitespace-normal`}
+                                title={cls.course.courseCode}
+                              >
+                                {cls.course.courseCode}
+                              </p>
+                              <p
+                                className="text-[10px] text-foreground/90 font-medium break-words whitespace-normal mt-0.5"
+                                title={cls.course.courseName}
+                              >
+                                {cls.course.courseName}
+                              </p>
+                              <p className="text-[10px] text-foreground/80 mt-1 font-medium">
+                                Room: {cls.room}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground font-medium">
+                                Teacher: {cls.course.faculty?.user.name || "Not assigned"}
+                              </p>
+                            </div>
+                            <p className="text-[9px] text-muted-foreground/85 mt-2 font-mono">
+                              {format12Hour(cls.startTime)}–{format12Hour(cls.endTime)}
                             </p>
                           </div>
                         </td>
                       );
                     }
-
-                    const coveredClass = timetable.find((t) => {
-                      if (t.day !== day) return false;
-                      const startH = parseInt(t.startTime.split(":")[0]);
-                      const endH = parseInt(t.endTime.split(":")[0]);
-                      const slotH = parseInt(time.split(":")[0]);
-                      return slotH > startH && slotH < endH;
-                    });
-                    if (coveredClass) return null;
 
                     return (
                       <td

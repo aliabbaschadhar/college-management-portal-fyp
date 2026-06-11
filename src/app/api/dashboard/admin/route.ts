@@ -16,13 +16,14 @@ export async function GET() {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const data = await getAdminDashboardData();
-
-    // Fetch recent audit log entries for admin dashboard
-    const recentAuditLogs = await prisma.auditLog.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 10,
-    });
+    // Parallelize the dashboard data aggregation and recent audit logs query
+    const [data, recentAuditLogs] = await Promise.all([
+      getAdminDashboardData(),
+      prisma.auditLog.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      }),
+    ]);
 
     return NextResponse.json({
       ...data,

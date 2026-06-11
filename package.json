@@ -54,7 +54,9 @@
   ],
   "trustedDependencies": [
     "sharp",
-    "unrs-resolver"
+    "unrs-resolver",
+    "prisma",
+    "@prisma/client"
   ],
   "prisma": {
     "seed": "bun prisma/seed.ts"

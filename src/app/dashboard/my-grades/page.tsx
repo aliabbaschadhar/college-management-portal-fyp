@@ -6,6 +6,7 @@ import { GraduationCap, Lock, Unlock, TrendingUp } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
+import { ChartSkeleton, TableSkeleton } from "@/components/ui";
 import {
   ChartContainer,
   ChartTooltip,
@@ -53,7 +54,7 @@ export default function MyGradesPage() {
   const overallGPA =
     grades.length > 0
       ? +(grades.reduce((sum, g) => sum + g.gpa, 0) / grades.length).toFixed(2)
-      : 0;
+      : null;
 
   const chartData = grades.map((g) => ({
     course: g.course?.courseCode || g.courseId,
@@ -64,16 +65,30 @@ export default function MyGradesPage() {
   }));
 
   const gpaColor =
-    overallGPA >= 3.5
-      ? "text-emerald-500"
-      : overallGPA >= 3.0
-        ? "text-amber-500"
-        : "text-rose-500";
+    overallGPA === null
+      ? "text-muted-foreground"
+      : overallGPA >= 3.5
+        ? "text-emerald-500"
+        : overallGPA >= 3.0
+          ? "text-amber-500"
+          : "text-rose-500";
 
   if (loading) {
     return (
-      <div className="flex justify-center p-8">
-        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <div className="h-8 w-40 bg-muted animate-pulse border-2 border-border" />
+          <div className="h-4 w-72 bg-muted animate-pulse border-2 border-border" />
+        </div>
+        <div className="rounded-xl border border-border bg-card p-6 flex items-center gap-6 animate-pulse">
+          <div className="h-16 w-16 rounded-2xl bg-muted border-2 border-border" />
+          <div className="space-y-2 flex-1">
+            <div className="h-3 w-24 bg-muted border-2 border-border" />
+            <div className="h-10 w-20 bg-muted border-2 border-border" />
+          </div>
+        </div>
+        <ChartSkeleton />
+        <TableSkeleton rows={5} />
       </div>
     );
   }
@@ -102,7 +117,7 @@ export default function MyGradesPage() {
         <div>
           <p className="text-sm text-muted-foreground">Overall GPA</p>
           <p className={`text-4xl font-bold tracking-tight ${gpaColor}`}>
-            {overallGPA}
+            {overallGPA === null ? "—" : overallGPA}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
             Across {grades.length} courses

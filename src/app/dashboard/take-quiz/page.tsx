@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ListSkeleton } from "@/components/ui";
 
 interface QuizQuestion {
   id: string;
@@ -109,8 +110,12 @@ export default function TakeQuizPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center p-8">
-        <div className="animate-spin h-8 w-8 border-2 border-brand-primary border-t-transparent rounded-full" />
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <div className="h-8 w-40 bg-muted animate-pulse border-2 border-border" />
+          <div className="h-4 w-64 bg-muted animate-pulse border-2 border-border" />
+        </div>
+        <ListSkeleton count={3} />
       </div>
     );
   }

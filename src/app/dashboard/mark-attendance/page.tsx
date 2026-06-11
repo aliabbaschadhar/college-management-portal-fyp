@@ -52,7 +52,7 @@ export default function MarkAttendancePage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    api.get<CourseOption[]>("/courses")
+    api.get<CourseOption[]>("/api/courses")
       .then((res) => setCourses(Array.isArray(res.data) ? res.data : []))
       .catch(() => {});
   }, []);
@@ -60,14 +60,18 @@ export default function MarkAttendancePage() {
   const handleCourseChange = (courseId: string) => {
     setSelectedCourse(courseId);
     setSubmitted(false);
-    api.get<StudentOption[]>("/students")
+    api.get<{ enrollments?: { student: StudentOption }[] }>(`/api/courses/${courseId}`)
       .then((res) => {
-        const students = res.data;
+        const enrollments = res.data.enrollments || [];
+        const students = enrollments.map((e) => e.student).filter(Boolean);
         setAttendanceData(
-          (Array.isArray(students) ? students : []).map((s) => ({ student: s, status: "Present" as AttendanceStatus }))
+          students.map((s) => ({ student: s, status: "Present" as AttendanceStatus }))
         );
       })
-      .catch(() => setAttendanceData([]));
+      .catch((err) => {
+        console.error("Failed to load course students for attendance:", err);
+        setAttendanceData([]);
+      });
   };
 
   const toggleStatus = (studentId: string, status: AttendanceStatus) => {
@@ -84,15 +88,15 @@ export default function MarkAttendancePage() {
     if (!selectedCourse || attendanceData.length === 0) return;
     setSubmitting(true);
     try {
-      await api.post("/attendance", {
+      await api.post("/api/attendance", {
         courseId: selectedCourse,
         date: selectedDate,
         records: attendanceData.map((a) => ({ studentId: a.student.id, status: a.status })),
       });
       setSubmitted(true);
       setTimeout(() => setSubmitted(false), 3000);
-    } catch {
-      // silent fail
+    } catch (err) {
+      console.error("Failed to save attendance:", err);
     } finally {
       setSubmitting(false);
     }
