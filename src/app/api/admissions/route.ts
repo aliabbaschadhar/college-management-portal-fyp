@@ -130,6 +130,17 @@ export async function POST(request: NextRequest) {
   if (!userId) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
 
   try {
+    const adminsCount = await prisma.user.count({
+      where: { role: "ADMIN" },
+    });
+    if (adminsCount === 0) {
+      return errorResponse(
+        "BAD_REQUEST",
+        "Registration is currently disabled because no system administrators are registered. Please try again later.",
+        400
+      );
+    }
+
     const body = await parseJsonBody<AdmissionCreateBody>(request);
     validateAdmissionBody(body);
 

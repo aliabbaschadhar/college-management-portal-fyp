@@ -329,11 +329,9 @@ export default function MyTimetablePage() {
                               <p className="text-[10px] text-foreground/80 mt-1 font-medium">
                                 Room: {cls.room}
                               </p>
-                              {cls.course.faculty?.user.name && (
-                                <p className="text-[10px] text-muted-foreground font-medium">
-                                  Teacher: {cls.course.faculty.user.name}
-                                </p>
-                              )}
+                              <p className="text-[10px] text-muted-foreground font-medium">
+                                Teacher: {cls.course.faculty?.user.name || "Not assigned"}
+                              </p>
                             </div>
                             <p className="text-[9px] text-muted-foreground/85 mt-2 font-mono">
                               {format12Hour(cls.startTime)}–{format12Hour(cls.endTime)}

@@ -13,10 +13,12 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   let userId: string | null = null;
+  let sessionClaims: any = null;
 
   try {
     const authResult = await auth();
     userId = authResult.userId;
+    sessionClaims = authResult.sessionClaims;
   } catch (error) {
     console.error("Clerk auth() error:", error);
   }
@@ -26,13 +28,17 @@ export default async function DashboardLayout({
   let redirectTo: string | null = null;
   if (userId) {
     try {
-      const clerkUser = await currentUser();
-      const email = clerkUser?.emailAddresses[0]?.emailAddress;
+      // Query Clerk API and Database concurrently to minimize roundtrip times
+      const [clerkUser, dbUserInit] = await Promise.all([
+        currentUser(),
+        prisma.user.findUnique({
+          where: { clerkId: userId },
+          include: { student: true, faculty: true, admin: true },
+        })
+      ]);
 
-      let dbUser = await prisma.user.findUnique({
-        where: { clerkId: userId },
-        include: { student: true, faculty: true, admin: true },
-      });
+      const email = clerkUser?.emailAddresses[0]?.emailAddress;
+      let dbUser = dbUserInit;
 
       // Fallback: look up by email if no record found by clerkId
       // (handles the case where the student record was created on approval before clerkId was linked)
@@ -77,9 +83,8 @@ export default async function DashboardLayout({
         userRole = dbUser.role;
         role = dbUser.role.toLowerCase() as UserRole;
       } else {
-        // Fallback to Clerk session claims if database sync is pending
-        const authResult = await auth();
-        const metadata = authResult.sessionClaims?.metadata as Record<string, unknown> | undefined;
+        // Fallback to Clerk session claims if database sync is pending (reusing cached claims)
+        const metadata = sessionClaims?.metadata as Record<string, unknown> | undefined;
         const claimsRole = typeof metadata?.role === "string" ? metadata.role : undefined;
         if (claimsRole && ["ADMIN", "FACULTY", "STUDENT"].includes(claimsRole.toUpperCase())) {
           userRole = claimsRole.toUpperCase();

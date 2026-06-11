@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { errorResponse, handleApiError } from "@/lib/api-errors";
 import { Role } from "@prisma/client";
 import { requireRole } from "@/lib/auth-guard";
+import { logAuditAction } from "@/lib/audit-log";
 
 export async function GET(request: NextRequest) {
   const denied = await requireRole(["ADMIN"]);
@@ -58,26 +59,57 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const adminsCount = await prisma.user.count({
+      where: { role: "ADMIN" },
+    });
+    const isFirstAdmin = adminsCount === 0;
+
+    // Restrict student/faculty signup if no admin exists
+    if (isFirstAdmin && role !== "ADMIN") {
+      return errorResponse(
+        "BAD_REQUEST",
+        "Registration is currently disabled because no system administrators are registered. Please try again later.",
+        400
+      );
+    }
+
     if (role === "ADMIN") {
       if (!specialization || !specialization.trim()) {
         return errorResponse("BAD_REQUEST", "Designation is required for Admin", 400);
       }
-
-      // If it is the first admin (0 admins in the DB), bypass secret key validation
-      const adminsCount = await prisma.user.count({
-        where: { role: "ADMIN" },
-      });
-      const isFirstAdmin = adminsCount === 0;
 
       if (!isFirstAdmin) {
         // Check admin secret key
         const dbSettings = await prisma.systemSettings.findUnique({
           where: { key: "admin_onboarding_secret" },
         });
-        const expectedSecret = dbSettings?.value || "GGC-ADMIN-SECRET-2026";
+
+        if (!dbSettings) {
+          return errorResponse(
+            "FORBIDDEN",
+            "No verification secret key has been generated. Please contact the administrator.",
+            403
+          );
+        }
+
+        const now = new Date();
+        const timeDiff = now.getTime() - new Date(dbSettings.updatedAt).getTime();
+        if (timeDiff > 5 * 60 * 1000) {
+          return errorResponse(
+            "FORBIDDEN",
+            "The Admin Verification Secret Key has expired. Please ask the administrator to generate a new key.",
+            403
+          );
+        }
+
+        const expectedSecret = dbSettings.value;
 
         if (!adminSecret || adminSecret.trim() !== expectedSecret.trim()) {
-          return errorResponse("FORBIDDEN", "Invalid Admin Verification Secret Key. Please obtain the correct key from the head administrator.", 403);
+          return errorResponse(
+            "FORBIDDEN",
+            "Invalid Admin Verification Secret Key. Please obtain the correct key from the head administrator.",
+            403
+          );
         }
       }
     }
@@ -116,20 +148,16 @@ export async function POST(request: NextRequest) {
       return errorResponse("BAD_REQUEST", "You already have a pending request under review", 400);
     }
 
-    // Check if we need to auto-approve the first admin (fresh db setup, 0 existing admins)
+    // Check if we need to auto-approve the admin (all admins are auto-approved upon providing the correct secret key)
     let isAutoApproveAdmin = false;
     if (role === "ADMIN") {
-      const adminsCount = await prisma.user.count({
-        where: { role: "ADMIN" },
-      });
-      if (adminsCount === 0) {
-        isAutoApproveAdmin = true;
-      }
+      isAutoApproveAdmin = true;
     }
 
+    let dbUser;
     // Update or create the base User and provision the Admin profile immediately if auto-approved
     if (existingUser) {
-      await prisma.user.update({
+      dbUser = await prisma.user.update({
         where: { id: existingUser.id },
         data: {
           role,
@@ -142,7 +170,7 @@ export async function POST(request: NextRequest) {
         },
       });
     } else {
-      await prisma.user.create({
+      dbUser = await prisma.user.create({
         data: {
           clerkId: userId,
           email,
@@ -179,7 +207,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // If auto-approved, sync role immediately to Clerk metadata
+    // If auto-approved, sync role immediately to Clerk metadata & log audit log entry
     if (isAutoApproveAdmin) {
       try {
         const client = await clerkClient();
@@ -189,6 +217,15 @@ export async function POST(request: NextRequest) {
       } catch (clerkErr) {
         console.error("Clerk role sync failed during auto-admin approval:", clerkErr);
       }
+
+      await logAuditAction({
+        action: "CREATED",
+        entity: "User",
+        entityId: dbUser.id,
+        description: `Admin account auto-approved and created via verification secret key. Designation: ${specialization || "N/A"}`,
+        adminClerkId: userId,
+        adminName: name || "New Admin",
+      });
     }
 
     return NextResponse.json(onboardingRequest, { status: 201 });
