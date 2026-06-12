@@ -7,6 +7,7 @@ import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { getNavItems } from "@/lib/sidebar-config";
 import type { UserRole } from "@/types";
 import { api } from "@/lib/axios";
+import { useAuth } from "@clerk/nextjs";
 
 interface DashboardShellProps {
   children: React.ReactNode;
@@ -15,6 +16,7 @@ interface DashboardShellProps {
 }
 
 export function DashboardShell({ children, role, roleLabel }: DashboardShellProps) {
+  const { isLoaded, isSignedIn } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [prevRole, setPrevRole] = useState(role);
   const [navItems, setNavItems] = useState(() => getNavItems(role));
@@ -32,7 +34,7 @@ export function DashboardShell({ children, role, roleLabel }: DashboardShellProp
   }, [pathname]);
 
   useEffect(() => {
-    if (role !== "admin") return;
+    if (role !== "admin" || !isLoaded || !isSignedIn) return;
 
     let isMounted = true;
 
@@ -82,7 +84,7 @@ export function DashboardShell({ children, role, roleLabel }: DashboardShellProp
       isMounted = false;
       clearInterval(interval);
     };
-  }, [role, pathname]);
+  }, [role, pathname, isLoaded, isSignedIn]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">

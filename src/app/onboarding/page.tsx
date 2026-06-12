@@ -89,20 +89,24 @@ export default function OnboardingPage() {
   const checkStatus = useCallback(async (isManual = false) => {
     if (isManual) setRefreshing(true);
     try {
-      const res = await api.get("/api/onboarding/status");
+      const timestamp = Date.now();
+      const res = await api.get(`/api/onboarding/status?t=${timestamp}`);
       const statusData = res.data;
+      console.log("[Onboarding Status Check] API Response Data:", statusData);
 
       if (statusData.hasProfile) {
-        // Profile is complete! Redirect to dashboard.
+        console.log("[Onboarding Status Check] Profile exists. Redirecting to dashboard...");
         router.push("/dashboard");
         return;
       }
 
-      setIsFirstAdmin(!!statusData.isFirstAdmin);
+      const isFirst = !!statusData.isFirstAdmin;
+      console.log("[Onboarding Status Check] isFirstAdmin evaluated to:", isFirst);
+      setIsFirstAdmin(isFirst);
       setPendingRequest(statusData.request || null);
       setPendingAdmission(statusData.admission || null);
     } catch (err) {
-      console.error("Error checking onboarding status:", err);
+      console.error("[Onboarding Status Check] Error checking onboarding status:", err);
     } finally {
       setStatusLoading(false);
       setRefreshing(false);

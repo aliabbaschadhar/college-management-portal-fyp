@@ -3,6 +3,14 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { errorResponse, handleApiError } from "@/lib/api-errors";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const cacheHeaders = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  "Content-Type": "application/json",
+};
+
 export async function GET() {
   const { userId } = await auth();
   if (!userId) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
@@ -15,10 +23,7 @@ export async function GET() {
     // 1. Fetch user from DB
     const dbUser = await prisma.user.findFirst({
       where: {
-        OR: [
-          { clerkId: userId },
-          ...(email ? [{ email }] : [])
-        ]
+        OR: [{ clerkId: userId }, ...(email ? [{ email }] : [])],
       },
       include: { student: true, faculty: true, admin: true },
     });
@@ -30,23 +35,27 @@ export async function GET() {
         (dbUser.role === "ADMIN" && !!dbUser.admin);
 
       if (isComplete) {
-        return NextResponse.json({ hasProfile: true, role: dbUser.role });
+        return NextResponse.json(
+          { hasProfile: true, role: dbUser.role },
+          { headers: cacheHeaders }
+        );
       }
     }
 
-    const adminsCount = await prisma.user.count({
-      where: { role: "ADMIN" },
-    });
+    const adminsCount = await prisma.admin.count();
     const isFirstAdmin = adminsCount === 0;
 
     const checkEmail = email || dbUser?.email;
 
     if (!checkEmail) {
-      return NextResponse.json({
-        hasProfile: false,
-        role: dbUser?.role || "STUDENT",
-        isFirstAdmin,
-      });
+      return NextResponse.json(
+        {
+          hasProfile: false,
+          role: dbUser?.role || "STUDENT",
+          isFirstAdmin,
+        },
+        { headers: cacheHeaders }
+      );
     }
 
     // 3. Look up pending/rejected onboarding requests
@@ -61,13 +70,16 @@ export async function GET() {
       }),
     ]);
 
-    return NextResponse.json({
-      hasProfile: false,
-      role: dbUser?.role || "STUDENT",
-      request,
-      admission,
-      isFirstAdmin,
-    });
+    return NextResponse.json(
+      {
+        hasProfile: false,
+        role: dbUser?.role || "STUDENT",
+        request,
+        admission,
+        isFirstAdmin,
+      },
+      { headers: cacheHeaders }
+    );
   } catch (error) {
     return handleApiError("GET /api/onboarding/status", error);
   }

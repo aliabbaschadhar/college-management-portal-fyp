@@ -52,16 +52,22 @@ export async function POST(request: NextRequest) {
 
     if (role === "FACULTY") {
       if (!department || !department.trim()) {
-        return errorResponse("BAD_REQUEST", "Department is required for Faculty", 400);
+        return errorResponse(
+          "BAD_REQUEST",
+          "Department is required for Faculty",
+          400,
+        );
       }
       if (!specialization || !specialization.trim()) {
-        return errorResponse("BAD_REQUEST", "Specialization is required for Faculty", 400);
+        return errorResponse(
+          "BAD_REQUEST",
+          "Specialization is required for Faculty",
+          400,
+        );
       }
     }
 
-    const adminsCount = await prisma.user.count({
-      where: { role: "ADMIN" },
-    });
+    const adminsCount = await prisma.admin.count();
     const isFirstAdmin = adminsCount === 0;
 
     // Restrict student/faculty signup if no admin exists
@@ -69,13 +75,17 @@ export async function POST(request: NextRequest) {
       return errorResponse(
         "BAD_REQUEST",
         "Registration is currently disabled because no system administrators are registered. Please try again later.",
-        400
+        400,
       );
     }
 
     if (role === "ADMIN") {
       if (!specialization || !specialization.trim()) {
-        return errorResponse("BAD_REQUEST", "Designation is required for Admin", 400);
+        return errorResponse(
+          "BAD_REQUEST",
+          "Designation is required for Admin",
+          400,
+        );
       }
 
       if (!isFirstAdmin) {
@@ -88,17 +98,18 @@ export async function POST(request: NextRequest) {
           return errorResponse(
             "FORBIDDEN",
             "No verification secret key has been generated. Please contact the administrator.",
-            403
+            403,
           );
         }
 
         const now = new Date();
-        const timeDiff = now.getTime() - new Date(dbSettings.updatedAt).getTime();
+        const timeDiff =
+          now.getTime() - new Date(dbSettings.updatedAt).getTime();
         if (timeDiff > 5 * 60 * 1000) {
           return errorResponse(
             "FORBIDDEN",
             "The Admin Verification Secret Key has expired. Please ask the administrator to generate a new key.",
-            403
+            403,
           );
         }
 
@@ -108,7 +119,7 @@ export async function POST(request: NextRequest) {
           return errorResponse(
             "FORBIDDEN",
             "Invalid Admin Verification Secret Key. Please obtain the correct key from the head administrator.",
-            403
+            403,
           );
         }
       }
@@ -117,25 +128,32 @@ export async function POST(request: NextRequest) {
     const clerkUser = await currentUser();
     const email = clerkUser?.emailAddresses[0]?.emailAddress;
     if (!email) {
-      return errorResponse("BAD_REQUEST", "No email address found in Clerk", 400);
+      return errorResponse(
+        "BAD_REQUEST",
+        "No email address found in Clerk",
+        400,
+      );
     }
 
-    const name = clerkUser ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") : "New User";
+    const name = clerkUser
+      ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ")
+      : "New User";
 
     // Check if user already has a profile in DB
     const existingUser = await prisma.user.findFirst({
       where: {
-        OR: [
-          { clerkId: userId },
-          { email }
-        ]
+        OR: [{ clerkId: userId }, { email }],
       },
       include: { student: true, faculty: true, admin: true },
     });
 
     if (existingUser) {
       if (existingUser.student || existingUser.faculty || existingUser.admin) {
-        return errorResponse("BAD_REQUEST", "Account already onboarded and profile exists", 400);
+        return errorResponse(
+          "BAD_REQUEST",
+          "Account already onboarded and profile exists",
+          400,
+        );
       }
     }
 
@@ -145,7 +163,11 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingRequest && existingRequest.status === "Pending") {
-      return errorResponse("BAD_REQUEST", "You already have a pending request under review", 400);
+      return errorResponse(
+        "BAD_REQUEST",
+        "You already have a pending request under review",
+        400,
+      );
     }
 
     // Check if we need to auto-approve the admin (all admins are auto-approved upon providing the correct secret key)
@@ -162,11 +184,13 @@ export async function POST(request: NextRequest) {
         data: {
           role,
           clerkId: userId, // Ensure clerkId is synchronized
-          ...(isAutoApproveAdmin ? {
-            admin: {
-              create: {},
-            },
-          } : {}),
+          ...(isAutoApproveAdmin
+            ? {
+                admin: {
+                  create: {},
+                },
+              }
+            : {}),
         },
       });
     } else {
@@ -176,11 +200,13 @@ export async function POST(request: NextRequest) {
           email,
           name,
           role,
-          ...(isAutoApproveAdmin ? {
-            admin: {
-              create: {},
-            },
-          } : {}),
+          ...(isAutoApproveAdmin
+            ? {
+                admin: {
+                  create: {},
+                },
+              }
+            : {}),
         },
       });
     }
@@ -193,7 +219,8 @@ export async function POST(request: NextRequest) {
         role,
         phone,
         department: role === "FACULTY" ? department : null,
-        specialization: role === "FACULTY" || role === "ADMIN" ? specialization : null,
+        specialization:
+          role === "FACULTY" || role === "ADMIN" ? specialization : null,
         status: isAutoApproveAdmin ? "Approved" : "Pending",
       },
       create: {
@@ -202,7 +229,8 @@ export async function POST(request: NextRequest) {
         role,
         phone,
         department: role === "FACULTY" ? department : null,
-        specialization: role === "FACULTY" || role === "ADMIN" ? specialization : null,
+        specialization:
+          role === "FACULTY" || role === "ADMIN" ? specialization : null,
         status: isAutoApproveAdmin ? "Approved" : "Pending",
       },
     });
@@ -215,7 +243,10 @@ export async function POST(request: NextRequest) {
           publicMetadata: { role: "admin" },
         });
       } catch (clerkErr) {
-        console.error("Clerk role sync failed during auto-admin approval:", clerkErr);
+        console.error(
+          "Clerk role sync failed during auto-admin approval:",
+          clerkErr,
+        );
       }
 
       await logAuditAction({
@@ -243,7 +274,11 @@ export async function DELETE() {
     const email = clerkUser?.emailAddresses[0]?.emailAddress;
 
     if (!email) {
-      return errorResponse("BAD_REQUEST", "No email address found in Clerk", 400);
+      return errorResponse(
+        "BAD_REQUEST",
+        "No email address found in Clerk",
+        400,
+      );
     }
 
     // Delete the request
