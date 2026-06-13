@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     // Load user role
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { role: true },
+      select: { id: true, role: true },
     });
 
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -26,6 +26,13 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search");
     const courseId = searchParams.get("courseId");
 
+    let faculty = null;
+    if (user.role === "FACULTY") {
+      faculty = await prisma.faculty.findUnique({
+        where: { userId: user.id },
+      });
+    }
+
     const students = await prisma.student.findMany({
       where: {
         ...(department ? { department } : {}),
@@ -38,6 +45,14 @@ export async function GET(request: NextRequest) {
             }
           : {}),
         ...(courseId ? { enrollments: { some: { courseId } } } : {}),
+        ...(user.role === "FACULTY" && faculty
+          ? {
+              OR: [
+                { department: faculty.department },
+                { enrollments: { some: { course: { assignedFaculty: faculty.id } } } },
+              ],
+            }
+          : {}),
       },
       include: {
         user: { select: { name: true, email: true } },
@@ -55,6 +70,7 @@ export async function GET(request: NextRequest) {
       shift: s.shift,
       enrollmentDate: s.enrollmentDate.toISOString(),
       avatar: s.avatar,
+      approvedBy: s.approvedBy,
       user: {
         name: s.user.name,
         email: s.user.email,

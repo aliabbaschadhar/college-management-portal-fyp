@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BookOpen, Plus, Pencil, Trash2, CheckCircle } from "lucide-react";
+import { BookOpen, Plus, Pencil, Trash2, CheckCircle, Loader2 } from "lucide-react";
 import { api } from "@/lib/axios";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion, AnimatePresence } from "framer-motion";
@@ -48,6 +48,7 @@ export default function QuestionBankPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<QuestionWithQuiz | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [formText, setFormText] = useState("");
   const [formOptions, setFormOptions] = useState(["", "", "", ""]);
@@ -56,8 +57,8 @@ export default function QuestionBankPage() {
 
   useEffect(() => {
     Promise.all([
-      api.get<QuestionWithQuiz[]>("/questions"),
-      api.get<QuizOption[]>("/quizzes"),
+      api.get<QuestionWithQuiz[]>("/api/questions"),
+      api.get<QuizOption[]>("/api/quizzes"),
     ])
       .then(([qsRes, qzsRes]) => {
         setQuestions(qsRes.data);
@@ -94,7 +95,7 @@ export default function QuestionBankPage() {
     setSaving(true);
     try {
       if (editingQuestion) {
-        const res = await api.patch<QuestionWithQuiz>(`/questions/${editingQuestion.id}`, {
+        const res = await api.patch<QuestionWithQuiz>(`/api/questions/${editingQuestion.id}`, {
           text: formText,
           options: formOptions,
           correctOption: formCorrect,
@@ -102,7 +103,7 @@ export default function QuestionBankPage() {
         const updated = res.data;
         setQuestions((prev) => prev.map((q) => (q.id === updated.id ? { ...q, ...updated } : q)));
       } else {
-        const res = await api.post<QuestionWithQuiz>("/questions", {
+        const res = await api.post<QuestionWithQuiz>("/api/questions", {
           text: formText,
           options: formOptions,
           correctOption: formCorrect,
@@ -120,11 +121,14 @@ export default function QuestionBankPage() {
   };
 
   const handleDelete = async (qId: string) => {
+    setDeletingId(qId);
     try {
-      await api.delete(`/questions/${qId}`);
+      await api.delete(`/api/questions/${qId}`);
       setQuestions((prev) => prev.filter((q) => q.id !== qId));
     } catch {
       // silent fail
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -211,11 +215,15 @@ export default function QuestionBankPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  <Button variant="ghost" size="sm" onClick={() => openEditModal(q)} className="h-8 w-8 p-0">
+                  <Button variant="ghost" size="sm" onClick={() => openEditModal(q)} className="h-8 w-8 p-0" disabled={deletingId !== null}>
                     <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => handleDelete(q.id)} className="h-8 w-8 p-0 hover:text-rose-500">
-                    <Trash2 className="h-3.5 w-3.5" />
+                  <Button variant="ghost" size="sm" onClick={() => handleDelete(q.id)} className="h-8 w-8 p-0 hover:text-rose-500" disabled={deletingId === q.id}>
+                    {deletingId === q.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5" />
+                    )}
                   </Button>
                 </div>
               </div>

@@ -14,13 +14,13 @@ import {
   Monitor,
   Lock,
   ExternalLink,
+  Plus,
 } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { ProfileQRCode } from "@/components/dashboard/ProfileQRCode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -32,6 +32,7 @@ interface SettingsUser {
   name: string | null;
   email: string;
   role: Role;
+  avatar: string | null;
   student: { phone: string | null; department: string; rollNo: string } | null;
   faculty: { phone: string | null; department: string } | null;
 }
@@ -65,8 +66,15 @@ type SectionId =
   | "qr"
   | "admin-settings";
 
-// ─── Profile Section ─────────────────────────────────────────────────────────
-function ProfileSection({ user }: { user: SettingsUser }) {
+function ProfileSection({
+  user,
+  avatar,
+  setAvatar,
+}: {
+  user: SettingsUser;
+  avatar: string;
+  setAvatar: (val: string) => void;
+}) {
   const phone = user.student?.phone ?? user.faculty?.phone ?? "";
   const department =
     user.student?.department ?? user.faculty?.department ?? "—";
@@ -74,8 +82,36 @@ function ProfileSection({ user }: { user: SettingsUser }) {
 
   const [name, setName] = useState(user.name ?? "");
   const [phoneVal, setPhoneVal] = useState(phone);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 1024 * 1024) {
+      alert("Image size should be less than 1MB.");
+      return;
+    }
+
+    setAvatarUploading(true);
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64String = reader.result as string;
+      try {
+        await api.patch("/api/me", { avatar: base64String });
+        setAvatar(base64String);
+        window.dispatchEvent(new Event("profile-avatar-updated"));
+      } catch (err) {
+        console.error("Failed to upload avatar:", err);
+        alert("Failed to upload avatar.");
+      } finally {
+        setAvatarUploading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -103,12 +139,33 @@ function ProfileSection({ user }: { user: SettingsUser }) {
 
       {/* Avatar + identity */}
       <div className="flex items-center gap-4 p-5 rounded-2xl bg-muted/20 border border-border">
-        <div className="relative shrink-0">
-          <div className="h-20 w-20 rounded-full bg-brand-primary flex items-center justify-center text-white text-2xl font-bold shadow-lg">
-            {getInitials(name)}
-          </div>
-          <div className="absolute bottom-0 right-0 h-6 w-6 rounded-full bg-brand-primary/90 border-2 border-card flex items-center justify-center">
-            <User className="h-3 w-3 text-white" />
+        <div className="relative shrink-0 cursor-pointer group" onClick={() => document.getElementById("settings-avatar-input")?.click()}>
+          <input
+            type="file"
+            id="settings-avatar-input"
+            accept="image/*"
+            className="hidden"
+            onChange={handleAvatarChange}
+            disabled={avatarUploading}
+          />
+          {avatarUploading ? (
+            <div className="h-20 w-20 rounded-full border border-border bg-muted flex items-center justify-center">
+              <div className="h-5 w-5 animate-spin border-2 border-brand-primary border-t-transparent rounded-full" />
+            </div>
+          ) : avatar ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={avatar}
+              alt="Avatar"
+              className="h-20 w-20 rounded-full object-cover border border-border shadow-lg group-hover:opacity-80 transition-opacity"
+            />
+          ) : (
+            <div className="h-20 w-20 rounded-full bg-brand-primary flex items-center justify-center text-white text-2xl font-bold shadow-lg group-hover:opacity-90 transition-opacity">
+              {getInitials(name)}
+            </div>
+          )}
+          <div className="absolute bottom-0 right-0 h-6 w-6 rounded-full bg-brand-primary border-2 border-card flex items-center justify-center shadow-md">
+            <Plus className="h-3.5 w-3.5 text-white" />
           </div>
         </div>
         <div>
@@ -504,17 +561,26 @@ function AdminSettingsSection() {
 // ─── Main Export ──────────────────────────────────────────────────────────────
 export function SettingsTabs({ user }: Props) {
   const [active, setActive] = useState<SectionId>("profile");
+  const [prevAvatar, setPrevAvatar] = useState(user.avatar);
+  const [avatar, setAvatar] = useState(user.avatar ?? "");
+
+  if (user.avatar !== prevAvatar) {
+    setPrevAvatar(user.avatar);
+    setAvatar(user.avatar ?? "");
+  }
 
   const navItems = [
     { id: "profile" as const, label: "Profile", icon: User },
     { id: "appearance" as const, label: "Appearance", icon: Palette },
     { id: "security" as const, label: "Security", icon: Shield },
-    ...(user.role === "STUDENT" ? [{ id: "qr" as const, label: "Verification QR", icon: QrCode }] : []),
+    ...(user.role === "STUDENT" || user.role === "FACULTY"
+      ? [{ id: "qr" as const, label: "Verification QR", icon: QrCode }]
+      : []),
     ...(user.role === "ADMIN" ? [{ id: "admin-settings" as const, label: "Admin Settings", icon: Lock }] : []),
   ];
 
   const contentMap: Record<SectionId, React.ReactNode> = {
-    profile: <ProfileSection user={user} />,
+    profile: <ProfileSection user={user} avatar={avatar} setAvatar={setAvatar} />,
     appearance: <AppearanceSection />,
     security: <SecuritySection />,
     qr: <QRSection user={user} />,
@@ -542,9 +608,18 @@ export function SettingsTabs({ user }: Props) {
         <aside className="w-full md:w-64 shrink-0 md:sticky md:top-6 space-y-2">
           {/* Avatar card */}
           <div className="rounded-2xl border border-border bg-card p-5 shadow-sm text-center mb-4">
-            <div className="h-20 w-20 mx-auto rounded-full bg-brand-primary flex items-center justify-center text-white text-2xl font-bold shadow-md mb-3">
-              {getInitials(user.name)}
-            </div>
+            {avatar ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={avatar}
+                alt="Avatar"
+                className="h-20 w-20 mx-auto rounded-full object-cover border border-border shadow-md mb-3"
+              />
+            ) : (
+              <div className="h-20 w-20 mx-auto rounded-full bg-brand-primary flex items-center justify-center text-white text-2xl font-bold shadow-md mb-3">
+                {getInitials(user.name)}
+              </div>
+            )}
             <p className="font-bold text-foreground truncate">
               {user.name ?? "—"}
             </p>

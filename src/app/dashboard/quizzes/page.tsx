@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { FileText, Plus, Clock, Users, Eye, CheckCircle, Play, Square } from "lucide-react";
+import { FileText, Plus, Clock, Users, Eye, CheckCircle, Play, Square, Loader2 } from "lucide-react";
 import { api } from "@/lib/axios";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
@@ -55,6 +55,14 @@ interface ApiQuiz {
   course: { courseCode: string; courseName: string };
 }
 
+interface QuizAttempt {
+  id: string;
+  student: { rollNo: string; user: { name: string | null } };
+  score: number;
+  totalMarks: number;
+  submittedAt: string;
+}
+
 const statusColors: Record<string, string> = {
   Draft: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
   Published: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
@@ -68,6 +76,10 @@ export default function ManageQuizzesPage() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [showResults, setShowResults] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [togglingQuizId, setTogglingQuizId] = useState<string | null>(null);
+  const [attempts, setAttempts] = useState<Record<string, QuizAttempt[]>>({});
+  const [loadingAttempts, setLoadingAttempts] = useState<string | null>(null);
   const quizIdCounter = useRef(0);
 
   // Form state
@@ -80,7 +92,7 @@ export default function ManageQuizzesPage() {
 
   const fetchQuizzes = async () => {
     try {
-      const res = await api.get<ApiQuiz[]>("/quizzes");
+      const res = await api.get<ApiQuiz[]>("/api/quizzes");
       setQuizzes(res.data);
     } catch {
       setQuizzes([]);
@@ -93,8 +105,8 @@ export default function ManageQuizzesPage() {
       try {
         await Promise.all([
           fetchQuizzes(),
-          api.get<ApiCourse[]>("/courses").then((res) => setCourses(res.data)),
-          api.get<ApiQuestion[]>("/questions").then((res) => setQuestions(res.data)),
+          api.get<ApiCourse[]>("/api/courses").then((res) => setCourses(res.data)),
+          api.get<ApiQuestion[]>("/api/questions").then((res) => setQuestions(res.data)),
         ]);
       } catch {
         // partial fail handled by individual setters if needed
@@ -105,18 +117,22 @@ export default function ManageQuizzesPage() {
   }, []);
 
   const handleStatusToggle = async (quizId: string, newStatus: ApiQuiz["status"]) => {
+    setTogglingQuizId(quizId);
     try {
-      await api.patch(`/quizzes/${quizId}`, { status: newStatus });
+      await api.patch(`/api/quizzes/${quizId}`, { status: newStatus });
       await fetchQuizzes();
     } catch {
       // silent fail
+    } finally {
+      setTogglingQuizId(null);
     }
   };
 
   const handleCreate = async () => {
     if (!formTitle || !formCourse || formQuestions.length === 0 || !formDueDate) return;
+    setCreating(true);
     try {
-      await api.post("/quizzes", {
+      await api.post("/api/quizzes", {
         title: formTitle,
         courseId: formCourse,
         duration: formDuration,
@@ -130,8 +146,22 @@ export default function ManageQuizzesPage() {
       resetForm();
     } catch {
       // silent fail
+    } finally {
+      setCreating(false);
     }
     quizIdCounter.current++;
+  };
+
+  const fetchAttempts = async (quizId: string) => {
+    setLoadingAttempts(quizId);
+    try {
+      const res = await api.get<QuizAttempt[]>(`/api/quizzes/${quizId}/attempts`);
+      setAttempts((prev) => ({ ...prev, [quizId]: res.data }));
+    } catch (err) {
+      console.error("Failed to fetch attempts:", err);
+    } finally {
+      setLoadingAttempts(null);
+    }
   };
 
   const resetForm = () => {
@@ -214,24 +244,35 @@ export default function ManageQuizzesPage() {
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {quiz.status === "Draft" && (
-                  <Button size="sm" variant="outline" onClick={() => handleStatusToggle(quiz.id, "Published")} className="gap-1 text-emerald-600">
-                    <Play className="h-3.5 w-3.5" /> Publish
+                  <Button size="sm" variant="outline" onClick={() => handleStatusToggle(quiz.id, "Published")} className="gap-1 text-emerald-600" disabled={togglingQuizId !== null}>
+                    {togglingQuizId === quiz.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />} Publish
                   </Button>
                 )}
                 {quiz.status === "Published" && (
-                  <Button size="sm" variant="outline" onClick={() => handleStatusToggle(quiz.id, "Closed")} className="gap-1 text-rose-600">
-                    <Square className="h-3.5 w-3.5" /> Close
+                  <Button size="sm" variant="outline" onClick={() => handleStatusToggle(quiz.id, "Closed")} className="gap-1 text-rose-600" disabled={togglingQuizId !== null}>
+                    {togglingQuizId === quiz.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />} Close
                   </Button>
                 )}
                 {quiz._count.attempts > 0 && (
-                  <Button size="sm" variant="outline" onClick={() => setShowResults(showResults === quiz.id ? null : quiz.id)} className="gap-1">
-                    <Eye className="h-3.5 w-3.5" /> Results
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (showResults !== quiz.id) {
+                        fetchAttempts(quiz.id);
+                      }
+                      setShowResults(showResults === quiz.id ? null : quiz.id);
+                    }}
+                    className="gap-1"
+                    disabled={loadingAttempts === quiz.id}
+                  >
+                    {loadingAttempts === quiz.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />} Results
                   </Button>
                 )}
               </div>
             </div>
 
-            {/* Results Dropdown */}
+             {/* Results Dropdown */}
             <AnimatePresence>
               {showResults === quiz.id && (
                 <motion.div
@@ -244,7 +285,43 @@ export default function ManageQuizzesPage() {
                     <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
                       Student Results
                     </h4>
-                    <p className="text-sm text-muted-foreground text-center py-4">Results coming soon.</p>
+                    {loadingAttempts === quiz.id ? (
+                      <div className="flex justify-center py-4">
+                        <Loader2 className="h-5 w-5 animate-spin text-brand-primary" />
+                      </div>
+                    ) : attempts[quiz.id]?.length > 0 ? (
+                      <div className="overflow-x-auto rounded-lg border border-border">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-border bg-muted/30 text-left">
+                              <th className="p-2 font-semibold text-foreground">Student</th>
+                              <th className="p-2 font-semibold text-foreground">Roll No</th>
+                              <th className="p-2 font-semibold text-foreground text-center">Score</th>
+                              <th className="p-2 font-semibold text-foreground">Submitted At</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {attempts[quiz.id].map((attempt) => (
+                              <tr key={attempt.id} className="border-b border-border last:border-0">
+                                <td className="p-2 font-medium text-foreground">{attempt.student.user.name || "—"}</td>
+                                <td className="p-2 font-mono text-muted-foreground">{attempt.student.rollNo}</td>
+                                <td className="p-2 text-center font-bold text-brand-primary">
+                                  {attempt.score} / {attempt.totalMarks}
+                                </td>
+                                <td className="p-2 text-muted-foreground">
+                                  {new Date(attempt.submittedAt).toLocaleString(undefined, {
+                                    dateStyle: "short",
+                                    timeStyle: "short"
+                                  })}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground text-center py-4">No student attempts recorded.</p>
+                    )}
                   </div>
                 </motion.div>
               )}
@@ -336,9 +413,9 @@ export default function ManageQuizzesPage() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={!formTitle || !formCourse || formQuestions.length === 0 || !formDueDate}>
-              Create Quiz
+            <Button variant="outline" onClick={() => setShowCreate(false)} disabled={creating}>Cancel</Button>
+            <Button onClick={handleCreate} disabled={!formTitle || !formCourse || formQuestions.length === 0 || !formDueDate || creating}>
+              {creating ? "Creating..." : "Create Quiz"}
             </Button>
           </DialogFooter>
         </DialogContent>

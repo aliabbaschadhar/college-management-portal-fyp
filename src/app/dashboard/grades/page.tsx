@@ -34,7 +34,7 @@ interface GradeEntry {
   total: number;
   gpa: number;
   locked: boolean;
-  student: { rollNo: string; user: { name: string | null } };
+  student: { rollNo: string; user: { name: string | null }; cgpa: number };
 }
 
 export default function FacultyGradesPage() {
@@ -73,13 +73,31 @@ export default function FacultyGradesPage() {
       prev.map((g) => {
         if (g.id !== gradeId || g.locked) return g;
         const updated = { ...g, [field]: value };
+        // set quiz and assignment to 0 under 40-marks system
+        updated.quizMarks = 0;
+        updated.assignmentMarks = 0;
         updated.total =
           updated.quizMarks +
           updated.assignmentMarks +
           updated.midMarks +
           updated.finalMarks;
-        updated.gpa = +Math.min(4.0, (updated.total / 150) * 4.0).toFixed(2);
+        updated.gpa = +Math.min(4.0, (updated.total / 40) * 4.0).toFixed(2);
         return updated;
+      }),
+    );
+  };
+
+  const updateCgpa = (gradeId: string, value: number) => {
+    setGrades((prev) =>
+      prev.map((g) => {
+        if (g.id !== gradeId || g.locked) return g;
+        return {
+          ...g,
+          student: {
+            ...g.student,
+            cgpa: value,
+          },
+        };
       }),
     );
   };
@@ -93,12 +111,13 @@ export default function FacultyGradesPage() {
           api.post("/api/grades", {
             studentId: g.studentId,
             courseId: g.courseId,
-            quizMarks: g.quizMarks,
-            assignmentMarks: g.assignmentMarks,
+            quizMarks: 0,
+            assignmentMarks: 0,
             midMarks: g.midMarks,
             finalMarks: g.finalMarks,
             total: g.total,
             gpa: g.gpa,
+            cgpa: Number(g.student.cgpa || 0),
           }),
         ),
     );
@@ -150,23 +169,20 @@ export default function FacultyGradesPage() {
                     <th className="text-left py-3 px-3 font-semibold text-foreground">
                       Roll No
                     </th>
-                    <th className="text-center py-3 px-2 font-semibold text-foreground w-20">
-                      Quiz
+                    <th className="text-center py-3 px-2 font-semibold text-foreground w-24">
+                      Mid Exam (25)
                     </th>
-                    <th className="text-center py-3 px-2 font-semibold text-foreground w-20">
-                      Assignment
-                    </th>
-                    <th className="text-center py-3 px-2 font-semibold text-foreground w-20">
-                      Mid
-                    </th>
-                    <th className="text-center py-3 px-2 font-semibold text-foreground w-20">
-                      Final
+                    <th className="text-center py-3 px-2 font-semibold text-foreground w-24">
+                      Sessional (15)
                     </th>
                     <th className="text-center py-3 px-3 font-semibold text-foreground">
-                      Total
+                      Total (40)
                     </th>
                     <th className="text-center py-3 px-3 font-semibold text-foreground">
                       GPA
+                    </th>
+                    <th className="text-center py-3 px-2 font-semibold text-foreground w-24">
+                      Current CGPA
                     </th>
                     <th className="text-center py-3 px-3 font-semibold text-foreground">
                       Actions
@@ -202,36 +218,6 @@ export default function FacultyGradesPage() {
                             type="number"
                             min={0}
                             max={25}
-                            value={g.quizMarks}
-                            onChange={(e) =>
-                              updateGrade(g.id, "quizMarks", +e.target.value)
-                            }
-                            disabled={g.locked}
-                            className="text-center h-8 w-16 mx-auto"
-                          />
-                        </td>
-                        <td className="py-2 px-2">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={25}
-                            value={g.assignmentMarks}
-                            onChange={(e) =>
-                              updateGrade(
-                                g.id,
-                                "assignmentMarks",
-                                +e.target.value,
-                              )
-                            }
-                            disabled={g.locked}
-                            className="text-center h-8 w-16 mx-auto"
-                          />
-                        </td>
-                        <td className="py-2 px-2">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={50}
                             value={g.midMarks}
                             onChange={(e) =>
                               updateGrade(g.id, "midMarks", +e.target.value)
@@ -244,7 +230,7 @@ export default function FacultyGradesPage() {
                           <Input
                             type="number"
                             min={0}
-                            max={50}
+                            max={15}
                             value={g.finalMarks}
                             onChange={(e) =>
                               updateGrade(g.id, "finalMarks", +e.target.value)
@@ -260,6 +246,20 @@ export default function FacultyGradesPage() {
                           className={`py-3 px-3 text-center font-bold ${gpaColor}`}
                         >
                           {g.gpa}
+                        </td>
+                        <td className="py-2 px-2">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            max={4.0}
+                            value={g.student.cgpa !== undefined ? g.student.cgpa : 0.0}
+                            onChange={(e) =>
+                              updateCgpa(g.id, +e.target.value)
+                            }
+                            disabled={g.locked}
+                            className="text-center h-8 w-20 mx-auto"
+                          />
                         </td>
                         <td className="py-3 px-3 text-center">
                           <div className="flex items-center justify-center gap-1">

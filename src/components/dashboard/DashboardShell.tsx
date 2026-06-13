@@ -18,11 +18,18 @@ export function DashboardShell({ children, role, roleLabel }: DashboardShellProp
   const [mobileOpen, setMobileOpen] = useState(false);
   const [prevRole, setPrevRole] = useState(role);
   const [navItems, setNavItems] = useState(() => getNavItems(role));
+  const [isNavigating, setIsNavigating] = useState(false);
   const pathname = usePathname();
+  const [prevPathname, setPrevPathname] = useState(pathname);
 
   if (role !== prevRole) {
     setPrevRole(role);
     setNavItems(getNavItems(role));
+  }
+
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    setIsNavigating(false);
   }
 
   useEffect(() => {
@@ -86,11 +93,29 @@ export function DashboardShell({ children, role, roleLabel }: DashboardShellProp
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
+      {isNavigating && (
+        <>
+          <style>{`
+            @keyframes routeProgress {
+              0% { width: 0%; }
+              50% { width: 70%; }
+              100% { width: 90%; }
+            }
+            .animate-route-progress {
+              animation: routeProgress 2.5s ease-out forwards;
+            }
+          `}</style>
+          <div className="fixed top-0 left-0 right-0 z-[9999] h-[3px] bg-muted/20">
+            <div className="h-full bg-brand-primary animate-route-progress shadow-[0_0_8px_var(--color-brand-primary)]" />
+          </div>
+        </>
+      )}
       <Sidebar
         navItems={navItems}
         roleLabel={roleLabel}
         isMobileOpen={mobileOpen}
         onMobileClose={() => setMobileOpen(false)}
+        onNavigate={() => setIsNavigating(true)}
       />
 
       <div className="flex flex-1 flex-col overflow-hidden">

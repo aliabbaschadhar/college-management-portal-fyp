@@ -119,18 +119,18 @@ export default function MyCoursesPage() {
 
                 <div className="h-px bg-border/40 my-2" />
 
-                <div className="flex flex-col gap-2 pt-1">
+                <div className="flex gap-8 pt-1">
                   <div className="flex items-center gap-2 text-xs text-foreground/80 font-medium">
                     <GraduationCap className="h-4 w-4 text-brand-primary shrink-0" />
                     <span className="truncate">Faculty: {facultyName}</span>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-foreground/80 font-medium">
                     <Users className="h-4 w-4 text-brand-secondary shrink-0" />
-                    <span>Enrolled: {studentCount} students</span>
+                    <span>Enrolled students: {studentCount}</span>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-foreground/80 font-medium">
                     <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span>Credit Hours: {course.creditHours} Credits</span>
+                    <span>Credit Hours: {course.creditHours}</span>
                   </div>
                 </div>
               </div>

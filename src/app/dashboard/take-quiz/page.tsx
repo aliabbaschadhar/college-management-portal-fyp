@@ -43,14 +43,14 @@ export default function TakeQuizPage() {
   const [score, setScore] = useState(0);
 
   useEffect(() => {
-    api.get<QuizWithDetails[]>("/quizzes?status=Published")
+    api.get<QuizWithDetails[]>("/api/quizzes?status=Published")
       .then((res) => { setQuizzes(res.data); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
 
   const startQuiz = useCallback(async (quiz: QuizWithDetails) => {
     try {
-      const res = await api.get<QuizWithDetails>(`/quizzes/${quiz.id}`);
+      const res = await api.get<QuizWithDetails>(`/api/quizzes/${quiz.id}`);
       const fullQuiz = res.data;
       setActiveQuiz(fullQuiz);
       setQuestions(fullQuiz.questions || []);
@@ -91,15 +91,18 @@ export default function TakeQuizPage() {
     setAnswers(newAnswers);
   };
 
-  const handleSubmit = () => {
-    let correct = 0;
-    questions.forEach((q, i) => {
-      if (answers[i] === q.correctOption) correct++;
-    });
-    const totalMarks = activeQuiz?.totalMarks || 0;
-    const marksPerQ = questions.length > 0 ? totalMarks / questions.length : 0;
-    setScore(Math.round(correct * marksPerQ));
-    setView("result");
+  const handleSubmit = async () => {
+    if (!activeQuiz) return;
+    try {
+      const res = await api.post<{ score: number }>(`/api/quizzes/${activeQuiz.id}/submit`, {
+        answers: answers.map((a) => (a === null ? -1 : a)),
+      });
+      setScore(res.data.score);
+      setView("result");
+    } catch (err) {
+      console.error("Failed to submit quiz:", err);
+      alert("Failed to submit quiz. Please try again.");
+    }
   };
 
   const formatTime = (seconds: number) => {

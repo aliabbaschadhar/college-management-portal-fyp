@@ -31,10 +31,8 @@ interface GradeWithCourse {
 }
 
 const chartConfig = {
-  quiz: { label: "Quiz", color: "var(--color-brand-primary)" },
-  assignment: { label: "Assignment", color: "var(--color-brand-secondary)" },
   mid: { label: "Midterm", color: "var(--color-data-3)" },
-  final: { label: "Final", color: "var(--color-data-4)" },
+  final: { label: "Sessional", color: "var(--color-data-4)" },
 } satisfies ChartConfig;
 
 export default function MyGradesPage() {
@@ -58,8 +56,6 @@ export default function MyGradesPage() {
 
   const chartData = grades.map((g) => ({
     course: g.course?.courseCode || g.courseId,
-    quiz: g.quizMarks,
-    assignment: g.assignmentMarks,
     mid: g.midMarks,
     final: g.finalMarks,
   }));
@@ -145,12 +141,6 @@ export default function MyGradesPage() {
             />
             <YAxis tickLine={false} axisLine={false} />
             <ChartTooltip content={<ChartTooltipContent />} />
-            <Bar dataKey="quiz" fill="var(--color-quiz)" radius={4} />
-            <Bar
-              dataKey="assignment"
-              fill="var(--color-assignment)"
-              radius={4}
-            />
             <Bar dataKey="mid" fill="var(--color-mid)" radius={4} />
             <Bar dataKey="final" fill="var(--color-final)" radius={4} />
           </BarChart>
@@ -167,19 +157,13 @@ export default function MyGradesPage() {
                   Course
                 </th>
                 <th className="text-center py-3 px-3 font-semibold text-foreground">
-                  Quiz
+                  Mid Exam (25)
                 </th>
                 <th className="text-center py-3 px-3 font-semibold text-foreground">
-                  Assignment
+                  Sessional (15)
                 </th>
                 <th className="text-center py-3 px-3 font-semibold text-foreground">
-                  Mid
-                </th>
-                <th className="text-center py-3 px-3 font-semibold text-foreground">
-                  Final
-                </th>
-                <th className="text-center py-3 px-3 font-semibold text-foreground">
-                  Total
+                  Total (40)
                 </th>
                 <th className="text-center py-3 px-3 font-semibold text-foreground">
                   GPA
@@ -211,12 +195,6 @@ export default function MyGradesPage() {
                           {g.course?.courseCode}
                         </p>
                       </div>
-                    </td>
-                    <td className="text-center py-3 px-3 text-muted-foreground">
-                      {g.quizMarks}
-                    </td>
-                    <td className="text-center py-3 px-3 text-muted-foreground">
-                      {g.assignmentMarks}
                     </td>
                     <td className="text-center py-3 px-3 text-muted-foreground">
                       {g.midMarks}

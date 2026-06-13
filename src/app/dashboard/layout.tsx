@@ -13,12 +13,12 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   let userId: string | null = null;
-  let sessionClaims: any = null;
+  let sessionClaims: { metadata?: { role?: string } } | null = null;
 
   try {
     const authResult = await auth();
     userId = authResult.userId;
-    sessionClaims = authResult.sessionClaims;
+    sessionClaims = authResult.sessionClaims as { metadata?: { role?: string } } | null;
   } catch (error) {
     console.error("Clerk auth() error:", error);
   }

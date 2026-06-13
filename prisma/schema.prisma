@@ -12,6 +12,7 @@ model User {
   email     String   @unique
   name      String?
   role      Role     @default(STUDENT)
+  avatar    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   admin     Admin?
@@ -30,6 +31,8 @@ model Student {
   enrollmentDate DateTime      @default(now())
   avatar         String?
   shift          String        @default("Morning")
+  approvedBy     String?
+  cgpa           Float         @default(0.0)
   attendances    Attendance[]
   enrollments    Enrollment[]
   fees           Fee[]

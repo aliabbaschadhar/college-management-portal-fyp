@@ -80,7 +80,7 @@ interface CourseItem {
 
 export default function ManageAdmissionsPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"students" | "staff">("students");
+  const [activeTab, setActiveTab] = useState<"students" | "faculty" | "admins">("students");
   const [admissions, setAdmissions] = useState<Admission[]>([]);
   const [staffRequests, setStaffRequests] = useState<StaffRequest[]>([]);
   const [courses, setCourses] = useState<CourseItem[]>([]);
@@ -93,6 +93,8 @@ export default function ManageAdmissionsPage() {
   );
   const csvInputRef = useRef<HTMLInputElement>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [selectedStaffRequest, setSelectedStaffRequest] = useState<StaffRequest | null>(null);
+  const [viewStaffDialogOpen, setViewStaffDialogOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("Pending");
   const [importing, setImporting] = useState(false);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
@@ -459,6 +461,17 @@ export default function ManageAdmissionsPage() {
       header: "Actions",
       render: (row) => (
         <div className="flex items-center gap-1">
+          <button
+            onClick={() => {
+              setSelectedStaffRequest(row);
+              setViewStaffDialogOpen(true);
+            }}
+            disabled={submittingId !== null || deletingId !== null || importing}
+            className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            title="View Details"
+          >
+            <Eye className="h-4 w-4 text-muted-foreground" />
+          </button>
           {row.status === "Pending" && (
             <>
               <button
@@ -503,7 +516,9 @@ export default function ManageAdmissionsPage() {
         subtitle={
           activeTab === "students"
             ? `${admissions.filter((a) => a.status === "Pending").length} pending student admissions require review`
-            : `${staffRequests.filter((r) => r.status === "Pending").length} pending staff onboarding requests require review`
+            : activeTab === "faculty"
+            ? `${staffRequests.filter((r) => r.status === "Pending" && r.role === "FACULTY").length} pending faculty onboarding requests require review`
+            : `${staffRequests.filter((r) => r.status === "Pending" && r.role === "ADMIN").length} pending admin onboarding requests require review`
         }
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
@@ -568,17 +583,32 @@ export default function ManageAdmissionsPage() {
           )}
         </button>
         <button
-          onClick={() => setActiveTab("staff")}
+          onClick={() => setActiveTab("faculty")}
           className={`pb-3 px-6 font-bold text-sm border-b-2 transition-all relative ${
-            activeTab === "staff"
+            activeTab === "faculty"
               ? "border-brand-primary text-brand-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
-          Staff Onboarding Requests
-          {staffRequests.filter((r) => r.status === "Pending").length > 0 && (
+          Faculty Onboarding
+          {staffRequests.filter((r) => r.status === "Pending" && r.role === "FACULTY").length > 0 && (
             <span className="ml-2 bg-brand-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-              {staffRequests.filter((r) => r.status === "Pending").length}
+              {staffRequests.filter((r) => r.status === "Pending" && r.role === "FACULTY").length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab("admins")}
+          className={`pb-3 px-6 font-bold text-sm border-b-2 transition-all relative ${
+            activeTab === "admins"
+              ? "border-brand-primary text-brand-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Admin Onboarding
+          {staffRequests.filter((r) => r.status === "Pending" && r.role === "ADMIN").length > 0 && (
+            <span className="ml-2 bg-brand-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+              {staffRequests.filter((r) => r.status === "Pending" && r.role === "ADMIN").length}
             </span>
           )}
         </button>
@@ -602,12 +632,19 @@ export default function ManageAdmissionsPage() {
           searchPlaceholder="Search applicants..."
           searchKeys={["studentName", "email", "appliedDepartment"]}
         />
+      ) : activeTab === "faculty" ? (
+        <DataTable
+          data={staffRequests.filter((r) => r.role === "FACULTY") as unknown as Record<string, unknown>[]}
+          columns={staffColumns as unknown as Column<Record<string, unknown>>[]}
+          searchPlaceholder="Search faculty requests..."
+          searchKeys={["name", "email", "department"]}
+        />
       ) : (
         <DataTable
-          data={staffRequests as unknown as Record<string, unknown>[]}
+          data={staffRequests.filter((r) => r.role === "ADMIN") as unknown as Record<string, unknown>[]}
           columns={staffColumns as unknown as Column<Record<string, unknown>>[]}
-          searchPlaceholder="Search staff requests..."
-          searchKeys={["name", "email", "department", "role"]}
+          searchPlaceholder="Search admin requests..."
+          searchKeys={["name", "email", "specialization"]}
         />
       )}
 
@@ -783,6 +820,133 @@ export default function ManageAdmissionsPage() {
               <Button
                 variant="outline"
                 onClick={() => setViewDialogOpen(false)}
+                className="w-full"
+              >
+                Close
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Details Dialog (Staff only) */}
+      <Dialog open={viewStaffDialogOpen} onOpenChange={(open) => { if (submittingId === null) setViewStaffDialogOpen(open); }}>
+        <DialogContent className="sm:max-w-125">
+          <DialogHeader>
+            <DialogTitle>Staff Request Details</DialogTitle>
+            <DialogDescription>
+              Reviewing onboarding request for {selectedStaffRequest?.name}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedStaffRequest && (
+            <div className="grid gap-5 py-4 max-h-[60vh] overflow-y-auto pr-1">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase">
+                    Applicant Name
+                  </p>
+                  <p className="text-sm font-semibold">{selectedStaffRequest.name}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase">
+                    Email Address
+                  </p>
+                  <p className="text-sm font-mono">{selectedStaffRequest.email}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase">
+                    Requested Role
+                  </p>
+                  <p className="text-sm font-semibold capitalize">{selectedStaffRequest.role.toLowerCase()}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase">
+                    Phone Number
+                  </p>
+                  <p className="text-sm">{selectedStaffRequest.phone || "—"}</p>
+                </div>
+                {selectedStaffRequest.role === "FACULTY" && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground uppercase">
+                      Department
+                    </p>
+                    <p className="text-sm">{selectedStaffRequest.department || "—"}</p>
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase">
+                    {selectedStaffRequest.role === "FACULTY" ? "Specialization" : "Designation"}
+                  </p>
+                  <p className="text-sm">{selectedStaffRequest.specialization || "—"}</p>
+                </div>
+                <div className="space-y-1 col-span-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase">
+                    Applied On
+                  </p>
+                  <p className="text-sm font-mono">
+                    {new Date(selectedStaffRequest.createdAt).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1 p-3 rounded-lg bg-accent/50 border">
+                <p className="text-xs font-medium text-muted-foreground uppercase">
+                  Current Status
+                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge className={statusColors[selectedStaffRequest.status]}>
+                    {selectedStaffRequest.status}
+                  </Badge>
+                  {selectedStaffRequest.status === "Pending" && (
+                    <span className="text-xs text-muted-foreground italic">
+                      (Needs review)
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex gap-2 sm:justify-start">
+            {selectedStaffRequest?.status === "Pending" ? (
+              <>
+                <Button
+                  onClick={async () => {
+                    await handleStaffStatusChange(selectedStaffRequest.id, "Approved");
+                    setViewStaffDialogOpen(false);
+                  }}
+                  disabled={submittingId !== null}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white flex-1 min-w-[120px]"
+                >
+                  {submittingId === selectedStaffRequest.id && submittingStatus === "Approved" ? (
+                    <Spinner size="sm" variant="white" className="mr-2" />
+                  ) : (
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                  )}
+                  Approve
+                </Button>
+                <Button
+                  onClick={async () => {
+                    await handleStaffStatusChange(selectedStaffRequest.id, "Rejected");
+                    setViewStaffDialogOpen(false);
+                  }}
+                  variant="destructive"
+                  disabled={submittingId !== null}
+                  className="flex-1 min-w-[110px]"
+                >
+                  {submittingId === selectedStaffRequest.id && submittingStatus === "Rejected" ? (
+                    <Spinner size="sm" variant="white" className="mr-2" />
+                  ) : (
+                    <XCircle className="h-4 w-4 mr-2" />
+                  )}
+                  Reject
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={() => setViewStaffDialogOpen(false)}
                 className="w-full"
               >
                 Close

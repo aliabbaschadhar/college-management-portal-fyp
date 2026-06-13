@@ -14,9 +14,10 @@ interface SidebarProps {
   roleLabel: string;
   isMobileOpen: boolean;
   onMobileClose: () => void;
+  onNavigate?: () => void;
 }
 
-export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose }: SidebarProps) {
+export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose, onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -78,6 +79,11 @@ export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose }: Si
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={() => {
+                  if (!active && onNavigate) {
+                    onNavigate();
+                  }
+                }}
                 className={cn(
                   "group flex items-center gap-3 rounded-none px-3 py-2.5 text-sm font-bold transition-all duration-200 border-2 border-transparent",
                   active

@@ -51,6 +51,11 @@ export async function GET(request: NextRequest) {
     const attendances = await prisma.attendance.findMany({
       where: {
         ...(courseId ? { courseId } : {}),
+        ...(user.role === "FACULTY" && user.faculty ? {
+          course: {
+            assignedFaculty: user.faculty.id,
+          },
+        } : {}),
         ...(studentId ? {
           studentId,
           ...(user.role === "STUDENT" && user.student ? {

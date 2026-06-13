@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/axios";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { Pencil, Trash2, Loader2, Eye, Calendar, Mail, Phone, Clock } from "lucide-react";
+import { Pencil, Trash2, Loader2, Eye, Calendar, Mail, Phone, Clock, Shield } from "lucide-react";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
@@ -42,6 +42,7 @@ interface StudentWithUser {
   enrollmentDate: string;
   avatar: string | null;
   shift: string;
+  approvedBy?: string | null;
   user: { name: string | null; email: string };
   _count: { enrollments: number };
 }
@@ -139,6 +140,11 @@ export default function ManageStudentsPage() {
         s.shift === selectedShift
     );
   }, [students, selectedDept, selectedSemester, selectedShift]);
+
+  const visibleDepartments = useMemo(() => {
+    if (isAdmin) return DEPARTMENTS;
+    return DEPARTMENTS.filter((dept) => students.some((s) => s.department === dept));
+  }, [isAdmin, students]);
 
   useEffect(() => {
     setSelectedStudentIds([]);
@@ -524,7 +530,7 @@ export default function ManageStudentsPage() {
             ) : (
               /* Department Grid */
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {DEPARTMENTS.map((dept) => {
+                {visibleDepartments.map((dept) => {
                   const count = students.filter((s) => s.department === dept).length;
                   return (
                     <motion.div
@@ -733,6 +739,7 @@ export default function ManageStudentsPage() {
               <div className="relative group">
                 <div className="absolute inset-0 rounded-full bg-brand-primary/20 blur-md transition-all group-hover:bg-brand-primary/30" />
                 {detailStudent?.avatar ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
                   <img
                     src={detailStudent.avatar}
                     alt="Avatar"
@@ -799,6 +806,15 @@ export default function ManageStudentsPage() {
                   </span>
                 </div>
               </div>
+              {detailStudent?.approvedBy && (
+                <div className="flex items-center gap-3 text-sm">
+                  <Shield className="h-4.5 w-4.5 text-muted-foreground shrink-0" />
+                  <div>
+                    <span className="text-xs text-muted-foreground block">Approved By</span>
+                    <span className="font-semibold text-foreground">{detailStudent.approvedBy}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-center pt-2">
