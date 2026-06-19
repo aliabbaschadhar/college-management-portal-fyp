@@ -33,6 +33,7 @@ model Student {
   shift          String        @default("Morning")
   approvedBy     String?
   cgpa           Float         @default(0.0)
+  blocked        Boolean       @default(false)
   attendances    Attendance[]
   enrollments    Enrollment[]
   fees           Fee[]
@@ -68,6 +69,7 @@ model Course {
   department      String
   semester        Int          @default(1)
   assignedFaculty String?
+  shift           String       @default("Morning")
   attendances     Attendance[]
   faculty         Faculty?     @relation(fields: [assignedFaculty], references: [id])
   enrollments     Enrollment[]
@@ -122,8 +124,10 @@ model Announcement {
   content  String
   author   String
   date     DateTime             @default(now())
-  audience AnnouncementAudience
-  priority Priority             @default(Medium)
+  audience         AnnouncementAudience
+  priority         Priority             @default(Medium)
+  targetDepartment String?
+  targetSemester   Int?
 }
 
 model Feedback {

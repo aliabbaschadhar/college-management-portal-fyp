@@ -104,6 +104,14 @@ export async function POST(request: NextRequest) {
         correctOption: body.correctOption,
         quizId: body.quizId,
       },
+      select: {
+        id: true,
+        text: true,
+        options: true,
+        correctOption: true,
+        quizId: true,
+        quiz: { select: { courseId: true, title: true, course: { select: { courseCode: true } } } },
+      },
     });
 
     return NextResponse.json(question, { status: 201 });

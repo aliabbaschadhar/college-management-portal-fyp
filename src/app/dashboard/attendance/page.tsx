@@ -8,6 +8,7 @@ import { DataTable, Column } from "@/components/dashboard/DataTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TableSkeleton } from "@/components/ui";
+import { useUser } from "@clerk/nextjs";
 import {
   Select,
   SelectContent,
@@ -51,6 +52,7 @@ interface StudentItem {
   department: string;
   semester: number;
   shift: string;
+  blocked: boolean;
   enrollmentDate: string;
   avatar: string | null;
   user: { name: string | null; email: string };
@@ -65,6 +67,14 @@ interface StudentStatsItem extends StudentItem {
     late: number;
     rate: number;
   };
+}
+
+interface CourseType {
+  id: string;
+  department: string;
+  semester: number;
+  courseCode: string;
+  courseName: string;
 }
 
 const statusColors: Record<"Present" | "Absent" | "Late", string> = {
@@ -86,8 +96,10 @@ const departmentIcons: Record<string, string> = {
 };
 
 export default function ManageAttendancePage() {
+  const { user, isLoaded } = useUser();
   const [students, setStudents] = useState<StudentItem[]>([]);
   const [attendance, setAttendance] = useState<AttendanceWithDetails[]>([]);
+  const [courses, setCourses] = useState<CourseType[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Drill-down states
@@ -100,15 +112,79 @@ export default function ManageAttendancePage() {
   const [selectedStudent, setSelectedStudent] = useState<StudentStatsItem | null>(null);
   const [updatingLogId, setUpdatingLogId] = useState<string | null>(null);
 
+  const role = useMemo(() => {
+    const rawRole = user?.publicMetadata?.role as string | undefined;
+    if (rawRole) {
+      return rawRole.toLowerCase();
+    }
+    return "student";
+  }, [user?.publicMetadata?.role]);
+
+  const isAdmin = role === "admin";
+  const isFaculty = role === "faculty";
+
+  // Faculty Struck Off dialog states
+  const [struckOffDialogOpen, setStruckOffDialogOpen] = useState(false);
+  const [struckOffStudent, setStruckOffStudent] = useState<StudentStatsItem | null>(null);
+  const [struckOffReason, setStruckOffReason] = useState("");
+  const [submittingStruckOff, setSubmittingStruckOff] = useState(false);
+
+  const handleStruckOffClick = (student: StudentStatsItem) => {
+    if (isFaculty) {
+      setStruckOffStudent(student);
+      setStruckOffReason("");
+      setStruckOffDialogOpen(true);
+    } else {
+      handleToggleBlock(student);
+    }
+  };
+
+  const handleStruckOffSubmit = async () => {
+    if (!struckOffStudent || !struckOffReason.trim()) return;
+    setSubmittingStruckOff(true);
+    try {
+      // 1. Block student
+      await api.patch(`/api/students/${struckOffStudent.id}`, { blocked: true });
+      
+      // 2. Post announcement warning notice targeting their class
+      await api.post("/api/announcements", {
+        title: "Warning Notice: Student Struck Off",
+        content: `Student ${struckOffStudent.user?.name || "Unknown"} (${struckOffStudent.rollNo}) has been struck off from attendance logs by instructor. Reason: ${struckOffReason}`,
+        audience: "Students",
+        priority: "High",
+        targetDepartment: struckOffStudent.department,
+        targetSemester: struckOffStudent.semester,
+      });
+
+      // 3. Update local state
+      setStudents((prev) =>
+        prev.map((s) => (s.id === struckOffStudent.id ? { ...s, blocked: true } : s))
+      );
+      if (selectedStudent && selectedStudent.id === struckOffStudent.id) {
+        setSelectedStudent((prev) => (prev ? { ...prev, blocked: true } : null));
+      }
+      setStruckOffDialogOpen(false);
+      setStruckOffStudent(null);
+      setStruckOffReason("");
+    } catch (err) {
+      console.error("Failed to strike off student:", err);
+      alert("Failed to strike off student. Please try again.");
+    } finally {
+      setSubmittingStruckOff(false);
+    }
+  };
+
   useEffect(() => {
     setLoading(true);
     Promise.all([
       api.get<StudentItem[]>("/api/students"),
       api.get<AttendanceWithDetails[]>("/api/attendance"),
+      api.get<CourseType[]>("/api/courses").catch(() => ({ data: [] })),
     ])
-      .then(([studentsRes, attendanceRes]) => {
+      .then(([studentsRes, attendanceRes, coursesRes]) => {
         setStudents(Array.isArray(studentsRes.data) ? studentsRes.data : []);
         setAttendance(Array.isArray(attendanceRes.data) ? attendanceRes.data : []);
+        setCourses(Array.isArray(coursesRes.data) ? coursesRes.data : []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -130,6 +206,51 @@ export default function ManageAttendancePage() {
       setUpdatingLogId(null);
     }
   };
+
+  const handleToggleBlock = async (student: StudentStatsItem) => {
+    const nextState = !student.blocked;
+    const actionText = nextState ? "Struck Off (Block)" : "Restore";
+    if (!confirm(`Are you sure you want to ${actionText} student ${student.user?.name}?`)) {
+      return;
+    }
+    try {
+      await api.patch(`/api/students/${student.id}`, { blocked: nextState });
+      setStudents((prev) =>
+        prev.map((s) => (s.id === student.id ? { ...s, blocked: nextState } : s))
+      );
+      if (selectedStudent && selectedStudent.id === student.id) {
+        setSelectedStudent((prev) => (prev ? { ...prev, blocked: nextState } : null));
+      }
+    } catch (err) {
+      console.error("Failed to toggle student blocked status:", err);
+      alert("Failed to update student block status. Please try again.");
+    }
+  };
+
+  const visibleDepartments = useMemo(() => {
+    if (isAdmin) return DEPARTMENTS;
+    if (isFaculty) {
+      const facultyDepts = new Set(courses.map((c) => c.department));
+      return DEPARTMENTS.filter((dept) => facultyDepts.has(dept));
+    }
+    return DEPARTMENTS.filter((dept) => students.some((s) => s.department === dept));
+  }, [isAdmin, isFaculty, courses, students]);
+
+  const visibleSemesters = useMemo(() => {
+    const allSemesters = [1, 2, 3, 4, 5, 6, 7, 8];
+    if (isAdmin) return allSemesters;
+    if (isFaculty) {
+      const facultySemesters = new Set(
+        courses
+          .filter((c) => c.department === selectedDept)
+          .map((c) => c.semester)
+      );
+      return allSemesters.filter((sem) => facultySemesters.has(sem));
+    }
+    return allSemesters.filter((sem) =>
+      students.some((s) => s.department === selectedDept && s.semester === sem)
+    );
+  }, [isAdmin, isFaculty, courses, selectedDept, students]);
 
   // Filter students in the selected class/shift
   const classStudents = useMemo(() => {
@@ -207,7 +328,14 @@ export default function ManageAttendancePage() {
       sortable: true,
       render: (row) => (
         <div>
-          <p className="font-semibold text-foreground">{row.user?.name ?? "—"}</p>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-foreground">{row.user?.name ?? "—"}</span>
+            {row.blocked && (
+              <Badge variant="destructive" className="text-[10px] py-0 px-1.5 uppercase font-bold tracking-wider animate-pulse">
+                Struck Off
+              </Badge>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground font-mono">{row.rollNo}</p>
         </div>
       ),
@@ -265,18 +393,45 @@ export default function ManageAttendancePage() {
       key: "id",
       header: "Actions",
       render: (row) => (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            setSelectedStudent(row);
-            setLogDialogOpen(true);
-          }}
-          className="h-8 text-xs gap-1 border-brand-primary/20 hover:bg-brand-primary hover:text-white transition-all rounded-lg"
-        >
-          <Eye className="h-3.5 w-3.5" />
-          View Logs
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setSelectedStudent(row);
+              setLogDialogOpen(true);
+            }}
+            className="h-8 text-xs gap-1 border-brand-primary/20 hover:bg-brand-primary hover:text-white transition-all rounded-lg"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            View Logs
+          </Button>
+
+          {row.blocked ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isFaculty}
+              onClick={() => handleToggleBlock(row)}
+              className="h-8 text-xs gap-1 rounded-lg disabled:opacity-50"
+            >
+              {isFaculty ? "Struck Off (Contact Admin)" : "Restore"}
+            </Button>
+          ) : (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => handleStruckOffClick(row)}
+              className={`h-8 text-xs gap-1 rounded-lg ${
+                row.stats.rate < 75
+                  ? "bg-rose-600 hover:bg-rose-700 animate-pulse border-none text-white"
+                  : ""
+              }`}
+            >
+              Struck Off
+            </Button>
+          )}
+        </div>
       ),
     },
   ];
@@ -330,7 +485,7 @@ export default function ManageAttendancePage() {
       />
 
       <AnimatePresence mode="wait">
-        {loading ? (
+        {!isLoaded || loading ? (
           <motion.div
             key="loading"
             initial={{ opacity: 0 }}
@@ -350,7 +505,7 @@ export default function ManageAttendancePage() {
             transition={{ duration: 0.25 }}
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
           >
-            {DEPARTMENTS.map((dept) => {
+            {visibleDepartments.map((dept) => {
               const count = students.filter((s) => s.department === dept).length;
               return (
                 <motion.div
@@ -399,7 +554,7 @@ export default function ManageAttendancePage() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => {
+              {visibleSemesters.map((sem) => {
                 const count = students.filter(
                   (s) => s.department === selectedDept && s.semester === sem
                 ).length;
@@ -556,6 +711,58 @@ export default function ManageAttendancePage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Faculty Struck Off Dialog */}
+      <Dialog open={struckOffDialogOpen} onOpenChange={(open) => { if (!submittingStruckOff) setStruckOffDialogOpen(open); }}>
+        <DialogContent className="sm:max-w-[500px] border-none shadow-2xl overflow-hidden rounded-3xl">
+          <div className="absolute top-0 left-0 w-full h-2 bg-destructive" />
+          <DialogHeader className="pt-6">
+            <DialogTitle className="text-xl font-bold text-destructive">
+              Struck Off Student
+            </DialogTitle>
+            <DialogDescription>
+              Provide a reason for striking off <strong>{struckOffStudent?.user?.name}</strong> ({struckOffStudent?.rollNo}). A warning notice will be posted to the class.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            <div className="grid gap-2">
+              <label htmlFor="reason" className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                Notice / Struck Off Reason
+              </label>
+              <textarea
+                id="reason"
+                disabled={submittingStruckOff}
+                value={struckOffReason}
+                onChange={(e) => setStruckOffReason(e.target.value)}
+                placeholder="e.g., Consecutive absences / Shortage of attendance"
+                className="min-h-[100px] w-full resize-none rounded-xl border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pb-6">
+            <Button
+              variant="ghost"
+              disabled={submittingStruckOff}
+              onClick={() => setStruckOffDialogOpen(false)}
+              className="rounded-xl"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleStruckOffSubmit}
+              disabled={submittingStruckOff || !struckOffReason.trim()}
+              className="rounded-xl flex items-center gap-2"
+            >
+              {submittingStruckOff && <Loader2 className="h-4 w-4 animate-spin" />}
+              {submittingStruckOff ? "Submitting..." : "Strike Off Student"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 }
+

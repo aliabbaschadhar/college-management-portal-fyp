@@ -26,7 +26,7 @@ interface GradeWithCourse {
   total: number;
   gpa: number;
   locked: boolean;
-  student: { rollNo: string; user: { name: string | null } };
+  student: { rollNo: string; user: { name: string | null }; cgpa: number };
   course: { courseCode: string; courseName: string };
 }
 
@@ -49,25 +49,13 @@ export default function MyGradesPage() {
       .catch(() => setLoading(false));
   }, []);
 
-  const overallGPA =
-    grades.length > 0
-      ? +(grades.reduce((sum, g) => sum + g.gpa, 0) / grades.length).toFixed(2)
-      : null;
+  const previousCGPA = grades[0]?.student?.cgpa ?? 0.0;
 
   const chartData = grades.map((g) => ({
     course: g.course?.courseCode || g.courseId,
     mid: g.midMarks,
     final: g.finalMarks,
   }));
-
-  const gpaColor =
-    overallGPA === null
-      ? "text-muted-foreground"
-      : overallGPA >= 3.5
-        ? "text-emerald-500"
-        : overallGPA >= 3.0
-          ? "text-amber-500"
-          : "text-rose-500";
 
   if (loading) {
     return (
@@ -111,12 +99,12 @@ export default function MyGradesPage() {
           <GraduationCap className="h-8 w-8 text-brand-primary" />
         </div>
         <div>
-          <p className="text-sm text-muted-foreground">Overall GPA</p>
-          <p className={`text-4xl font-bold tracking-tight ${gpaColor}`}>
-            {overallGPA === null ? "—" : overallGPA}
+          <p className="text-sm text-muted-foreground">Previous Semester CGPA</p>
+          <p className="text-4xl font-bold tracking-tight text-brand-primary">
+            {grades.length > 0 ? previousCGPA.toFixed(2) : "—"}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Across {grades.length} courses
+            CGPA from previous semesters
           </p>
         </div>
         <div className="ml-auto flex items-center gap-1 text-sm text-muted-foreground">
@@ -166,7 +154,7 @@ export default function MyGradesPage() {
                   Total (40)
                 </th>
                 <th className="text-center py-3 px-3 font-semibold text-foreground">
-                  GPA
+                  Obtained Marks
                 </th>
                 <th className="text-center py-3 px-3 font-semibold text-foreground">
                   Status
@@ -175,12 +163,6 @@ export default function MyGradesPage() {
             </thead>
             <tbody>
               {grades.map((g) => {
-                const gpaClass =
-                  g.gpa >= 3.5
-                    ? "text-emerald-500"
-                    : g.gpa >= 3.0
-                      ? "text-amber-500"
-                      : "text-rose-500";
                 return (
                   <tr
                     key={g.id}
@@ -206,9 +188,9 @@ export default function MyGradesPage() {
                       {g.total}
                     </td>
                     <td
-                      className={`text-center py-3 px-3 font-bold ${gpaClass}`}
+                      className="text-center py-3 px-3 font-bold text-foreground"
                     >
-                      {g.gpa}
+                      {g.total} / 40
                     </td>
                     <td className="text-center py-3 px-3">
                       {g.locked ? (

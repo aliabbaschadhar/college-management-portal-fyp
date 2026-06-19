@@ -9,6 +9,7 @@ import { useUser } from "@clerk/nextjs";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -16,11 +17,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { TableSkeleton } from "@/components/ui";
+import { Label } from "@/components/ui/label";
 
 interface CourseOption {
   id: string;
   courseCode: string;
   courseName: string;
+  department: string;
+  semester: number;
 }
 
 interface GradeEntry {
@@ -34,17 +39,29 @@ interface GradeEntry {
   total: number;
   gpa: number;
   locked: boolean;
-  student: { rollNo: string; user: { name: string | null }; cgpa: number };
+  student: {
+    rollNo: string;
+    shift: string;
+    blocked: boolean;
+    user: { name: string | null };
+    cgpa: number;
+  };
 }
 
 export default function FacultyGradesPage() {
   useUser();
   const [courses, setCourses] = useState<CourseOption[]>([]);
+  const [selectedDept, setSelectedDept] = useState("");
+  const [selectedSemester, setSelectedSemester] = useState("");
   const [selectedCourse, setSelectedCourse] = useState("");
+  const [selectedShift, setSelectedShift] = useState("morning");
   const [grades, setGrades] = useState<GradeEntry[]>([]);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loadingGrades, setLoadingGrades] = useState(false);
+  const [focusedInput, setFocusedInput] = useState<{ id: string; field: string } | null>(null);
 
+  // Fetch initial assigned courses list
   useEffect(() => {
     api
       .get<CourseOption[]>("/api/courses")
@@ -52,14 +69,37 @@ export default function FacultyGradesPage() {
       .catch(() => {});
   }, []);
 
-  const handleCourseChange = (courseId: string) => {
-    setSelectedCourse(courseId);
+  // Compute unique departments from assigned courses
+  const depts = Array.from(new Set(courses.map((c) => c.department))).sort();
+
+  // Compute unique semesters for chosen department
+  const semesters = Array.from(
+    new Set(
+      courses
+        .filter((c) => c.department === selectedDept)
+        .map((c) => c.semester)
+    )
+  ).sort((a, b) => a - b);
+
+  // Filter courses by department and semester
+  const filteredCourses = courses.filter(
+    (c) => c.department === selectedDept && c.semester === Number(selectedSemester)
+  );
+
+  // Fetch grades whenever selected course changes
+  useEffect(() => {
+    if (!selectedCourse) {
+      setGrades([]);
+      return;
+    }
     setSaved(false);
+    setLoadingGrades(true);
     api
-      .get<GradeEntry[]>(`/api/grades?courseId=${courseId}`)
+      .get<GradeEntry[]>(`/api/grades?courseId=${selectedCourse}`)
       .then((r) => setGrades(Array.isArray(r.data) ? r.data : []))
-      .catch(() => setGrades([]));
-  };
+      .catch(() => setGrades([]))
+      .finally(() => setLoadingGrades(false));
+  }, [selectedCourse]);
 
   const updateGrade = (
     gradeId: string,
@@ -73,7 +113,6 @@ export default function FacultyGradesPage() {
       prev.map((g) => {
         if (g.id !== gradeId || g.locked) return g;
         const updated = { ...g, [field]: value };
-        // set quiz and assignment to 0 under 40-marks system
         updated.quizMarks = 0;
         updated.assignmentMarks = 0;
         updated.total =
@@ -104,27 +143,38 @@ export default function FacultyGradesPage() {
 
   const handleSave = async () => {
     setSaving(true);
-    await Promise.all(
-      grades
-        .filter((g) => !g.locked)
-        .map((g) =>
-          api.post("/api/grades", {
-            studentId: g.studentId,
-            courseId: g.courseId,
-            quizMarks: 0,
-            assignmentMarks: 0,
-            midMarks: g.midMarks,
-            finalMarks: g.finalMarks,
-            total: g.total,
-            gpa: g.gpa,
-            cgpa: Number(g.student.cgpa || 0),
-          }),
-        ),
-    );
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    try {
+      await Promise.all(
+        grades
+          .filter((g) => !g.locked)
+          .map((g) =>
+            api.post("/api/grades", {
+              studentId: g.studentId,
+              courseId: g.courseId,
+              quizMarks: 0,
+              assignmentMarks: 0,
+              midMarks: g.midMarks,
+              finalMarks: g.finalMarks,
+              total: g.total,
+              gpa: g.gpa,
+              cgpa: Number(g.student.cgpa || 0),
+            }),
+          ),
+      );
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      console.error("Failed to save grades:", err);
+    } finally {
+      setSaving(false);
+    }
   };
+
+  // Filter grades by shift selection
+  const filteredGrades = grades.filter((g) => {
+    if (selectedShift === "all") return true;
+    return g.student.shift?.toLowerCase() === selectedShift.toLowerCase();
+  });
 
   return (
     <motion.div
@@ -140,212 +190,308 @@ export default function FacultyGradesPage() {
           { label: "Dashboard", href: "/dashboard" },
           { label: "Grades" },
         ]}
-        action={
-          <Select value={selectedCourse} onValueChange={handleCourseChange}>
-            <SelectTrigger className="w-[220px]">
-              <SelectValue placeholder="Select a course" />
-            </SelectTrigger>
-            <SelectContent>
-              {courses.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.courseCode} — {c.courseName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        }
       />
 
-      {selectedCourse && grades.length > 0 && (
-        <>
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-muted/50">
-                    <th className="text-left py-3 px-4 font-semibold text-foreground">
-                      Student
-                    </th>
-                    <th className="text-left py-3 px-3 font-semibold text-foreground">
-                      Roll No
-                    </th>
-                    <th className="text-center py-3 px-2 font-semibold text-foreground w-24">
-                      Mid Exam (25)
-                    </th>
-                    <th className="text-center py-3 px-2 font-semibold text-foreground w-24">
-                      Sessional (15)
-                    </th>
-                    <th className="text-center py-3 px-3 font-semibold text-foreground">
-                      Total (40)
-                    </th>
-                    <th className="text-center py-3 px-3 font-semibold text-foreground">
-                      GPA
-                    </th>
-                    <th className="text-center py-3 px-2 font-semibold text-foreground w-24">
-                      Current CGPA
-                    </th>
-                    <th className="text-center py-3 px-3 font-semibold text-foreground">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {grades.map((g) => {
-                    const gpaColor =
-                      g.gpa >= 3.5
-                        ? "text-emerald-500"
-                        : g.gpa >= 3.0
-                          ? "text-amber-500"
-                          : "text-rose-500";
-                    return (
-                      <tr
-                        key={g.id}
-                        className="border-b border-border/50 hover:bg-accent/20 transition-colors"
-                      >
-                        <td className="py-3 px-4">
-                          <div>
-                            <span className="font-medium text-foreground">
-                              {g.student.user.name ?? "—"}
-                            </span>
-                            <AuditBadgeInline entity="Grade" entityId={g.id} />
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 font-mono text-muted-foreground text-xs">
-                          {g.student.rollNo}
-                        </td>
-                        <td className="py-2 px-2">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={25}
-                            value={g.midMarks}
-                            onChange={(e) =>
-                              updateGrade(g.id, "midMarks", +e.target.value)
-                            }
-                            disabled={g.locked}
-                            className="text-center h-8 w-16 mx-auto"
-                          />
-                        </td>
-                        <td className="py-2 px-2">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={15}
-                            value={g.finalMarks}
-                            onChange={(e) =>
-                              updateGrade(g.id, "finalMarks", +e.target.value)
-                            }
-                            disabled={g.locked}
-                            className="text-center h-8 w-16 mx-auto"
-                          />
-                        </td>
-                        <td className="py-3 px-3 text-center font-bold text-foreground">
-                          {g.total}
-                        </td>
-                        <td
-                          className={`py-3 px-3 text-center font-bold ${gpaColor}`}
-                        >
-                          {g.gpa}
-                        </td>
-                        <td className="py-2 px-2">
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min={0}
-                            max={4.0}
-                            value={g.student.cgpa !== undefined ? g.student.cgpa : 0.0}
-                            onChange={(e) =>
-                              updateCgpa(g.id, +e.target.value)
-                            }
-                            disabled={g.locked}
-                            className="text-center h-8 w-20 mx-auto"
-                          />
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              onClick={async () => {
-                                try {
-                                  await api.patch(`/api/grades/${g.id}`, {
-                                    locked: !g.locked,
-                                  });
-                                  setGrades((prev) =>
-                                    prev.map((x) =>
-                                      x.id === g.id
-                                        ? { ...x, locked: !x.locked }
-                                        : x,
-                                    ),
-                                  );
-                                } catch {
-                                  /* ignore */
-                                }
-                              }}
-                              className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-accent transition-colors"
-                              title={g.locked ? "Unlock grade" : "Lock grade"}
-                            >
-                              {g.locked ? (
-                                <Lock className="h-3.5 w-3.5 text-emerald-600" />
-                              ) : (
-                                <Unlock className="h-3.5 w-3.5 text-amber-600" />
-                              )}
-                            </button>
-                            <button
-                              onClick={async () => {
-                                if (
-                                  !confirm(
-                                    `Delete grade for ${g.student.user.name}?`,
-                                  )
-                                )
-                                  return;
-                                try {
-                                  await api.delete(`/api/grades/${g.id}`);
-                                  setGrades((prev) =>
-                                    prev.filter((x) => x.id !== g.id),
-                                  );
-                                } catch {
-                                  /* ignore */
-                                }
-                              }}
-                              className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-destructive/10 transition-colors"
-                              title="Delete grade"
-                            >
-                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+      {/* Selectors Row */}
+      <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+          <div>
+            <Label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Department</Label>
+            <Select
+              value={selectedDept}
+              onValueChange={(val) => {
+                setSelectedDept(val);
+                setSelectedSemester("");
+                setSelectedCourse("");
+              }}
+            >
+              <SelectTrigger className="bg-card">
+                <SelectValue placeholder="Select Department" />
+              </SelectTrigger>
+              <SelectContent>
+                {depts.map((d) => (
+                  <SelectItem key={d} value={d}>
+                    {d}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <div className="flex justify-end">
-            {saved ? (
-              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-                <CheckCircle className="h-5 w-5" />
-                <span className="text-sm font-medium">
-                  Grades saved successfully!
-                </span>
-              </div>
-            ) : (
-              <Button onClick={handleSave} disabled={saving} className="gap-2">
-                <Save className="h-4 w-4" />
-                {saving ? "Saving..." : "Save Grades"}
-              </Button>
-            )}
+          <div>
+            <Label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Semester</Label>
+            <Select
+              value={selectedSemester}
+              onValueChange={(val) => {
+                setSelectedSemester(val);
+                setSelectedCourse("");
+              }}
+              disabled={!selectedDept}
+            >
+              <SelectTrigger className="bg-card">
+                <SelectValue placeholder="Select Semester" />
+              </SelectTrigger>
+              <SelectContent>
+                {semesters.map((s) => (
+                  <SelectItem key={s} value={s.toString()}>
+                    Semester {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        </>
-      )}
 
-      {selectedCourse && grades.length === 0 && (
-        <div className="text-center py-16 text-muted-foreground">
-          <p className="text-lg font-medium">
-            No grade records found for this course.
-          </p>
+          <div>
+            <Label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Course</Label>
+            <Select
+              value={selectedCourse}
+              onValueChange={(val) => setSelectedCourse(val)}
+              disabled={!selectedSemester}
+            >
+              <SelectTrigger className="bg-card">
+                <SelectValue placeholder="Select Course" />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredCourses.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.courseCode} — {c.courseName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Shift Filter</Label>
+            <Select value={selectedShift} onValueChange={(val) => setSelectedShift(val)}>
+              <SelectTrigger className="bg-card">
+                <SelectValue placeholder="All Shifts" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Shifts</SelectItem>
+                <SelectItem value="morning">Morning</SelectItem>
+                <SelectItem value="evening">Evening</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
+      </div>
+
+      {loadingGrades ? (
+        <TableSkeleton rows={6} />
+      ) : (
+        <>
+          {selectedCourse && filteredGrades.length > 0 && (
+            <>
+              <div className="rounded-xl border border-border bg-card overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/50">
+                        <th className="text-left py-3 px-4 font-semibold text-foreground">
+                          Student
+                        </th>
+                        <th className="text-left py-3 px-3 font-semibold text-foreground">
+                          Roll No
+                        </th>
+                        <th className="text-left py-3 px-3 font-semibold text-foreground">
+                          Shift
+                        </th>
+                        <th className="text-center py-3 px-2 font-semibold text-foreground w-28">
+                          Mid Exam (25)
+                        </th>
+                        <th className="text-center py-3 px-2 font-semibold text-foreground w-28">
+                          Sessional (15)
+                        </th>
+                        <th className="text-center py-3 px-3 font-semibold text-foreground">
+                          Total (40)
+                        </th>
+                        <th className="text-center py-3 px-3 font-semibold text-foreground">
+                          Obtained Marks
+                        </th>
+                        <th className="text-center py-3 px-2 font-semibold text-foreground w-28">
+                          Previous CGPA
+                        </th>
+                        <th className="text-center py-3 px-3 font-semibold text-foreground w-28">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredGrades.map((g) => {
+                        return (
+                          <tr
+                            key={g.id}
+                            className="border-b border-border/50 hover:bg-accent/20 transition-colors"
+                          >
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-foreground">
+                                  {g.student.user.name ?? "—"}
+                                </span>
+                                {g.student.blocked && (
+                                  <Badge variant="destructive" className="text-[10px] py-0 px-1.5 uppercase font-bold tracking-wider animate-pulse">
+                                    Struck Off
+                                  </Badge>
+                                )}
+                                <AuditBadgeInline entity="Grade" entityId={g.id} />
+                              </div>
+                            </td>
+                            <td className="py-3 px-3 font-mono text-muted-foreground text-xs">
+                              {g.student.rollNo}
+                            </td>
+                            <td className="py-3 px-3">
+                              <Badge
+                                variant="secondary"
+                                className={
+                                  g.student.shift?.toLowerCase() === "morning"
+                                    ? "bg-amber-500/10 text-amber-500 hover:bg-amber-500/20"
+                                    : "bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500/20"
+                                }
+                              >
+                                {g.student.shift ?? "Morning"}
+                              </Badge>
+                            </td>
+                            <td className="py-2 px-2">
+                              <Input
+                                type="number"
+                                min={0}
+                                max={25}
+                                value={focusedInput?.id === g.id && focusedInput?.field === "midMarks" && g.midMarks === 0 ? "" : g.midMarks}
+                                onChange={(e) =>
+                                  updateGrade(g.id, "midMarks", +e.target.value)
+                                }
+                                onFocus={() => setFocusedInput({ id: g.id, field: "midMarks" })}
+                                onBlur={() => setFocusedInput(null)}
+                                disabled={g.locked}
+                                className="text-center h-8 w-16 mx-auto bg-card border-2"
+                              />
+                            </td>
+                            <td className="py-2 px-2">
+                              <Input
+                                type="number"
+                                min={0}
+                                max={15}
+                                value={focusedInput?.id === g.id && focusedInput?.field === "finalMarks" && g.finalMarks === 0 ? "" : g.finalMarks}
+                                onChange={(e) =>
+                                  updateGrade(g.id, "finalMarks", +e.target.value)
+                                }
+                                onFocus={() => setFocusedInput({ id: g.id, field: "finalMarks" })}
+                                onBlur={() => setFocusedInput(null)}
+                                disabled={g.locked}
+                                className="text-center h-8 w-16 mx-auto bg-card border-2"
+                              />
+                            </td>
+                            <td className="py-3 px-3 text-center font-bold text-foreground">
+                              {g.total}
+                            </td>
+                            <td className="py-3 px-3 text-center font-bold text-foreground">
+                              {g.total} / 40
+                            </td>
+                            <td className="py-2 px-2">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min={0}
+                                max={4.0}
+                                value={focusedInput?.id === g.id && focusedInput?.field === "cgpa" && (g.student.cgpa === 0 || g.student.cgpa === undefined) ? "" : (g.student.cgpa !== undefined ? g.student.cgpa : 0.0)}
+                                onChange={(e) =>
+                                  updateCgpa(g.id, +e.target.value)
+                                }
+                                onFocus={() => setFocusedInput({ id: g.id, field: "cgpa" })}
+                                onBlur={() => setFocusedInput(null)}
+                                disabled={g.locked}
+                                className="text-center h-8 w-20 mx-auto bg-card border-2"
+                              />
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await api.patch(`/api/grades/${g.id}`, {
+                                        locked: !g.locked,
+                                      });
+                                      setGrades((prev) =>
+                                        prev.map((x) =>
+                                          x.id === g.id
+                                            ? { ...x, locked: !x.locked }
+                                            : x,
+                                        ),
+                                      );
+                                    } catch {
+                                      /* ignore */
+                                    }
+                                  }}
+                                  className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-accent transition-colors"
+                                  title={g.locked ? "Unlock grade" : "Lock grade"}
+                                >
+                                  {g.locked ? (
+                                    <Lock className="h-3.5 w-3.5 text-emerald-600" />
+                                  ) : (
+                                    <Unlock className="h-3.5 w-3.5 text-amber-600" />
+                                  )}
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    if (
+                                      !confirm(
+                                        `Delete grade for ${g.student.user.name}?`,
+                                      )
+                                    )
+                                      return;
+                                    try {
+                                      await api.delete(`/api/grades/${g.id}`);
+                                      setGrades((prev) =>
+                                        prev.filter((x) => x.id !== g.id),
+                                      );
+                                    } catch {
+                                      /* ignore */
+                                    }
+                                  }}
+                                  className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-destructive/10 transition-colors"
+                                  title="Delete grade"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                {saved ? (
+                  <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle className="h-5 w-5 animate-bounce" />
+                    <span className="text-sm font-semibold">
+                      Grades saved successfully!
+                    </span>
+                  </div>
+                ) : (
+                  <Button onClick={handleSave} disabled={saving} className="gap-2 border-2">
+                    <Save className="h-4 w-4" />
+                    {saving ? "Saving..." : "Save Grades"}
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
+
+          {selectedCourse && filteredGrades.length === 0 && (
+            <div className="text-center py-16 text-muted-foreground">
+              <p className="text-lg font-medium">
+                No students/grades found matching current filters.
+              </p>
+            </div>
+          )}
+        </>
       )}
     </motion.div>
   );
 }
+

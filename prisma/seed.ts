@@ -256,7 +256,7 @@ async function main() {
         id: q.id,
         title: q.title,
         courseId: q.courseId,
-        createdBy: q.createdBy,
+        createdBy: FACULTY_CLERK_IDS[q.createdBy] ?? q.createdBy,
         duration: q.duration,
         totalMarks: q.totalMarks,
         status: q.status,

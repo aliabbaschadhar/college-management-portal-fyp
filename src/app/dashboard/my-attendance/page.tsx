@@ -174,7 +174,7 @@ export default function MyAttendancePage() {
               <SelectItem value="all">All Courses</SelectItem>
               {courses.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
-                  {c.courseCode}
+                  {c.courseName} ({c.courseCode})
                 </SelectItem>
               ))}
             </SelectContent>

@@ -103,6 +103,16 @@ export default function ManageStudentsPage() {
   }, [user?.publicMetadata?.role]);
 
   const isAdmin = role === "admin";
+  const isFaculty = role === "faculty";
+
+  interface CourseType {
+    id: string;
+    department: string;
+    semester: number;
+    courseCode: string;
+    courseName: string;
+  }
+  const [courses, setCourses] = useState<CourseType[]>([]);
 
   const [students, setStudents] = useState<StudentWithUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,8 +153,28 @@ export default function ManageStudentsPage() {
 
   const visibleDepartments = useMemo(() => {
     if (isAdmin) return DEPARTMENTS;
+    if (isFaculty) {
+      const facultyDepts = new Set(courses.map((c) => c.department));
+      return DEPARTMENTS.filter((dept) => facultyDepts.has(dept));
+    }
     return DEPARTMENTS.filter((dept) => students.some((s) => s.department === dept));
-  }, [isAdmin, students]);
+  }, [isAdmin, isFaculty, courses, students]);
+
+  const visibleSemesters = useMemo(() => {
+    const allSemesters = [1, 2, 3, 4, 5, 6, 7, 8];
+    if (isAdmin) return allSemesters;
+    if (isFaculty) {
+      const facultySemesters = new Set(
+        courses
+          .filter((c) => c.department === selectedDept)
+          .map((c) => c.semester)
+      );
+      return allSemesters.filter((sem) => facultySemesters.has(sem));
+    }
+    return allSemesters.filter((sem) =>
+      students.some((s) => s.department === selectedDept && s.semester === sem)
+    );
+  }, [isAdmin, isFaculty, courses, selectedDept, students]);
 
   useEffect(() => {
     setSelectedStudentIds([]);
@@ -233,10 +263,12 @@ export default function ManageStudentsPage() {
       return;
     }
     setLoading(true);
-    api
-      .get<unknown[]>("/api/students")
-      .then((r) => {
-        const d = r.data;
+    Promise.all([
+      api.get<unknown[]>("/api/students"),
+      api.get<CourseType[]>("/api/courses").catch(() => ({ data: [] }))
+    ])
+      .then(([studentsRes, coursesRes]) => {
+        const d = studentsRes.data;
         const normalized = Array.isArray(d)
           ? d.map((item: unknown) => {
               const s = item as Record<string, unknown>;
@@ -257,6 +289,7 @@ export default function ManageStudentsPage() {
             })
           : [];
         setStudents(normalized as StudentWithUser[]);
+        setCourses(coursesRes.data);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -599,7 +632,7 @@ export default function ManageStudentsPage() {
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => {
+                {visibleSemesters.map((sem) => {
                   const count = students.filter(
                     (s) => s.department === selectedDept && s.semester === sem
                   ).length;

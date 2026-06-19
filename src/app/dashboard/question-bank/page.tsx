@@ -49,6 +49,7 @@ export default function QuestionBankPage() {
   const [editingQuestion, setEditingQuestion] = useState<QuestionWithQuiz | null>(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [formText, setFormText] = useState("");
   const [formOptions, setFormOptions] = useState(["", "", "", ""]);
@@ -78,6 +79,7 @@ export default function QuestionBankPage() {
     setFormOptions(["", "", "", ""]);
     setFormCorrect(0);
     setFormQuiz(quizzes[0]?.id || "");
+    setErrorMsg(null);
     setShowModal(true);
   };
 
@@ -87,12 +89,14 @@ export default function QuestionBankPage() {
     setFormOptions([...q.options]);
     setFormCorrect(q.correctOption);
     setFormQuiz(q.quizId);
+    setErrorMsg(null);
     setShowModal(true);
   };
 
   const handleSave = async () => {
     if (!formText.trim() || formOptions.some((o) => !o.trim()) || !formQuiz) return;
     setSaving(true);
+    setErrorMsg(null);
     try {
       if (editingQuestion) {
         const res = await api.patch<QuestionWithQuiz>(`/api/questions/${editingQuestion.id}`, {
@@ -113,8 +117,10 @@ export default function QuestionBankPage() {
         setQuestions((prev) => [created, ...prev]);
       }
       setShowModal(false);
-    } catch {
-      // silent fail
+    } catch (err) {
+      console.error("Failed to save question:", err);
+      const apiErr = err as { response?: { data?: { error?: string } }; message?: string };
+      setErrorMsg(apiErr.response?.data?.error || apiErr.message || "Failed to save question");
     } finally {
       setSaving(false);
     }
@@ -246,6 +252,11 @@ export default function QuestionBankPage() {
           <DialogHeader>
             <DialogTitle>{editingQuestion ? "Edit Question" : "Add New Question"}</DialogTitle>
           </DialogHeader>
+          {errorMsg && (
+            <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-xs text-rose-600 dark:bg-rose-950/20 dark:border-rose-900/50 dark:text-rose-400">
+              {errorMsg}
+            </div>
+          )}
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium text-foreground mb-1.5 block">Quiz</label>
@@ -305,6 +316,7 @@ export default function QuestionBankPage() {
               onClick={handleSave}
               disabled={!formText.trim() || formOptions.some((o) => !o.trim()) || saving}
             >
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {saving ? "Saving..." : editingQuestion ? "Update" : "Create"} Question
             </Button>
           </DialogFooter>

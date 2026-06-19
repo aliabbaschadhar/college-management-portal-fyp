@@ -9,7 +9,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const denied = await requireRole(["ADMIN"]);
+  const denied = await requireRole(["ADMIN", "FACULTY"]);
   if (denied) return denied;
 
   try {
@@ -21,7 +21,21 @@ export async function PATCH(
       semester?: number;
       avatar?: string;
       shift?: string;
+      blocked?: boolean;
     };
+
+    if (body.blocked === false) {
+      const dbUser = await prisma.user.findUnique({
+        where: { clerkId: userId ?? "" },
+        select: { role: true },
+      });
+      if (dbUser?.role === "FACULTY") {
+        return NextResponse.json(
+          { error: "Forbidden: Only admins can readmit a student." },
+          { status: 403 }
+        );
+      }
+    }
 
     const student = await prisma.student.update({
       where: { id },
@@ -31,6 +45,7 @@ export async function PATCH(
         ...(body.semester !== undefined ? { semester: body.semester } : {}),
         ...(body.avatar !== undefined ? { avatar: body.avatar } : {}),
         ...(body.shift !== undefined ? { shift: body.shift } : {}),
+        ...(body.blocked !== undefined ? { blocked: body.blocked } : {}),
       },
       include: { user: { select: { name: true } } },
     });

@@ -122,6 +122,12 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
     prisma.announcement.findMany({
       where: {
         audience: { in: ["Students", "All"] },
+        OR: [
+          { targetDepartment: null, targetSemester: null },
+          { targetDepartment: student.department, targetSemester: null },
+          { targetDepartment: null, targetSemester: student.semester },
+          { targetDepartment: student.department, targetSemester: student.semester },
+        ],
       },
       orderBy: { date: "desc" },
       take: 5,

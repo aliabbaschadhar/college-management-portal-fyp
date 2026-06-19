@@ -415,6 +415,7 @@ export default function ManageQuizzesPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreate(false)} disabled={creating}>Cancel</Button>
             <Button onClick={handleCreate} disabled={!formTitle || !formCourse || formQuestions.length === 0 || !formDueDate || creating}>
+              {creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {creating ? "Creating..." : "Create Quiz"}
             </Button>
           </DialogFooter>

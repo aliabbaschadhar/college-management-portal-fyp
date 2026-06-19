@@ -58,6 +58,14 @@ export async function PATCH(
         ...(body.options !== undefined ? { options: body.options } : {}),
         ...(body.correctOption !== undefined ? { correctOption: body.correctOption } : {}),
       },
+      select: {
+        id: true,
+        text: true,
+        options: true,
+        correctOption: true,
+        quizId: true,
+        quiz: { select: { courseId: true, title: true, course: { select: { courseCode: true } } } },
+      },
     });
 
     return NextResponse.json(updated);

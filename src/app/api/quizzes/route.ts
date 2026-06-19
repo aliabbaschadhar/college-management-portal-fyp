@@ -11,7 +11,12 @@ export async function GET(request: NextRequest) {
     // Load user to determine filtering
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { role: true, clerkId: true, student: { select: { id: true } } },
+      select: {
+        role: true,
+        clerkId: true,
+        student: { select: { id: true } },
+        faculty: { select: { id: true } },
+      },
     });
 
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -38,8 +43,11 @@ export async function GET(request: NextRequest) {
         },
       };
     } else if (user.role === "FACULTY") {
-      // Faculty only see quizzes they created
-      whereClause.createdBy = userId;
+      // Faculty see quizzes they created OR quizzes for courses they teach
+      whereClause.OR = [
+        { createdBy: userId },
+        { course: { assignedFaculty: user.faculty?.id } },
+      ];
     }
 
     const quizzes = await prisma.quiz.findMany({

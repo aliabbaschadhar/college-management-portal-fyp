@@ -28,6 +28,8 @@ import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 import { ListSkeleton } from "@/components/ui";
 
+import { DEPARTMENTS } from "@/lib/constants";
+
 interface Announcement {
   id: string;
   title: string;
@@ -36,6 +38,8 @@ interface Announcement {
   date: string;
   audience: "All" | "Students" | "Faculty";
   priority: "Low" | "Medium" | "High";
+  targetDepartment?: string | null;
+  targetSemester?: number | null;
 }
 
 interface AnnouncementForm {
@@ -43,6 +47,8 @@ interface AnnouncementForm {
   content: string;
   audience: "All" | "Students" | "Faculty";
   priority: "Low" | "Medium" | "High";
+  targetDepartment?: string;
+  targetSemester?: string;
 }
 
 const audienceColors: Record<"All" | "Students" | "Faculty", string> = {
@@ -58,7 +64,10 @@ const emptyForm: AnnouncementForm = {
   content: "",
   audience: "All",
   priority: "Medium",
+  targetDepartment: "",
+  targetSemester: "",
 };
+
 
 export default function AnnouncementsPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -82,9 +91,17 @@ export default function AnnouncementsPage() {
     if (!form.title || !form.content) return;
     setCreating(true);
     try {
+      const payload = {
+        title: form.title,
+        content: form.content,
+        audience: form.audience,
+        priority: form.priority,
+        targetDepartment: form.audience !== "All" && form.targetDepartment ? form.targetDepartment : undefined,
+        targetSemester: form.audience === "Students" && form.targetSemester ? Number(form.targetSemester) : undefined,
+      };
       const { data: created } = await api.post<Announcement>(
         "/api/announcements",
-        form,
+        payload,
       );
       setAnnouncements((prev) => [created, ...prev]);
       setDialogOpen(false);
@@ -201,10 +218,15 @@ export default function AnnouncementsPage() {
                 </p>
 
                 <div className="mt-6 pt-4 border-t border-dashed flex items-center justify-between text-xs text-muted-foreground">
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4 flex-wrap">
                     <span className="flex items-center">
                       <Target className="h-3 w-3 mr-1 text-brand-secondary" />{" "}
                       Targeting: {a.audience}
+                      {(a.targetDepartment || a.targetSemester) && (
+                        <span className="ml-1 text-brand-secondary/80">
+                          ({[a.targetDepartment, a.targetSemester ? `Semester ${a.targetSemester}` : null].filter(Boolean).join(" • ")})
+                        </span>
+                      )}
                     </span>
                     <span className="flex items-center">
                       <Info className="h-3 w-3 mr-1 text-brand-primary" />{" "}
@@ -317,6 +339,67 @@ export default function AnnouncementsPage() {
                 </Select>
               </div>
             </div>
+
+            {form.audience !== "All" && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className={`grid gap-2 ${form.audience === "Students" ? "col-span-2 md:col-span-1" : "col-span-2"}`}>
+                  <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                    Target Department
+                  </Label>
+                  <Select
+                    value={form.targetDepartment || "all"}
+                    disabled={creating}
+                    onValueChange={(v) =>
+                      setForm({
+                        ...form,
+                        targetDepartment: v === "all" ? "" : v,
+                      })
+                    }
+                  >
+                    <SelectTrigger className="h-12 rounded-xl">
+                      <SelectValue placeholder="All Departments" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Departments</SelectItem>
+                      {DEPARTMENTS.map((dept) => (
+                        <SelectItem key={dept} value={dept}>
+                          {dept}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {form.audience === "Students" && (
+                  <div className="grid gap-2 col-span-2 md:col-span-1">
+                    <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                      Target Semester
+                    </Label>
+                    <Select
+                      value={form.targetSemester || "all"}
+                      disabled={creating}
+                      onValueChange={(v) =>
+                        setForm({
+                          ...form,
+                          targetSemester: v === "all" ? "" : v,
+                        })
+                      }
+                    >
+                      <SelectTrigger className="h-12 rounded-xl">
+                        <SelectValue placeholder="All Semesters" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Semesters</SelectItem>
+                        {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                          <SelectItem key={sem} value={String(sem)}>
+                            Semester {sem}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="grid gap-2">
               <Label
