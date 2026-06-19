@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/axios";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { Pencil, Trash2, Loader2, Eye, Calendar, Mail, Phone, Clock, Shield } from "lucide-react";
+import { Pencil, Trash2, Loader2, Eye, Calendar, Mail, Phone, Clock, Shield, RefreshCw } from "lucide-react";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
@@ -177,6 +177,13 @@ export default function ManageStudentsPage() {
   }, [isAdmin, isFaculty, courses, selectedDept, students]);
 
   useEffect(() => {
+    if (isLoaded && isAdmin) {
+      if (!selectedDept) setSelectedDept("Computer Science");
+      if (!selectedSemester) setSelectedSemester(1);
+    }
+  }, [isLoaded, isAdmin, selectedDept, selectedSemester]);
+
+  useEffect(() => {
     setSelectedStudentIds([]);
   }, [selectedDept, selectedSemester]);
 
@@ -256,12 +263,7 @@ export default function ManageStudentsPage() {
     }
   };
 
-  useEffect(() => {
-    if (!isLoaded) return;
-    if (role === "student") {
-      router.replace("/dashboard");
-      return;
-    }
+  const handleRefresh = useCallback(() => {
     setLoading(true);
     Promise.all([
       api.get<unknown[]>("/api/students"),
@@ -293,7 +295,16 @@ export default function ManageStudentsPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [isLoaded, role, router]);
+  }, []);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (role === "student") {
+      router.replace("/dashboard");
+      return;
+    }
+    handleRefresh();
+  }, [isLoaded, role, router, handleRefresh]);
 
   const openEdit = (s: StudentWithUser) => {
     setEditingStudent(s);
@@ -671,75 +682,149 @@ export default function ManageStudentsPage() {
             className="space-y-6"
           >
             <PageHeader
-              title={`${selectedDept} - Semester ${selectedSemester}`}
-              subtitle={`${filteredStudents.length} students enrolled in this class`}
-              breadcrumbs={[
-                { label: "Dashboard", href: "/dashboard" },
-                {
-                  label: "Manage Students",
-                  onClick: () => {
-                    setSelectedDept(null);
-                    setSelectedSemester(null);
-                  },
-                },
-                {
-                  label: selectedDept,
-                  onClick: () => {
-                    setSelectedSemester(null);
-                  },
-                },
-                { label: `Semester ${selectedSemester}` },
-              ]}
-            />
-
-            <div className="space-y-6">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-4">
+              title={isAdmin ? "Manage Students" : `${selectedDept} - Semester ${selectedSemester}`}
+              subtitle={isAdmin ? `${filteredStudents.length} students found` : `${filteredStudents.length} students enrolled in this class`}
+              breadcrumbs={
+                isAdmin
+                  ? [
+                      { label: "Dashboard", href: "/dashboard" },
+                      { label: "Manage Students" },
+                    ]
+                  : [
+                      { label: "Dashboard", href: "/dashboard" },
+                      {
+                        label: "Manage Students",
+                        onClick: () => {
+                          setSelectedDept(null);
+                          setSelectedSemester(null);
+                        },
+                      },
+                      {
+                        label: selectedDept!,
+                        onClick: () => {
+                          setSelectedSemester(null);
+                        },
+                      },
+                      { label: `Semester ${selectedSemester}` },
+                    ]
+              }
+              action={
+                <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
-                    onClick={() => setSelectedSemester(null)}
-                    className="rounded-xl border-2"
+                    size="sm"
+                    onClick={handleRefresh}
+                    className="flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_var(--border)] active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_var(--border)] transition-all"
                   >
-                    ← Back to Semesters
+                    <RefreshCw className="h-4 w-4" />
+                    Refresh
                   </Button>
-
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-semibold text-muted-foreground uppercase">Shift:</span>
-                    <Select value={selectedShift} onValueChange={setSelectedShift}>
-                      <SelectTrigger className="w-[150px] h-10 border-2 rounded-xl">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Morning">Morning</SelectItem>
-                        <SelectItem value="Evening">Evening</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {isAdmin && (
-                  <div className="flex items-center gap-2">
+                  {isAdmin && (
                     <Button
                       onClick={() => {
                         setIsPromotingAllClass(true);
                         setPromotionDialogOpen(true);
                       }}
                       variant="outline"
-                      className="border-emerald-600 text-emerald-600 hover:bg-emerald-600/10 rounded-xl flex items-center gap-2"
+                      className="border-emerald-600 text-emerald-600 hover:bg-emerald-600/10 rounded-xl flex items-center gap-2 h-9"
                     >
                       Promote Entire Class
                     </Button>
-                    {selectedStudentIds.length > 0 && (
-                      <Button
-                        onClick={() => {
-                          setIsPromotingAllClass(false);
-                          setPromotionDialogOpen(true);
-                        }}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl flex items-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.2)]"
-                      >
-                        Promote Selected ({selectedStudentIds.length})
-                      </Button>
-                    )}
+                  )}
+                </div>
+              }
+            />
+
+            <div className="space-y-6">
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-4 w-full">
+                  {!isAdmin && (
+                    <Button
+                      variant="outline"
+                      onClick={() => setSelectedSemester(null)}
+                      className="rounded-xl border-2 shrink-0"
+                    >
+                      ← Back to Semesters
+                    </Button>
+                  )}
+
+                  {isAdmin ? (
+                    <div className="flex flex-wrap items-center gap-4 bg-card p-4 rounded-xl border border-border w-full">
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase">Dept:</Label>
+                        <Select value={selectedDept || ""} onValueChange={setSelectedDept}>
+                          <SelectTrigger className="w-[180px] h-10 bg-card rounded-xl">
+                            <SelectValue placeholder="Select Department" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {DEPARTMENTS.map((d) => (
+                              <SelectItem key={d} value={d}>
+                                {d}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase">Sem:</Label>
+                        <Select
+                          value={String(selectedSemester || 1)}
+                          onValueChange={(v) => setSelectedSemester(Number(v))}
+                        >
+                          <SelectTrigger className="w-[120px] h-10 bg-card rounded-xl">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                              <SelectItem key={s} value={String(s)}>
+                                Semester {s}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase">Shift:</Label>
+                        <Select value={selectedShift} onValueChange={setSelectedShift}>
+                          <SelectTrigger className="w-[120px] h-10 bg-card rounded-xl">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Morning">Morning</SelectItem>
+                            <SelectItem value="Evening">Evening</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-semibold text-muted-foreground uppercase">Shift:</span>
+                      <Select value={selectedShift} onValueChange={setSelectedShift}>
+                        <SelectTrigger className="w-[150px] h-10 border-2 rounded-xl">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Morning">Morning</SelectItem>
+                          <SelectItem value="Evening">Evening</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+
+                {isAdmin && selectedStudentIds.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => {
+                        setIsPromotingAllClass(false);
+                        setPromotionDialogOpen(true);
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl flex items-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.2)]"
+                    >
+                      Promote Selected ({selectedStudentIds.length})
+                    </Button>
                   </div>
                 )}
               </div>

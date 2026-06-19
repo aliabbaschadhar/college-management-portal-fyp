@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/axios";
-import { CheckCircle, XCircle, Clock, Eye, Trash2, Upload, Users, Shield } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Eye, Trash2, Upload, Users, Shield, RefreshCw } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
@@ -143,13 +143,17 @@ export default function ManageAdmissionsPage() {
       .finally(() => setLoading(false));
   }, [filterStatus]);
 
-  useEffect(() => {
+  const handleRefresh = useCallback(() => {
     if (activeTab === "students") {
       loadAdmissions();
     } else {
       loadStaffRequests();
     }
   }, [activeTab, loadAdmissions, loadStaffRequests]);
+
+  useEffect(() => {
+    handleRefresh();
+  }, [handleRefresh]);
 
   const handleStatusChange = async (
     id: string,
@@ -526,6 +530,15 @@ export default function ManageAdmissionsPage() {
         ]}
         action={
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              className="flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_var(--border)] active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_var(--border)] transition-all"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
             {activeTab === "students" && (
               <>
                 <input

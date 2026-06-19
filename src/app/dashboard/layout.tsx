@@ -77,17 +77,29 @@ export default async function DashboardLayout({
         }
       }
 
+      const metadata = sessionClaims?.metadata as Record<string, unknown> | undefined;
+      const claimsRole = typeof metadata?.role === "string" ? metadata.role.toUpperCase() : undefined;
+
       let userRole = "STUDENT";
 
       if (dbUser) {
+        if (claimsRole && ["ADMIN", "FACULTY", "STUDENT"].includes(claimsRole) && claimsRole !== dbUser.role) {
+          try {
+            dbUser = await prisma.user.update({
+              where: { id: dbUser.id },
+              data: { role: claimsRole as Role },
+              include: { student: true, faculty: true, admin: true },
+            });
+          } catch (syncError) {
+            console.error("Failed to sync role from Clerk metadata to DB user:", syncError);
+          }
+        }
         userRole = dbUser.role;
         role = dbUser.role.toLowerCase() as UserRole;
       } else {
         // Fallback to Clerk session claims if database sync is pending (reusing cached claims)
-        const metadata = sessionClaims?.metadata as Record<string, unknown> | undefined;
-        const claimsRole = typeof metadata?.role === "string" ? metadata.role : undefined;
-        if (claimsRole && ["ADMIN", "FACULTY", "STUDENT"].includes(claimsRole.toUpperCase())) {
-          userRole = claimsRole.toUpperCase();
+        if (claimsRole && ["ADMIN", "FACULTY", "STUDENT"].includes(claimsRole)) {
+          userRole = claimsRole;
         }
         role = userRole.toLowerCase() as UserRole;
       }

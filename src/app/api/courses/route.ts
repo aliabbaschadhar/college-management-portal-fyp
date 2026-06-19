@@ -85,7 +85,13 @@ export async function GET() {
       department: c.department,
       semester: c.semester,
       assignedFaculty: c.assignedFaculty,
-      faculty: c.faculty ? { user: { name: c.faculty.user.name } } : null,
+      shift: c.shift,
+      faculty: c.faculty
+        ? {
+            user: { name: c.faculty.user.name },
+            department: c.faculty.department,
+          }
+        : null,
       _count: { enrollments: c._count.enrollments },
     }));
 

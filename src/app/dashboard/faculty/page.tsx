@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/axios";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Eye, RefreshCw } from "lucide-react";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
@@ -78,11 +78,14 @@ export default function ManageFacultyPage() {
   );
   const [deletingFaculty, setDeletingFaculty] =
     useState<FacultyWithUser | null>(null);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [viewingFaculty, setViewingFaculty] = useState<FacultyWithUser | null>(null);
   const [form, setForm] = useState<FacultyForm>(emptyForm);
   const [filterDept, setFilterDept] = useState<string>("all");
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  const handleRefresh = () => {
+    setLoading(true);
     api
       .get<FacultyWithUser[]>("/api/faculty")
       .then((r) => {
@@ -90,6 +93,10 @@ export default function ManageFacultyPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    handleRefresh();
   }, []);
 
   const filtered =
@@ -200,8 +207,19 @@ export default function ManageFacultyPage() {
       render: (row) => (
         <div className="flex items-center gap-1">
           <button
+            onClick={() => {
+              setViewingFaculty(row);
+              setDetailsDialogOpen(true);
+            }}
+            className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"
+            title="View Details"
+          >
+            <Eye className="h-4 w-4 text-muted-foreground" />
+          </button>
+          <button
             onClick={() => openEdit(row)}
             className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"
+            title="Edit Faculty"
           >
             <Pencil className="h-4 w-4 text-muted-foreground" />
           </button>
@@ -211,6 +229,7 @@ export default function ManageFacultyPage() {
               setDeleteDialogOpen(true);
             }}
             className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-destructive/10 transition-colors"
+            title="Delete Faculty"
           >
             <Trash2 className="h-4 w-4 text-destructive" />
           </button>
@@ -249,6 +268,15 @@ export default function ManageFacultyPage() {
         ]}
         action={
           <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              className="flex items-center gap-2 border-2 border-border bg-card shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_var(--border)] active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_var(--border)] transition-all"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
             <Select value={filterDept} onValueChange={setFilterDept}>
               <SelectTrigger className="w-[180px] h-9">
                 <SelectValue placeholder="All Departments" />
@@ -356,6 +384,66 @@ export default function ManageFacultyPage() {
             </Button>
             <Button variant="destructive" disabled={saving} onClick={handleDelete} className="min-w-[100px]">
               {saving ? "Deleting..." : <><Trash2 className="h-4 w-4 mr-2" /> Delete</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Faculty Details Dialog */}
+      <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] border-none shadow-2xl overflow-hidden rounded-3xl">
+          <div className="absolute top-0 left-0 w-full h-2 bg-brand-primary" />
+          <DialogHeader className="pt-6">
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Eye className="h-5 w-5 text-brand-primary" />
+              Faculty Member Profile
+            </DialogTitle>
+          </DialogHeader>
+          {viewingFaculty && (
+            <div className="space-y-4 py-4">
+              <div className="flex items-center gap-4 border-b pb-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-primary/10 text-lg font-bold text-brand-primary">
+                  {(viewingFaculty.user.name ?? "?")
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .slice(0, 2)}
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-foreground">{viewingFaculty.user.name}</h3>
+                  <p className="text-sm text-muted-foreground">{viewingFaculty.user.email}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="font-semibold text-muted-foreground block text-xs uppercase tracking-wider">Department</span>
+                  <span className="font-medium text-foreground">{viewingFaculty.department}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground block text-xs uppercase tracking-wider">Specialization</span>
+                  <span className="font-medium text-foreground">{viewingFaculty.specialization ?? "—"}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground block text-xs uppercase tracking-wider">Phone</span>
+                  <span className="font-medium text-foreground">{viewingFaculty.phone ?? "—"}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground block text-xs uppercase tracking-wider">Joined Date</span>
+                  <span className="font-medium text-foreground">
+                    {new Date(viewingFaculty.joinDate).toLocaleDateString("en-PK", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric"
+                    })}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="pb-6">
+            <Button onClick={() => setDetailsDialogOpen(false)} className="rounded-xl">
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

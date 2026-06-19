@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { api } from "@/lib/axios";
-import { ClipboardCheck, Filter, Eye, Loader2, Calendar } from "lucide-react";
+import { ClipboardCheck, Filter, Eye, Loader2, Calendar, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { TableSkeleton } from "@/components/ui";
 import { useUser } from "@clerk/nextjs";
 import {
@@ -123,6 +124,13 @@ export default function ManageAttendancePage() {
   const isAdmin = role === "admin";
   const isFaculty = role === "faculty";
 
+  useEffect(() => {
+    if (isLoaded && isAdmin) {
+      if (!selectedDept) setSelectedDept("Computer Science");
+      if (!selectedSemester) setSelectedSemester(1);
+    }
+  }, [isLoaded, isAdmin, selectedDept, selectedSemester]);
+
   // Faculty Struck Off dialog states
   const [struckOffDialogOpen, setStruckOffDialogOpen] = useState(false);
   const [struckOffStudent, setStruckOffStudent] = useState<StudentStatsItem | null>(null);
@@ -174,7 +182,7 @@ export default function ManageAttendancePage() {
     }
   };
 
-  useEffect(() => {
+  const handleRefresh = () => {
     setLoading(true);
     Promise.all([
       api.get<StudentItem[]>("/api/students"),
@@ -188,6 +196,10 @@ export default function ManageAttendancePage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    handleRefresh();
   }, []);
 
   const handleStatusChange = async (
@@ -408,28 +420,42 @@ export default function ManageAttendancePage() {
           </Button>
 
           {row.blocked ? (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={isFaculty}
-              onClick={() => handleToggleBlock(row)}
-              className="h-8 text-xs gap-1 rounded-lg disabled:opacity-50"
-            >
-              {isFaculty ? "Struck Off (Contact Admin)" : "Restore"}
-            </Button>
+            isAdmin ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleToggleBlock(row)}
+                className="h-8 text-xs gap-1 rounded-lg border-emerald-500 hover:bg-emerald-500 hover:text-white"
+              >
+                Restore
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled
+                className="h-8 text-xs gap-1 rounded-lg disabled:opacity-50"
+              >
+                Struck Off (Contact Admin)
+              </Button>
+            )
           ) : (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => handleStruckOffClick(row)}
-              className={`h-8 text-xs gap-1 rounded-lg ${
-                row.stats.rate < 75
-                  ? "bg-rose-600 hover:bg-rose-700 animate-pulse border-none text-white"
-                  : ""
-              }`}
-            >
-              Struck Off
-            </Button>
+            isFaculty ? (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => handleStruckOffClick(row)}
+                className={`h-8 text-xs gap-1 rounded-lg ${
+                  row.stats.rate < 75
+                    ? "bg-rose-600 hover:bg-rose-700 animate-pulse border-none text-white"
+                    : ""
+                }`}
+              >
+                Struck Off
+              </Button>
+            ) : (
+              <span className="text-xs text-muted-foreground font-medium px-2 py-1 bg-accent rounded-md">Active</span>
+            )
           )}
         </div>
       ),
@@ -444,44 +470,66 @@ export default function ManageAttendancePage() {
     >
       <PageHeader
         title={
-          selectedDept === null
+          isAdmin
+            ? "Manage Attendance"
+            : selectedDept === null
             ? "Manage Attendance"
             : selectedSemester === null
             ? selectedDept
             : `${selectedDept} - Semester ${selectedSemester}`
         }
         subtitle={
-          selectedDept === null
+          isAdmin
+            ? "Track and audit attendance histories across departments"
+            : selectedDept === null
             ? "Track and audit attendance histories across departments"
             : selectedSemester === null
             ? "Select a semester to inspect student stats"
             : `Class Attendance Details (${selectedShift} Shift)`
         }
-        breadcrumbs={[
-          { label: "Dashboard", href: "/dashboard" },
-          ...(selectedDept === null
-            ? [{ label: "Attendance" }]
+        breadcrumbs={
+          isAdmin
+            ? [
+                { label: "Dashboard", href: "/dashboard" },
+                { label: "Attendance" },
+              ]
             : [
-                {
-                  label: "Attendance",
-                  onClick: () => {
-                    setSelectedDept(null);
-                    setSelectedSemester(null);
-                  },
-                },
-                ...(selectedSemester === null
-                  ? [{ label: selectedDept }]
+                { label: "Dashboard", href: "/dashboard" },
+                ...(selectedDept === null
+                  ? [{ label: "Attendance" }]
                   : [
                       {
-                        label: selectedDept,
+                        label: "Attendance",
                         onClick: () => {
+                          setSelectedDept(null);
                           setSelectedSemester(null);
                         },
                       },
-                      { label: `Semester ${selectedSemester}` },
+                      ...(selectedSemester === null
+                        ? [{ label: selectedDept }]
+                        : [
+                            {
+                              label: selectedDept,
+                              onClick: () => {
+                                setSelectedSemester(null);
+                              },
+                            },
+                            { label: `Semester ${selectedSemester}` },
+                          ]),
                     ]),
-              ]),
-        ]}
+              ]
+        }
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            className="flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_var(--border)] active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_var(--border)] transition-all"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </Button>
+        }
       />
 
       <AnimatePresence mode="wait">
@@ -592,26 +640,80 @@ export default function ManageAttendancePage() {
           >
             {/* Top Panel Actions */}
             <div className="flex flex-wrap items-center justify-between gap-4">
-              <Button
-                variant="outline"
-                onClick={() => setSelectedSemester(null)}
-                className="rounded-xl border-2"
-              >
-                ← Back to Semesters
-              </Button>
+              {isAdmin ? (
+                <div className="flex flex-wrap items-center gap-4 bg-card p-4 rounded-xl border border-border w-full">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase">Dept:</Label>
+                    <Select value={selectedDept || ""} onValueChange={setSelectedDept}>
+                      <SelectTrigger className="w-[180px] h-10 bg-card rounded-xl">
+                        <SelectValue placeholder="Select Department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DEPARTMENTS.map((d) => (
+                          <SelectItem key={d} value={d}>
+                            {d}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-semibold text-muted-foreground uppercase">Shift:</span>
-                <Select value={selectedShift} onValueChange={setSelectedShift}>
-                  <SelectTrigger className="w-[150px] h-10 border-2 rounded-xl">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Morning">Morning</SelectItem>
-                    <SelectItem value="Evening">Evening</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase">Sem:</Label>
+                    <Select
+                      value={String(selectedSemester || 1)}
+                      onValueChange={(v) => setSelectedSemester(Number(v))}
+                    >
+                      <SelectTrigger className="w-[120px] h-10 bg-card rounded-xl">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                          <SelectItem key={s} value={String(s)}>
+                            Semester {s}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase">Shift:</Label>
+                    <Select value={selectedShift} onValueChange={setSelectedShift}>
+                      <SelectTrigger className="w-[120px] h-10 bg-card rounded-xl">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Morning">Morning</SelectItem>
+                        <SelectItem value="Evening">Evening</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setSelectedSemester(null)}
+                    className="rounded-xl border-2"
+                  >
+                    ← Back to Semesters
+                  </Button>
+
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-semibold text-muted-foreground uppercase">Shift:</span>
+                    <Select value={selectedShift} onValueChange={setSelectedShift}>
+                      <SelectTrigger className="w-[150px] h-10 border-2 rounded-xl">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Morning">Morning</SelectItem>
+                        <SelectItem value="Evening">Evening</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Stats Summary Panel */}

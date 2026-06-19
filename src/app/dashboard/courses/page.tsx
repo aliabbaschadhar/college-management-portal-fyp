@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/axios";
 import {
@@ -21,7 +21,8 @@ import {
   GraduationCap,
   Loader2,
   Eye,
-  Clock
+  Clock,
+  RefreshCw
 } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
@@ -181,10 +182,12 @@ export default function ManageCoursesPage() {
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
 
   // Drill-down states
-  const [selectedDept, setSelectedDept] = useState<string | null>(null);
-  const [selectedSem, setSelectedSem] = useState<number | null>(null);
+  const [selectedDept, setSelectedDept] = useState<string | null>("Computer Science");
+  const [selectedSem, setSelectedSem] = useState<number | null>(1);
+  const [selectedShift, setSelectedShift] = useState<string>("All");
 
-  useEffect(() => {
+  const handleRefresh = useCallback(() => {
+    setLoading(true);
     Promise.all([
       api.get<CourseWithDetails[]>("/api/courses"),
       api.get<FacultyOption[]>("/api/faculty"),
@@ -196,6 +199,10 @@ export default function ManageCoursesPage() {
       })
       .catch(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    handleRefresh();
+  }, [handleRefresh]);
 
   const openAdd = () => {
     setEditingCourse(null);
@@ -296,8 +303,10 @@ export default function ManageCoursesPage() {
       setSelectedFaculty("");
       setSelectedAssignShift("Morning");
       router.refresh();
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.error("Failed to assign faculty:", err);
+      const axiosErr = err as { response?: { data?: { error?: string } } };
+      alert(`Failed to assign faculty: ${axiosErr.response?.data?.error ?? "Unknown error"}`);
     } finally {
       setAssigning(false);
     }
@@ -337,7 +346,9 @@ export default function ManageCoursesPage() {
         row.faculty?.user.name ? (
           <div className="flex flex-col">
             <span className="text-sm font-semibold">{row.faculty.user.name}</span>
-            <span className="text-[10px] text-muted-foreground">{row.shift || "Morning"} Shift</span>
+            <span className="text-[10px] text-muted-foreground">
+              {row.shift === "Both" ? "Both Shifts" : `${row.shift || "Morning"} Shift`}
+            </span>
           </div>
         ) : (
           <span className="text-xs text-muted-foreground italic">
@@ -400,9 +411,21 @@ export default function ManageCoursesPage() {
   ];
 
   // Filter courses for DataTable in View 3
-  const filteredCourses = courses.filter(
-    (c) => c.department === selectedDept && c.semester === selectedSem
-  );
+  const filteredCourses = courses.filter((c) => {
+    const matchesDept = !selectedDept || selectedDept === "all" || c.department === selectedDept;
+    const matchesSem = !selectedSem || c.semester === Number(selectedSem);
+    let matchesShift = true;
+    if (selectedShift !== "All") {
+      if (selectedShift === "Morning") {
+        matchesShift = c.shift === "Morning" || c.shift === "Both";
+      } else if (selectedShift === "Evening") {
+        matchesShift = c.shift === "Evening" || c.shift === "Both";
+      } else if (selectedShift === "Both") {
+        matchesShift = c.shift === "Both";
+      }
+    }
+    return matchesDept && matchesSem && matchesShift;
+  });
 
   if (loading) {
     return (
@@ -560,32 +583,86 @@ export default function ManageCoursesPage() {
             className="space-y-6"
           >
             <PageHeader
-              title={`Semester ${selectedSem} Courses`}
-              subtitle={`Offered subjects in ${selectedDept}.`}
+              title="Manage Courses"
+              subtitle={`${filteredCourses.length} subjects found`}
               breadcrumbs={[
                 { label: "Dashboard", href: "/dashboard" },
-                { label: "Manage Courses", onClick: () => { setSelectedDept(null); setSelectedSem(null); }, href: "#" },
-                { label: selectedDept, onClick: () => setSelectedSem(null), href: "#" },
-                { label: `Semester ${selectedSem}` },
+                { label: "Manage Courses" },
               ]}
               action={
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
-                    onClick={() => setSelectedSem(null)}
-                    className="gap-2 border-border hover:bg-accent hover:text-accent-foreground"
+                    size="sm"
+                    onClick={handleRefresh}
+                    className="flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_var(--border)] active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_var(--border)] transition-all"
                   >
-                    <ArrowLeft className="h-4 w-4" /> Back to Semesters
+                    <RefreshCw className="h-4 w-4" />
+                    Refresh
                   </Button>
                   <Button
                     onClick={openAdd}
-                    className="bg-brand-primary hover:bg-brand-primary/90 text-white"
+                    className="bg-brand-primary hover:bg-brand-primary/90 text-white h-9 px-4 rounded-xl flex items-center gap-2"
                   >
-                    <Plus className="h-4 w-4 mr-2" /> Add Subject
+                    <Plus className="h-4 w-4" /> Add Subject
                   </Button>
                 </div>
               }
             />
+
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-wrap items-center gap-4 bg-card p-4 rounded-xl border border-border w-full">
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase">Dept:</Label>
+                  <Select value={selectedDept || ""} onValueChange={setSelectedDept}>
+                    <SelectTrigger className="w-[180px] h-10 bg-card rounded-xl">
+                      <SelectValue placeholder="Select Department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DEPARTMENTS.map((d) => (
+                        <SelectItem key={d} value={d}>
+                          {d}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase">Sem:</Label>
+                  <Select
+                    value={String(selectedSem || 1)}
+                    onValueChange={(v) => setSelectedSem(Number(v))}
+                  >
+                    <SelectTrigger className="w-[120px] h-10 bg-card rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                        <SelectItem key={s} value={String(s)}>
+                          Semester {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase">Shift:</Label>
+                  <Select value={selectedShift} onValueChange={setSelectedShift}>
+                    <SelectTrigger className="w-[120px] h-10 bg-card rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All">All Shifts</SelectItem>
+                      <SelectItem value="Morning">Morning</SelectItem>
+                      <SelectItem value="Evening">Evening</SelectItem>
+                      <SelectItem value="Both">Both</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
 
             <DataTable
               data={filteredCourses as unknown as Record<string, unknown>[]}
@@ -756,6 +833,7 @@ export default function ManageCoursesPage() {
                 <SelectContent>
                   <SelectItem value="Morning">Morning Shift</SelectItem>
                   <SelectItem value="Evening">Evening Shift</SelectItem>
+                  <SelectItem value="Both">Both Shifts</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -855,7 +933,7 @@ export default function ManageCoursesPage() {
               <div>
                 <span className="text-xs text-muted-foreground block font-medium">Shift Assigned</span>
                 <span className="font-bold text-sm text-foreground font-semibold">
-                  {viewingCourse?.shift ? `${viewingCourse.shift} Shift` : "Morning Shift"}
+                  {viewingCourse?.shift === "Both" ? "Both Shifts" : `${viewingCourse?.shift || "Morning"} Shift`}
                 </span>
               </div>
             </div>

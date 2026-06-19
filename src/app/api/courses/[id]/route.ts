@@ -40,7 +40,13 @@ export async function GET(
     const course = await prisma.course.findUnique({
       where: { id },
       include: {
-        faculty: { include: { user: { select: { name: true } } } },
+        faculty: {
+          select: {
+            id: true,
+            department: true,
+            user: { select: { name: true } }
+          }
+        },
         ...(canSeeEnrollments
           ? { enrollments: { include: { student: { include: { user: { select: { name: true } } } } } } }
           : {}),
@@ -87,7 +93,13 @@ export async function PATCH(
         ...(body.shift !== undefined ? { shift: body.shift } : {}),
       },
       include: {
-        faculty: { include: { user: { select: { name: true } } } },
+        faculty: {
+          select: {
+            id: true,
+            department: true,
+            user: { select: { name: true } }
+          }
+        },
         _count: { select: { enrollments: true } },
       },
     });

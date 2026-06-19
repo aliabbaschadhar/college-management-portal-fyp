@@ -11,6 +11,7 @@ import {
   Trash2,
   Eye,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
@@ -34,7 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { DEPARTMENTS } from "@/lib/constants";
 
 interface FeeWithStudent {
@@ -91,17 +92,6 @@ const statusIcons = {
   Overdue: AlertCircle,
 };
 
-const departmentIcons: Record<string, string> = {
-  "Computer Science": "💻",
-  "Mathematics": "📐",
-  "Physics": "⚛️",
-  "English": "📚",
-  "Chemistry": "🧪",
-  "Economics": "📊",
-  "Urdu": "✍️",
-  "Islamic Studies": "🕌",
-};
-
 export default function ManageDuesPage() {
   const router = useRouter();
   const [fees, setFees] = useState<FeeWithStudent[]>([]);
@@ -109,8 +99,8 @@ export default function ManageDuesPage() {
   const [loading, setLoading] = useState(true);
 
   // Drill-down states
-  const [selectedDept, setSelectedDept] = useState<string | null>(null);
-  const [selectedSemester, setSelectedSemester] = useState<number | null>(null);
+  const [selectedDept, setSelectedDept] = useState<string | null>("Computer Science");
+  const [selectedSemester, setSelectedSemester] = useState<number | null>(1);
   const [selectedShift, setSelectedShift] = useState<string>("Morning");
 
   // Dialog control states
@@ -391,191 +381,76 @@ export default function ManageDuesPage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      <AnimatePresence mode="wait">
-        {selectedDept === null && (
-          <motion.div
-            key="departments"
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 10 }}
-            transition={{ duration: 0.25 }}
-            className="space-y-6"
+      <PageHeader
+        title="Account Dues"
+        subtitle={`Total Outstanding: Rs. ${fees
+          .filter((f) => f.status !== "Paid")
+          .reduce((acc, f) => acc + f.amount, 0)
+          .toLocaleString()}`}
+        breadcrumbs={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Dues" },
+        ]}
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadData}
+            className="flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_var(--border)] active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_var(--border)] transition-all"
           >
-            <PageHeader
-              title="Account Dues"
-              subtitle={`Total Outstanding: Rs. ${fees
-                .filter((f) => f.status !== "Paid")
-                .reduce((acc, f) => acc + f.amount, 0)
-                .toLocaleString()}`}
-              breadcrumbs={[
-                { label: "Dashboard", href: "/dashboard" },
-                { label: "Dues" },
-              ]}
-            />
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </Button>
+        }
+      />
 
-            {loading ? (
-              <TableSkeleton rows={10} />
-            ) : (
-              /* Department Selection View */
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {DEPARTMENTS.map((dept) => {
-                  const count = students.filter((s) => s.department === dept).length;
-                  return (
-                    <motion.div
-                      whileHover={{ scale: 1.03, y: -4 }}
-                      whileTap={{ scale: 0.98 }}
-                      key={dept}
-                      onClick={() => setSelectedDept(dept)}
-                      className="cursor-pointer p-6 bg-card border-2 border-border rounded-2xl shadow-sm hover:shadow-md hover:border-brand-primary transition-all duration-200 flex flex-col justify-between h-40 group relative overflow-hidden"
-                    >
-                      <div className="absolute top-0 right-0 w-24 h-24 bg-brand-primary/5 rounded-bl-full flex items-center justify-center text-4xl opacity-50 group-hover:scale-110 transition-transform duration-300">
-                        {departmentIcons[dept] || "🎓"}
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-bold text-foreground group-hover:text-brand-primary transition-colors">
-                          {dept}
-                        </h3>
-                        <p className="text-sm text-muted-foreground mt-2">Department</p>
-                      </div>
-                      <div className="flex items-center justify-between mt-4">
-                        <span className="text-sm font-semibold bg-brand-primary/10 text-brand-primary px-3 py-1 rounded-full">
-                          {count} {count === 1 ? "Student" : "Students"}
-                        </span>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            )}
-          </motion.div>
-        )}
-
-        {selectedDept !== null && selectedSemester === null && (
-          <motion.div
-            key="semesters"
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 10 }}
-            transition={{ duration: 0.25 }}
-            className="space-y-6"
-          >
-            <PageHeader
-              title={selectedDept}
-              subtitle="Select a semester to manage student dues"
-              breadcrumbs={[
-                { label: "Dashboard", href: "/dashboard" },
-                {
-                  label: "Dues",
-                  onClick: () => {
-                    setSelectedDept(null);
-                    setSelectedSemester(null);
-                  },
-                },
-                { label: selectedDept },
-              ]}
-            />
-
-            <div className="space-y-6">
-              <div className="flex items-center gap-4">
-                <Button
-                  variant="outline"
-                  onClick={() => setSelectedDept(null)}
-                  className="rounded-xl border-2"
-                >
-                  ← Back to Departments
-                </Button>
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => {
-                  const count = students.filter(
-                    (s) => s.department === selectedDept && s.semester === sem
-                  ).length;
-                  return (
-                    <motion.div
-                      whileHover={{ scale: 1.03, y: -4 }}
-                      whileTap={{ scale: 0.98 }}
-                      key={sem}
-                      onClick={() => setSelectedSemester(sem)}
-                      className="cursor-pointer p-6 bg-card border-2 border-border rounded-2xl shadow-sm hover:shadow-md hover:border-brand-primary transition-all duration-200 flex flex-col justify-between h-36 group relative overflow-hidden"
-                    >
-                      <div>
-                        <h3 className="text-lg font-bold text-foreground">Semester {sem}</h3>
-                        <p className="text-xs text-muted-foreground mt-1">Active Class</p>
-                      </div>
-                      <div className="flex items-center justify-between mt-4">
-                        <span className="text-xs font-semibold bg-brand-primary/10 text-brand-primary px-2.5 py-1 rounded-full">
-                          {count} {count === 1 ? "Student" : "Students"}
-                        </span>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {selectedDept !== null && selectedSemester !== null && (
-          <motion.div
-            key="dues-table-view"
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 10 }}
-            transition={{ duration: 0.25 }}
-            className="space-y-6"
-          >
-            <PageHeader
-              title={`${selectedDept} - Semester ${selectedSemester}`}
-              subtitle={`Class Dues details (${selectedShift} Shift)`}
-              breadcrumbs={[
-                { label: "Dashboard", href: "/dashboard" },
-                {
-                  label: "Dues",
-                  onClick: () => {
-                    setSelectedDept(null);
-                    setSelectedSemester(null);
-                  },
-                },
-                {
-                  label: selectedDept,
-                  onClick: () => {
-                    setSelectedSemester(null);
-                  },
-                },
-                { label: `Semester ${selectedSemester}` },
-              ]}
-            />
-
-            <div className="space-y-6">
-              {/* Top panel actions */}
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => setSelectedSemester(null)}
-                    className="rounded-xl border-2"
-                  >
-                    ← Back to Semesters
-                  </Button>
-
-                  <Button
-                    onClick={() => {
-                      setIsBulkAssignment(true);
-                      setNewFee((prev) => ({ ...prev, studentId: "" }));
-                      setCreateDialogOpen(true);
-                    }}
-                    className="bg-brand-primary hover:bg-brand-primary/90 text-white rounded-xl shadow-lg shadow-brand-primary/20"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Assign Class Dues (Bulk)
-                  </Button>
+      <div className="mt-6 space-y-6">
+        {loading ? (
+          <TableSkeleton rows={10} />
+        ) : (
+          <>
+            {/* Top panel actions */}
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-wrap items-center gap-4 bg-card p-4 rounded-xl border border-border w-full">
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase">Dept:</Label>
+                  <Select value={selectedDept || ""} onValueChange={setSelectedDept}>
+                    <SelectTrigger className="w-[180px] h-10 bg-card rounded-xl">
+                      <SelectValue placeholder="Select Department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DEPARTMENTS.map((d) => (
+                        <SelectItem key={d} value={d}>
+                          {d}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-semibold text-muted-foreground uppercase">Shift:</span>
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase">Sem:</Label>
+                  <Select
+                    value={String(selectedSemester || 1)}
+                    onValueChange={(v) => setSelectedSemester(Number(v))}
+                  >
+                    <SelectTrigger className="w-[120px] h-10 bg-card rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                        <SelectItem key={s} value={String(s)}>
+                          Semester {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase">Shift:</Label>
                   <Select value={selectedShift} onValueChange={setSelectedShift}>
-                    <SelectTrigger className="w-[150px] h-10 border-2 rounded-xl">
+                    <SelectTrigger className="w-[120px] h-10 bg-card rounded-xl">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -584,46 +459,61 @@ export default function ManageDuesPage() {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
 
-              {/* Dues Stats cards */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="p-5 bg-card border-2 border-border rounded-2xl flex flex-col justify-between shadow-sm">
-                  <span className="text-sm font-semibold text-muted-foreground uppercase">Total Students</span>
-                  <span className="text-3xl font-extrabold text-foreground mt-2">{classStats.totalStudents}</span>
+                <div className="ml-auto">
+                  <Button
+                    onClick={() => {
+                      setIsBulkAssignment(true);
+                      setNewFee((prev) => ({ ...prev, studentId: "" }));
+                      setCreateDialogOpen(true);
+                    }}
+                    className="bg-brand-primary hover:bg-brand-primary/90 text-white rounded-xl shadow-lg shadow-brand-primary/20 h-10"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Assign Class Dues (Bulk)
+                  </Button>
                 </div>
-                <div className="p-5 bg-card border-2 border-border rounded-2xl flex flex-col justify-between shadow-sm">
-                  <span className="text-sm font-semibold text-muted-foreground uppercase">Total Class Dues</span>
-                  <span className="text-3xl font-extrabold text-foreground mt-2">
-                    Rs. {classStats.overallTotal.toLocaleString()}
-                  </span>
-                </div>
-                <div className="p-5 bg-card border-2 border-border rounded-2xl flex flex-col justify-between shadow-sm">
-                  <span className="text-sm font-semibold text-muted-foreground uppercase">Total Dues Collected</span>
-                  <span className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-2">
-                    Rs. {classStats.overallPaid.toLocaleString()}
-                  </span>
-                </div>
-                <div className="p-5 bg-card border-2 border-border rounded-2xl flex flex-col justify-between shadow-sm">
-                  <span className="text-sm font-semibold text-muted-foreground uppercase">Outstanding Dues</span>
-                  <span className="text-3xl font-extrabold text-rose-600 dark:text-rose-400 mt-2">
-                    Rs. {(classStats.overallUnpaid + classStats.overallOverdue).toLocaleString()}
-                  </span>
-                </div>
-              </div>
-
-              <div className="bg-card border-2 border-border rounded-2xl overflow-hidden shadow-sm p-4">
-                <DataTable
-                  data={studentDues}
-                  columns={columns}
-                  searchPlaceholder="Search by student name or roll no..."
-                  searchKeys={["rollNo"]}
-                />
               </div>
             </div>
-          </motion.div>
+
+            {/* Dues Stats cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="p-5 bg-card border-2 border-border rounded-2xl flex flex-col justify-between shadow-sm">
+                <span className="text-sm font-semibold text-muted-foreground uppercase">Total Students</span>
+                <span className="text-3xl font-extrabold text-foreground mt-2">{classStats.totalStudents}</span>
+              </div>
+              <div className="p-5 bg-card border-2 border-border rounded-2xl flex flex-col justify-between shadow-sm">
+                <span className="text-sm font-semibold text-muted-foreground uppercase">Total Class Dues</span>
+                <span className="text-3xl font-extrabold text-foreground mt-2">
+                  Rs. {classStats.overallTotal.toLocaleString()}
+                </span>
+              </div>
+              <div className="p-5 bg-card border-2 border-border rounded-2xl flex flex-col justify-between shadow-sm">
+                <span className="text-sm font-semibold text-muted-foreground uppercase">Total Dues Collected</span>
+                <span className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-2">
+                  Rs. {classStats.overallPaid.toLocaleString()}
+                </span>
+              </div>
+              <div className="p-5 bg-card border-2 border-border rounded-2xl flex flex-col justify-between shadow-sm">
+                <span className="text-sm font-semibold text-muted-foreground uppercase">Outstanding Dues</span>
+                <span className="text-3xl font-extrabold text-rose-600 dark:text-rose-400 mt-2">
+                  Rs. {(classStats.overallUnpaid + classStats.overallOverdue).toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            {/* Student Table */}
+            <div className="bg-card border-2 border-border rounded-2xl overflow-hidden shadow-sm p-4">
+              <DataTable
+                data={studentDues}
+                columns={columns}
+                searchPlaceholder="Search by student name or roll no..."
+                searchKeys={["rollNo"]}
+              />
+            </div>
+          </>
         )}
-      </AnimatePresence>
+      </div>
 
       {/* Confirmation Pay Receipt Dialog */}
       <Dialog open={payDialogOpen} onOpenChange={setPayDialogOpen}>

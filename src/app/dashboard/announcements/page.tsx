@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/axios";
-import { Plus, Bell, Trash2, Calendar, Target, Info, Loader2 } from "lucide-react";
+import { Plus, Bell, Trash2, Calendar, Target, Info, Loader2, RefreshCw } from "lucide-react";
 import { AuditBadge } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -77,7 +77,8 @@ export default function AnnouncementsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
+  const handleRefresh = () => {
+    setLoading(true);
     api
       .get<Announcement[]>("/api/announcements")
       .then((r) => {
@@ -85,6 +86,10 @@ export default function AnnouncementsPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    handleRefresh();
   }, []);
 
   const handleSave = async () => {
@@ -154,12 +159,23 @@ export default function AnnouncementsPage() {
           { label: "Announcements" },
         ]}
         action={
-          <Button
-            onClick={() => setDialogOpen(true)}
-            className="bg-brand-primary hover:bg-brand-primary/90 text-white"
-          >
-            <Plus className="h-4 w-4 mr-2" /> New Announcement
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              className="flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_var(--border)] active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_var(--border)] transition-all"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
+            <Button
+              onClick={() => setDialogOpen(true)}
+              className="bg-brand-primary hover:bg-brand-primary/90 text-white h-9 px-4 rounded-xl flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" /> New Announcement
+            </Button>
+          </div>
         }
       />
 
