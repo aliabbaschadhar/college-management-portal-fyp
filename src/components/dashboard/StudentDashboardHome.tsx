@@ -11,6 +11,7 @@ import {
   ArrowRight,
   FileText,
   CalendarDays,
+  AlertCircle,
 } from "lucide-react";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { PageHeader } from "@/components/dashboard/PageHeader";
@@ -84,6 +85,13 @@ interface StudentDashboardResponse {
     mid: number;
     final: number;
   }>;
+  studentProfile?: {
+    department: string;
+    semester: number;
+    shift: string;
+    blocked?: boolean;
+    readmitRequested?: boolean;
+  };
 }
 
 const container = {
@@ -290,27 +298,31 @@ export function StudentDashboardHome() {
       animate="show"
       className="space-y-6"
     >
-      {showWelcome && (
+      {dashboardData?.studentProfile?.blocked && (
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="relative flex items-center justify-between gap-4 p-4 rounded-xl border border-brand-primary/20 bg-brand-primary/5 dark:bg-[#131022] shadow-md"
+          className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-5 rounded-2xl border-2 border-rose-500 bg-rose-500/10 dark:bg-rose-950/30 shadow-lg"
         >
-          <div className="flex items-center gap-3">
-            <span className="text-2xl animate-bounce">🎓</span>
+          <div className="flex items-center gap-3.5">
+            <div className="h-12 w-12 rounded-full bg-rose-500/20 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0">
+              <AlertCircle className="h-6 w-6" />
+            </div>
             <div>
-              <h4 className="font-extrabold text-brand-primary text-sm">Welcome to Govt. Graduate College Portal!</h4>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Your admission application has been approved. You now have full access to your student dashboard, courses, timetable, and attendance tracking.
+              <div className="flex items-center gap-2">
+                <h4 className="font-extrabold text-rose-600 dark:text-rose-400 text-base">Account Struck Off (Attendance Shortage)</h4>
+                <Badge variant="destructive" className="uppercase text-[10px] font-black">Suspended</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                Your portal status has been set to <strong>Struck Off</strong> due to attendance shortage (below 75%). Interactive submissions and quiz attempts are restricted. Please contact your Department Head / Admin for re-admission.
               </p>
             </div>
           </div>
-          <button
-            onClick={dismissWelcome}
-            className="text-xs font-bold text-brand-primary hover:underline px-3 py-1 rounded-lg hover:bg-brand-primary/10 shrink-0 cursor-pointer"
-          >
-            Dismiss
-          </button>
+          {dashboardData.studentProfile.readmitRequested ? (
+            <Badge className="bg-amber-500/20 text-amber-600 border border-amber-500/30 font-bold px-3 py-1.5 shrink-0 text-xs">
+              Re-Admission Requested
+            </Badge>
+          ) : null}
         </motion.div>
       )}
 

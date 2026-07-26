@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/axios";
-import { Star, MessageSquare, TrendingUp } from "lucide-react";
+import { Star, MessageSquare, TrendingUp, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { motion } from "framer-motion";
@@ -37,7 +38,8 @@ export default function FacultyFeedbackPage() {
   const [feedback, setFeedback] = useState<FeedbackItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchFeedback = () => {
+    setLoading(true);
     api
       .get<FeedbackItem[]>("/api/feedback")
       .then((r) => {
@@ -45,6 +47,10 @@ export default function FacultyFeedbackPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchFeedback();
   }, []);
 
   const avgRating =
@@ -71,7 +77,7 @@ export default function FacultyFeedbackPage() {
     ]),
   );
 
-  if (loading) {
+  if (loading && feedback.length === 0) {
     return (
       <div className="space-y-6">
         <div className="space-y-2">
@@ -98,11 +104,22 @@ export default function FacultyFeedbackPage() {
     >
       <PageHeader
         title="My Feedback"
-        subtitle="View student feedback and ratings"
+        subtitle="Student feedback and ratings for your courses"
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Feedback" },
         ]}
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchFeedback}
+            className="flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_var(--border)] active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_var(--border)] transition-all rounded-xl"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </Button>
+        }
       />
 
       {/* Stats */}
@@ -143,14 +160,14 @@ export default function FacultyFeedbackPage() {
         </h3>
         <ChartContainer
           config={distributionConfig}
-          className="min-h-[240px] w-full"
+          className="min-h-[180px] max-h-[220px] w-full"
         >
           <BarChart accessibilityLayer data={distributionData}>
             <CartesianGrid vertical={false} />
             <XAxis dataKey="star" tickLine={false} axisLine={false} />
             <YAxis tickLine={false} axisLine={false} allowDecimals={false} />
             <ChartTooltip content={<ChartTooltipContent />} />
-            <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+            <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={24}>
               {distributionData.map((entry, idx) => (
                 <Cell key={idx} fill={entry.fill} />
               ))}

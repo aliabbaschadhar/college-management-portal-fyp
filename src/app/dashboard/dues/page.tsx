@@ -172,15 +172,13 @@ export default function ManageDuesPage() {
   };
 
   const handleDeleteFee = async (id: string, name: string) => {
-    if (!confirm(`Delete fee record for ${name}?`)) return;
     setDeletingFeeId(id);
     try {
       await api.delete(`/api/fees/${id}`);
       setFees((prev) => prev.filter((f) => f.id !== id));
       router.refresh();
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: string } } };
-      alert(axiosErr.response?.data?.error ?? "Failed to delete fee");
+      console.error("Delete fee error:", err);
     } finally {
       setDeletingFeeId(null);
     }

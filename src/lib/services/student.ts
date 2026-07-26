@@ -261,6 +261,13 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
       courseName: c.courseName,
       creditHours: c.creditHours,
     })),
+    enrollments: enrollments.map((e) => ({
+      id: e.id,
+      courseId: e.courseId,
+      courseCode: e.course.courseCode,
+      blocked: e.blocked,
+      readmitRequested: e.readmitRequested,
+    })),
     timetable,
     pendingQuizzes,
     studentAnnouncements,
@@ -270,6 +277,8 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
       department: student.department,
       semester: student.semester,
       shift: student.shift,
+      blocked: student.blocked,
+      readmitRequested: student.readmitRequested,
     },
   };
 }

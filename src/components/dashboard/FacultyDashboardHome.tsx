@@ -86,7 +86,8 @@ interface Quiz {
   courseId: string;
   status: string;
   duration: number;
-  questions: string[];
+  questions?: string[];
+  _count?: { questions: number };
 }
 
 const container = {
@@ -487,7 +488,7 @@ export function FacultyDashboardHome() {
                         {quiz.title}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {quiz.questions.length} questions • {quiz.duration} mins
+                        {quiz._count?.questions ?? quiz.questions?.length ?? 0} questions • {quiz.duration} mins
                       </p>
                     </div>
                     <Badge
@@ -536,7 +537,16 @@ export function FacultyDashboardHome() {
               <h3 className="text-sm font-semibold text-foreground">
                 Announcements
               </h3>
-              <Bell className="h-4 w-4 text-muted-foreground" />
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={handleRefresh}
+                  className="p-1 text-muted-foreground hover:text-foreground rounded-lg hover:bg-accent transition-colors cursor-pointer"
+                  title="Refresh Announcements"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </button>
+                <Bell className="h-4 w-4 text-muted-foreground" />
+              </div>
             </div>
             <div className="space-y-2">
               {data.announcements.slice(0, 3).map((ann) => (

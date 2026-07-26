@@ -91,7 +91,6 @@ function ProfileSection({
     if (!file) return;
 
     if (file.size > 1024 * 1024) {
-      alert("Image size should be less than 1MB.");
       return;
     }
 
@@ -105,7 +104,6 @@ function ProfileSection({
         window.dispatchEvent(new Event("profile-avatar-updated"));
       } catch (err) {
         console.error("Failed to upload avatar:", err);
-        alert("Failed to upload avatar.");
       } finally {
         setAvatarUploading(false);
       }

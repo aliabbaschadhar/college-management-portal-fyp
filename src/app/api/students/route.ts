@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = request.nextUrl;
     const department = searchParams.get("department");
+    const semester = searchParams.get("semester");
     const search = searchParams.get("search");
     const courseId = searchParams.get("courseId");
 
@@ -36,6 +37,7 @@ export async function GET(request: NextRequest) {
     const students = await prisma.student.findMany({
       where: {
         ...(department ? { department } : {}),
+        ...(semester ? { semester: Number(semester) } : {}),
         ...(search
           ? {
               OR: [
@@ -56,6 +58,7 @@ export async function GET(request: NextRequest) {
       },
       include: {
         user: { select: { name: true, email: true } },
+        enrollments: { select: { id: true, courseId: true, blocked: true, readmitRequested: true } },
         _count: { select: { enrollments: true } },
       },
     });
@@ -68,6 +71,8 @@ export async function GET(request: NextRequest) {
       department: s.department,
       semester: s.semester,
       shift: s.shift,
+      blocked: s.blocked,
+      readmitRequested: s.readmitRequested,
       enrollmentDate: s.enrollmentDate.toISOString(),
       avatar: s.avatar,
       approvedBy: s.approvedBy,
@@ -75,6 +80,7 @@ export async function GET(request: NextRequest) {
         name: s.user.name,
         email: s.user.email,
       },
+      enrollments: s.enrollments,
       _count: {
         enrollments: s._count.enrollments,
       },

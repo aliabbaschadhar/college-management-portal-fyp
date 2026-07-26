@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/axios";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { Pencil, Trash2, Loader2, Eye, Calendar, Mail, Phone, Clock, Shield, RefreshCw } from "lucide-react";
+import { Pencil, Trash2, Loader2, Eye, Calendar, Mail, Phone, Clock, Shield, RefreshCw, CheckCircle } from "lucide-react";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
@@ -43,6 +43,8 @@ interface StudentWithUser {
   avatar: string | null;
   shift: string;
   approvedBy?: string | null;
+  blocked?: boolean;
+  readmitRequested?: boolean;
   user: { name: string | null; email: string };
   _count: { enrollments: number };
 }
@@ -252,12 +254,9 @@ export default function ManageStudentsPage() {
 
       setSelectedStudentIds([]);
       setPromotionDialogOpen(false);
-      alert(`Successfully promoted ${data.promotedStudents.length} student(s) to Semester ${targetSemester}!`);
       router.refresh();
     } catch (err: unknown) {
       console.error("Promotion failed:", err);
-      const axiosErr = err as { response?: { data?: { error?: string } } };
-      alert(`Failed to promote students: ${axiosErr.response?.data?.error ?? "Unknown error"}`);
     } finally {
       setPromoting(false);
     }
@@ -348,10 +347,7 @@ export default function ManageStudentsPage() {
       setDialogOpen(false);
       router.refresh();
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: string } } };
-      alert(
-        `Failed to update student: ${axiosErr.response?.data?.error ?? "Unknown error"}`
-      );
+      console.error("Save failed:", err);
     } finally {
       setSubmitting(false);
     }
@@ -367,10 +363,7 @@ export default function ManageStudentsPage() {
       setDeletingStudent(null);
       router.refresh();
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: string } } };
-      alert(
-        `Failed to delete student: ${axiosErr.response?.data?.error ?? "Unknown error"}`
-      );
+      console.error("Delete failed:", err);
       setDeleteDialogOpen(false);
       setDeletingStudent(null);
     } finally {
@@ -433,9 +426,21 @@ export default function ManageStudentsPage() {
               .slice(0, 2)}
           </div>
           <div>
-            <p className="font-medium text-foreground">
-              {row.user.name ?? "—"}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="font-medium text-foreground">
+                {row.user.name ?? "—"}
+              </p>
+              {row.readmitRequested && (
+                <Badge className="bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[10px] font-bold animate-pulse">
+                  Re-Admission Requested
+                </Badge>
+              )}
+              {row.blocked && !row.readmitRequested && (
+                <Badge variant="destructive" className="text-[10px] uppercase font-bold">
+                  Struck Off
+                </Badge>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">{row.user.email}</p>
             <AuditBadgeInline entity="Student" entityId={row.id} />
           </div>
@@ -483,6 +488,26 @@ export default function ManageStudentsPage() {
             header: "Actions",
             render: (row: StudentWithUser) => (
               <div className="flex items-center gap-1">
+                {row.readmitRequested && (
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        await api.patch(`/api/students/${row.id}`, { blocked: false, readmitRequested: false });
+                        setStudents((prev) =>
+                          prev.map((s) => (s.id === row.id ? { ...s, blocked: false, readmitRequested: false } : s))
+                        );
+                        router.refresh();
+                      } catch (err) {
+                        console.error("Failed to approve re-admission:", err);
+                      }
+                    }}
+                    className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-2 gap-1 font-semibold"
+                    title="Approve Re-admission / Activate Student"
+                  >
+                    <CheckCircle className="h-3.5 w-3.5" /> Re-Admit
+                  </Button>
+                )}
                 <button
                   onClick={() => {
                     setDetailStudent(row);

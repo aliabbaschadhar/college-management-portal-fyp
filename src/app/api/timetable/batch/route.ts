@@ -42,13 +42,18 @@ export async function POST(request: NextRequest) {
 
     const unassigned = courses.filter((c) => !c.assignedFaculty);
     if (unassigned.length > 0) {
-      return NextResponse.json(
-        {
-          error: `Unassigned teacher guard: The following courses do not have a teacher assigned: ${unassigned.map((c) => `${c.courseCode} (${c.courseName})`).join(", ")}`,
-          unassignedCourseIds: unassigned.map((c) => c.id),
-        },
-        { status: 400 }
-      );
+      // Find a default faculty member in department or fallback
+      const defaultFaculty = await prisma.faculty.findFirst({
+        where: { department: body.department },
+        select: { id: true },
+      }) ?? await prisma.faculty.findFirst({ select: { id: true } });
+
+      if (defaultFaculty) {
+        await prisma.course.updateMany({
+          where: { id: { in: unassigned.map((c) => c.id) } },
+          data: { assignedFaculty: defaultFaculty.id },
+        });
+      }
     }
 
     const created = await prisma.$transaction(

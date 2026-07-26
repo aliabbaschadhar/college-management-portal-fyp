@@ -79,6 +79,10 @@ export async function GET(request: NextRequest) {
     const isAdmin = user.role === "ADMIN";
     const isFaculty = user.role === "FACULTY";
 
+    if (isFaculty && !studentId) {
+      return NextResponse.json([]);
+    }
+
     const resolvedStudentId = studentId
       ? studentId
       : !isAdmin && !isFaculty

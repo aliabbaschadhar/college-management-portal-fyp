@@ -305,8 +305,6 @@ export default function ManageCoursesPage() {
       router.refresh();
     } catch (err) {
       console.error("Failed to assign faculty:", err);
-      const axiosErr = err as { response?: { data?: { error?: string } } };
-      alert(`Failed to assign faculty: ${axiosErr.response?.data?.error ?? "Unknown error"}`);
     } finally {
       setAssigning(false);
     }
@@ -347,7 +345,7 @@ export default function ManageCoursesPage() {
           <div className="flex flex-col">
             <span className="text-sm font-semibold">{row.faculty.user.name}</span>
             <span className="text-[10px] text-muted-foreground">
-              {row.shift === "Both" ? "Both Shifts" : `${row.shift || "Morning"} Shift`}
+              {`${row.shift || "Morning"} Shift`}
             </span>
           </div>
         ) : (
@@ -417,11 +415,9 @@ export default function ManageCoursesPage() {
     let matchesShift = true;
     if (selectedShift !== "All") {
       if (selectedShift === "Morning") {
-        matchesShift = c.shift === "Morning" || c.shift === "Both";
+        matchesShift = c.shift === "Morning";
       } else if (selectedShift === "Evening") {
-        matchesShift = c.shift === "Evening" || c.shift === "Both";
-      } else if (selectedShift === "Both") {
-        matchesShift = c.shift === "Both";
+        matchesShift = c.shift === "Evening";
       }
     }
     return matchesDept && matchesSem && matchesShift;
@@ -657,7 +653,6 @@ export default function ManageCoursesPage() {
                       <SelectItem value="All">All Shifts</SelectItem>
                       <SelectItem value="Morning">Morning</SelectItem>
                       <SelectItem value="Evening">Evening</SelectItem>
-                      <SelectItem value="Both">Both</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -833,7 +828,6 @@ export default function ManageCoursesPage() {
                 <SelectContent>
                   <SelectItem value="Morning">Morning Shift</SelectItem>
                   <SelectItem value="Evening">Evening Shift</SelectItem>
-                  <SelectItem value="Both">Both Shifts</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -933,7 +927,7 @@ export default function ManageCoursesPage() {
               <div>
                 <span className="text-xs text-muted-foreground block font-medium">Shift Assigned</span>
                 <span className="font-bold text-sm text-foreground font-semibold">
-                  {viewingCourse?.shift === "Both" ? "Both Shifts" : `${viewingCourse?.shift || "Morning"} Shift`}
+                  {`${viewingCourse?.shift || "Morning"} Shift`}
                 </span>
               </div>
             </div>

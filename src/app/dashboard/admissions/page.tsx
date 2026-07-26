@@ -220,8 +220,6 @@ export default function ManageAdmissionsPage() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete the admission for ${name}?`))
-      return;
     setMutationError(null);
     setDeletingId(id);
     try {

@@ -121,7 +121,6 @@ export default function SignUpPage() {
     setError("");
     try {
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
-      alert("Verification code has been resent to your email.");
     } catch (err) {
       if (isClerkAPIResponseError(err)) {
         setError(err.errors[0]?.message || "Failed to resend code.");

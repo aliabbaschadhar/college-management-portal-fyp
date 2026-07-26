@@ -70,9 +70,11 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
       const annData = Array.isArray(res.data) ? res.data : [];
       setAllAnnouncements(annData);
 
-      if (role === "student") {
+      if (role?.toLowerCase() === "student") {
         const feesRes = await api.get<Fee[]>("/api/fees?status=Unpaid").catch(() => null);
         setUnpaidFees(Array.isArray(feesRes?.data) ? feesRes.data : []);
+      } else {
+        setUnpaidFees([]);
       }
     } catch (err) {
       console.error("Failed to fetch announcements/fees for bell:", err);
@@ -118,19 +120,30 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
     return allAnnouncements.filter((a) => !dismissedIds.includes(a.id));
   }, [allAnnouncements, dismissedIds]);
 
-  // Recalculate unread count based on visible non-dismissed announcements + unpaid dues
+  // Recalculate unread count based on visible non-dismissed AND non-read announcements + unpaid dues
   const unreadCount = useMemo(() => {
     if (!isMounted || !userId) return 0;
-    const lastReadStr = localStorage.getItem(`last_read_announcement_time_${userId}`);
-    if (lastReadStr) {
-      const lastReadTime = new Date(lastReadStr).getTime();
-      const unreadAnn = visibleAnnouncements.filter(
-        (a) => new Date(a.date).getTime() > lastReadTime
-      ).length;
-      return unreadAnn + unpaidFees.length;
-    } else {
-      return visibleAnnouncements.length + unpaidFees.length;
+
+    let readIds: string[] = [];
+    const readStored = localStorage.getItem(`read_announcements_${userId}`);
+    if (readStored) {
+      try {
+        readIds = JSON.parse(readStored);
+      } catch (e) {
+        console.error("Failed to parse read announcements:", e);
+      }
     }
+
+    const lastReadStr = localStorage.getItem(`last_read_announcement_time_${userId}`);
+    const lastReadTime = lastReadStr ? new Date(lastReadStr).getTime() : 0;
+
+    const unreadAnn = visibleAnnouncements.filter((a) => {
+      if (readIds.includes(a.id)) return false;
+      if (lastReadTime > 0 && new Date(a.date).getTime() <= lastReadTime) return false;
+      return true;
+    }).length;
+
+    return unreadAnn + unpaidFees.length;
   }, [isMounted, visibleAnnouncements, userId, unpaidFees]);
 
   useEffect(() => {

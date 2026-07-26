@@ -41,6 +41,29 @@ export default function TakeQuizPage() {
   const [answers, setAnswers] = useState<(number | null)[]>([]);
   const [timeLeft, setTimeLeft] = useState(0);
   const [score, setScore] = useState(0);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [blockedCourseIds, setBlockedCourseIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    api.get("/api/me")
+      .then((res) => {
+        if (res.data?.student?.blocked) {
+          setIsBlocked(true);
+        }
+      })
+      .catch(() => {});
+
+    api.get("/api/dashboard/student")
+      .then((res) => {
+        if (Array.isArray(res.data?.enrollments)) {
+          const blockedIds = res.data.enrollments
+            .filter((e: { blocked?: boolean; courseId: string }) => e.blocked)
+            .map((e: { courseId: string }) => e.courseId);
+          setBlockedCourseIds(blockedIds);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     api.get<QuizWithDetails[]>("/api/quizzes?status=Published")
@@ -101,7 +124,6 @@ export default function TakeQuizPage() {
       setView("result");
     } catch (err) {
       console.error("Failed to submit quiz:", err);
-      alert("Failed to submit quiz. Please try again.");
     }
   };
 
@@ -133,11 +155,19 @@ export default function TakeQuizPage() {
           breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Take Quiz" }]}
         />
 
+        {isBlocked && (
+          <div className="rounded-xl border border-rose-500/50 bg-rose-500/10 p-4 text-xs font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            Your account is currently Struck Off due to attendance shortage. Quiz taking is restricted until Re-Admission is approved by Admin.
+          </div>
+        )}
+
         <div className="space-y-4">
           {quizzes.filter((q) => q.status === "Published").map((quiz) => {
             const daysLeft = Math.ceil(
               (new Date(quiz.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
             );
+            const isQuizBlocked = isBlocked || blockedCourseIds.includes(quiz.courseId);
 
             return (
               <motion.div
@@ -150,7 +180,14 @@ export default function TakeQuizPage() {
                   <FileText className="h-6 w-6 text-purple-500" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-semibold text-foreground">{quiz.title}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-foreground">{quiz.title}</h3>
+                    {isQuizBlocked && (
+                      <Badge variant="destructive" className="text-[10px] uppercase font-bold py-0 px-1.5">
+                        Restricted: Struck Off (&lt;70%)
+                      </Badge>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {quiz.course?.courseCode} • {quiz.questions?.length || 0} questions • {quiz.duration} mins • {quiz.totalMarks} marks
                   </p>
@@ -169,7 +206,7 @@ export default function TakeQuizPage() {
                   >
                     {daysLeft}d left
                   </Badge>
-                  <Button size="sm" onClick={() => startQuiz(quiz)} className="gap-1">
+                  <Button size="sm" onClick={() => startQuiz(quiz)} disabled={isQuizBlocked} className="gap-1">
                     Start <ArrowRight className="h-3.5 w-3.5" />
                   </Button>
                 </div>

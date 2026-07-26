@@ -82,12 +82,14 @@ model Course {
 }
 
 model Enrollment {
-  id        String  @id @default(uuid())
-  studentId String
-  courseId  String
-  semester  Int
-  course    Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  id               String  @id @default(uuid())
+  studentId        String
+  courseId         String
+  semester         Int
+  blocked          Boolean @default(false)
+  readmitRequested Boolean @default(false)
+  course           Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  student          Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, courseId])
   @@index([courseId])

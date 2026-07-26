@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { FileText, Plus, Clock, Users, Eye, CheckCircle, Play, Square, Loader2 } from "lucide-react";
+import { FileText, Plus, Clock, Users, Eye, CheckCircle, Play, Square, Loader2, Trash2 } from "lucide-react";
 import { api } from "@/lib/axios";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
@@ -81,6 +81,7 @@ export default function ManageQuizzesPage() {
   const [showResults, setShowResults] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [togglingQuizId, setTogglingQuizId] = useState<string | null>(null);
+  const [deletingQuizId, setDeletingQuizId] = useState<string | null>(null);
   const [attempts, setAttempts] = useState<Record<string, QuizAttempt[]>>({});
   const [loadingAttempts, setLoadingAttempts] = useState<string | null>(null);
   const quizIdCounter = useRef(0);
@@ -128,6 +129,18 @@ export default function ManageQuizzesPage() {
       // silent fail
     } finally {
       setTogglingQuizId(null);
+    }
+  };
+
+  const handleDeleteQuiz = async (quizId: string) => {
+    setDeletingQuizId(quizId);
+    try {
+      await api.delete(`/api/quizzes/${quizId}`);
+      await fetchQuizzes();
+    } catch {
+      // silent fail
+    } finally {
+      setDeletingQuizId(null);
     }
   };
 
@@ -281,6 +294,15 @@ export default function ManageQuizzesPage() {
                     {loadingAttempts === quiz.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />} Results
                   </Button>
                 )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleDeleteQuiz(quiz.id)}
+                  className="gap-1 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                  disabled={deletingQuizId === quiz.id}
+                >
+                  {deletingQuizId === quiz.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />} Delete
+                </Button>
               </div>
             </div>
 

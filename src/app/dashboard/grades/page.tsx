@@ -434,12 +434,6 @@ export default function FacultyGradesPage() {
                                 </button>
                                 <button
                                   onClick={async () => {
-                                    if (
-                                      !confirm(
-                                        `Delete grade for ${g.student.user.name}?`,
-                                      )
-                                    )
-                                      return;
                                     try {
                                       await api.delete(`/api/grades/${g.id}`);
                                       setGrades((prev) =>

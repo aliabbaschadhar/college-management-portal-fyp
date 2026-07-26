@@ -125,6 +125,7 @@ export default function TimetablePage() {
   const [gridSlotsCount, setGridSlotsCount] = useState(7);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
+  const [deletingTimetableId, setDeletingTimetableId] = useState<string | null>(null);
 
   const slots = useMemo(() => {
     const list = [];
@@ -439,11 +440,7 @@ export default function TimetablePage() {
   };
 
   const handleDelete = async (entry: TimetableApiEntry) => {
-    const confirmed = window.confirm(
-      `Delete ${entry.course.courseCode} on ${entry.day} at ${to12HourTime(entry.startTime)}?`,
-    );
-    if (!confirmed) return;
-
+    setDeletingTimetableId(entry.id);
     setMutationError(null);
     try {
       await api.delete(`/api/timetable/${entry.id}`);
@@ -454,6 +451,8 @@ export default function TimetablePage() {
       setMutationError(
         axiosErr.response?.data?.error ?? "Failed to delete timetable entry",
       );
+    } finally {
+      setDeletingTimetableId(null);
     }
   };
 
@@ -792,10 +791,15 @@ export default function TimetablePage() {
                                     </button>
                                     <button
                                       onClick={() => handleDelete(cls)}
-                                      className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-rose-100"
+                                      disabled={deletingTimetableId === cls.id}
+                                      className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-rose-100 disabled:opacity-50"
                                       title="Delete entry"
                                     >
-                                      <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+                                      {deletingTimetableId === cls.id ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-600" />
+                                      ) : (
+                                        <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+                                      )}
                                     </button>
                                   </div>
                                 </div>

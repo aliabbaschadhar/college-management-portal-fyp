@@ -252,13 +252,32 @@ export default function NotificationsPage() {
                           </span>
                         </div>
                       </div>
-                      <button
-                        onClick={() => handleDismiss(ann.id)}
-                        className="absolute top-4 right-4 p-1 rounded-lg border border-transparent hover:border-border hover:bg-accent transition-all text-muted-foreground hover:text-foreground cursor-pointer focus:outline-none"
-                        title="Dismiss announcement"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
+                      <div className="flex flex-col items-end justify-between shrink-0 gap-2">
+                        <button
+                          onClick={() => handleDismiss(ann.id)}
+                          className="p-1 rounded-lg border border-transparent hover:border-border hover:bg-accent transition-all text-muted-foreground hover:text-foreground cursor-pointer focus:outline-none"
+                          title="Dismiss announcement"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            if (!userId) return;
+                            const stored = localStorage.getItem(`read_announcements_${userId}`);
+                            let readIds: string[] = stored ? JSON.parse(stored) : [];
+                            if (!readIds.includes(ann.id)) {
+                              readIds.push(ann.id);
+                              localStorage.setItem(`read_announcements_${userId}`, JSON.stringify(readIds));
+                              window.dispatchEvent(new Event("notifications-updated"));
+                            }
+                          }}
+                          className="h-7 text-[11px] px-2 text-brand-primary hover:bg-brand-primary/10 rounded-lg"
+                        >
+                          <CheckCircle2 className="h-3 w-3 mr-1" /> Mark Read
+                        </Button>
+                      </div>
                     </motion.div>
                   ))}
                 </AnimatePresence>

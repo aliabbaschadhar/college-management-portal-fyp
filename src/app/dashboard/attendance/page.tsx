@@ -56,6 +56,7 @@ interface StudentItem {
   shift: string;
   blocked: boolean;
   readmitRequested?: boolean;
+  enrollments?: { id: string; courseId: string; blocked: boolean; readmitRequested: boolean }[];
   enrollmentDate: string;
   avatar: string | null;
   user: { name: string | null; email: string };
@@ -178,7 +179,6 @@ export default function ManageAttendancePage() {
       setStruckOffReason("");
     } catch (err) {
       console.error("Failed to strike off student:", err);
-      alert("Failed to strike off student. Please try again.");
     } finally {
       setSubmittingStruckOff(false);
     }
@@ -223,10 +223,6 @@ export default function ManageAttendancePage() {
 
   const handleToggleBlock = async (student: StudentStatsItem) => {
     const nextState = !student.blocked;
-    const actionText = nextState ? "Struck Off (Block)" : "Activate / Restore";
-    if (!confirm(`Are you sure you want to ${actionText} student ${student.user?.name}?`)) {
-      return;
-    }
     try {
       await api.patch(`/api/students/${student.id}`, { blocked: nextState, readmitRequested: false });
       setStudents((prev) =>
@@ -237,14 +233,10 @@ export default function ManageAttendancePage() {
       }
     } catch (err) {
       console.error("Failed to toggle student blocked status:", err);
-      alert("Failed to update student block status. Please try again.");
     }
   };
 
   const handleRequestReadmission = async (student: StudentStatsItem) => {
-    if (!confirm(`Send re-admission request to Admin for ${student.user?.name}?`)) {
-      return;
-    }
     try {
       await api.patch(`/api/students/${student.id}`, { readmitRequested: true });
       setStudents((prev) =>
@@ -253,10 +245,8 @@ export default function ManageAttendancePage() {
       if (selectedStudent && selectedStudent.id === student.id) {
         setSelectedStudent((prev) => (prev ? { ...prev, readmitRequested: true } : null));
       }
-      alert(`Re-admission request sent to Admin for ${student.user?.name}.`);
     } catch (err) {
       console.error("Failed to request re-admission:", err);
-      alert("Failed to send re-admission request.");
     }
   };
 
@@ -373,24 +363,32 @@ export default function ManageAttendancePage() {
       key: "user",
       header: "Student",
       sortable: true,
-      render: (row) => (
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-foreground">{row.user?.name ?? "—"}</span>
-            {row.blocked && (
-              <Badge variant="destructive" className="text-[10px] py-0 px-1.5 uppercase font-bold tracking-wider animate-pulse">
-                Struck Off
-              </Badge>
-            )}
-            {row.readmitRequested && (
-              <Badge variant="secondary" className="text-[10px] py-0 px-1.5 uppercase font-bold tracking-wider bg-amber-500/20 text-amber-600 border border-amber-500/30">
-                Pending Re-Admission
-              </Badge>
-            )}
+      render: (row) => {
+        const pct = row.stats.total > 0 ? Math.round(((row.stats.present + row.stats.late) / row.stats.total) * 100) : 100;
+        return (
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-foreground">{row.user?.name ?? "—"}</span>
+              {pct < 75 && !row.blocked && (
+                <Badge variant="destructive" className="bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 text-[10px] py-0 px-1.5 uppercase font-bold tracking-wider">
+                  Shortage Alert ({pct}%)
+                </Badge>
+              )}
+              {row.blocked && (
+                <Badge variant="destructive" className="text-[10px] py-0 px-1.5 uppercase font-bold tracking-wider animate-pulse">
+                  Struck Off
+                </Badge>
+              )}
+              {row.readmitRequested && (
+                <Badge variant="secondary" className="text-[10px] py-0 px-1.5 uppercase font-bold tracking-wider bg-amber-500/20 text-amber-600 border border-amber-500/30">
+                  Pending Re-Admission
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground font-mono">{row.rollNo}</p>
           </div>
-          <p className="text-xs text-muted-foreground font-mono">{row.rollNo}</p>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: "totalLectures" as keyof StudentStatsItem,
@@ -842,6 +840,155 @@ export default function ManageAttendancePage() {
           </DialogHeader>
 
           <div className="py-4 max-h-[60vh] overflow-y-auto pr-1">
+            {/* Course Attendance & Struck Off Threshold Guard */}
+            {selectedStudent && selectedStudentLogs.length > 0 && (() => {
+              const activeCourseCode = selectedStudentLogs[0]?.course.courseCode;
+              const activeCourseId = selectedStudentLogs[0]?.courseId;
+              const totalLogs = selectedStudentLogs.length;
+              const presentLogs = selectedStudentLogs.filter(l => l.status === "Present" || l.status === "Late").length;
+              const coursePct = totalLogs > 0 ? Math.round((presentLogs / totalLogs) * 100) : 100;
+
+              const enrollment = selectedStudent.enrollments?.find(e => e.courseId === activeCourseId);
+              const isStruckOffCourse = enrollment ? enrollment.blocked : selectedStudent.blocked;
+              const isReadmitReqCourse = enrollment ? enrollment.readmitRequested : selectedStudent.readmitRequested;
+
+              const handleEnrollmentStrikeOff = async () => {
+                if (!enrollment) {
+                  handleStruckOffClick(selectedStudent);
+                  return;
+                }
+                setSubmittingStruckOff(true);
+                try {
+                  await api.patch(`/api/enrollments/${enrollment.id}`, { blocked: true });
+                  await api.post("/api/announcements", {
+                    title: `Warning Notice: Student Struck Off in ${activeCourseCode}`,
+                    content: `Student ${selectedStudent.user?.name || "Unknown"} (${selectedStudent.rollNo}) has been struck off in ${activeCourseCode} due to ${coursePct}% attendance (<70%).`,
+                    audience: "Students",
+                    priority: "High",
+                    targetDepartment: selectedStudent.department,
+                    targetSemester: selectedStudent.semester,
+                  });
+                  setStudents((prev) =>
+                    prev.map((s) =>
+                      s.id === selectedStudent.id
+                        ? {
+                            ...s,
+                            enrollments: s.enrollments?.map((e) =>
+                              e.id === enrollment.id ? { ...e, blocked: true } : e
+                            ),
+                          }
+                        : s
+                    )
+                  );
+                  setSelectedStudent((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          enrollments: prev.enrollments?.map((e) =>
+                            e.id === enrollment.id ? { ...e, blocked: true } : e
+                          ),
+                        }
+                      : null
+                  );
+                } catch (err) {
+                  console.error("Failed to strike off for course:", err);
+                } finally {
+                  setSubmittingStruckOff(false);
+                }
+              };
+
+              const handleEnrollmentReadmitRequest = async () => {
+                if (!enrollment) return;
+                try {
+                  await api.patch(`/api/enrollments/${enrollment.id}`, { readmitRequested: true });
+                  setStudents((prev) =>
+                    prev.map((s) =>
+                      s.id === selectedStudent.id
+                        ? {
+                            ...s,
+                            enrollments: s.enrollments?.map((e) =>
+                              e.id === enrollment.id ? { ...e, readmitRequested: true } : e
+                            ),
+                          }
+                        : s
+                    )
+                  );
+                  setSelectedStudent((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          enrollments: prev.enrollments?.map((e) =>
+                            e.id === enrollment.id ? { ...e, readmitRequested: true } : e
+                          ),
+                        }
+                      : null
+                  );
+                } catch (err) {
+                  console.error("Failed to request course re-admission:", err);
+                }
+              };
+
+              return (
+                <div className="mb-4 p-4 rounded-2xl bg-card border-2 border-border flex flex-wrap items-center justify-between gap-4 shadow-sm">
+                  <div>
+                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                      {activeCourseCode} Course Attendance
+                    </span>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className={`text-xl font-extrabold ${coursePct >= 70 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                        {coursePct}%
+                      </span>
+                      <span className="text-xs text-muted-foreground font-mono">
+                        ({presentLogs}/{totalLogs} lectures attended)
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {isStruckOffCourse ? (
+                      isReadmitReqCourse ? (
+                        <Badge className="bg-amber-500/10 text-amber-600 border border-amber-500/30 text-xs py-1 px-3 font-bold animate-pulse">
+                          Course Re-Admission Requested
+                        </Badge>
+                      ) : isFaculty ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleEnrollmentReadmitRequest}
+                          className="h-8 text-xs text-amber-600 border-amber-500 hover:bg-amber-500 hover:text-white rounded-xl font-semibold"
+                        >
+                          Request Course Re-Admission
+                        </Button>
+                      ) : (
+                        <Badge variant="destructive" className="text-xs py-1 px-3 uppercase font-bold">
+                          Struck Off for Course
+                        </Badge>
+                      )
+                    ) : isFaculty ? (
+                      <div className="flex flex-col items-end gap-1">
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          disabled={coursePct >= 70 || submittingStruckOff}
+                          onClick={handleEnrollmentStrikeOff}
+                          className="h-8 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title={coursePct >= 70 ? "Can only strike off if course attendance is below 70%" : "Strike off student for this course"}
+                        >
+                          {submittingStruckOff && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
+                          Strike Off ({activeCourseCode})
+                        </Button>
+                        {coursePct >= 70 && (
+                          <span className="text-[10px] text-muted-foreground italic">
+                            Required &lt;70% to Strike Off (Current: {coursePct}%)
+                          </span>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })()}
+
             {selectedStudentLogs.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">No attendance records found for this student.</p>
             ) : (
