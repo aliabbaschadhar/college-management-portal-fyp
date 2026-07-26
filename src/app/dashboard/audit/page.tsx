@@ -55,7 +55,7 @@ export default function AuditLogPage() {
     try {
       const params = new URLSearchParams();
       if (filterEntity !== "all") params.set("entity", filterEntity);
-      const url = `/audit-log?${params.toString()}`;
+      const url = `/api/audit-log?${params.toString()}`;
       const res = await api.get<AuditLogEntry[]>(url);
       setLogs(Array.isArray(res.data) ? res.data : []);
     } catch {

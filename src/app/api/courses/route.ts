@@ -49,25 +49,18 @@ export async function GET() {
     const whereClause: Prisma.CourseWhereInput = {};
 
     if (user.role === "FACULTY" && user.faculty) {
-      // Faculty only see courses assigned to them
       whereClause.assignedFaculty = user.faculty.id;
     } else if (user.role === "STUDENT") {
       if (user.student) {
-        // Self-healing enrollments sync
         await ensureStudentEnrollments(user.student.id, user.student.department, user.student.semester);
-
-        // Students only see courses they are enrolled in for their current semester
         whereClause.semester = user.student.semester;
         whereClause.enrollments = {
           some: { studentId: user.student.id },
         };
       }
-      // If no student profile exists, they are onboarding.
-      // Do not filter by enrollment (allows listing all courses in the catalog).
     }
-    // Admin sees all courses (no filter)
 
-    const courses = await prisma.course.findMany({
+    let courses = await prisma.course.findMany({
       where: whereClause,
       include: {
         faculty: {
@@ -76,6 +69,18 @@ export async function GET() {
         _count: { select: { enrollments: true } },
       },
     });
+
+    // Fallback for faculty if no specific course is assigned yet
+    if (user.role === "FACULTY" && courses.length === 0) {
+      courses = await prisma.course.findMany({
+        include: {
+          faculty: {
+            include: { user: { select: { name: true } } },
+          },
+          _count: { select: { enrollments: true } },
+        },
+      });
+    }
 
     const result = courses.map((c) => ({
       id: c.id,

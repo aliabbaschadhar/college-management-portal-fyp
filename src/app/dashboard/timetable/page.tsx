@@ -11,6 +11,10 @@ import {
   Plus,
   Pencil,
   Trash2,
+  Sparkles,
+  AlertTriangle,
+  UserCheck,
+  Loader2,
 } from "lucide-react";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { motion } from "framer-motion";
@@ -50,6 +54,12 @@ interface CourseOption {
   department: string;
   semester: number;
   facultyName: string | null;
+}
+
+interface FacultyOption {
+  id: string;
+  name: string;
+  department: string;
 }
 
 interface TimetableApiError {
@@ -251,7 +261,108 @@ export default function TimetablePage() {
       })
       .catch(() => setCourses([]))
       .finally(() => setCoursesLoading(false));
+
+    api
+      .get("/api/faculty")
+      .then((r) => {
+        if (Array.isArray(r.data)) {
+          setFacultyList(
+            r.data.map((f: { id: string; user?: { name?: string; email?: string }; department: string }) => ({
+              id: f.id,
+              name: f.user?.name ?? f.user?.email ?? "Faculty Member",
+              department: f.department,
+            }))
+          );
+        }
+      })
+      .catch(() => setFacultyList([]));
   }, []);
+
+  const [facultyList, setFacultyList] = useState<FacultyOption[]>([]);
+  const [selectedTeacherToAssign, setSelectedTeacherToAssign] = useState<string>("");
+  const [assigningTeacher, setAssigningTeacher] = useState<boolean>(false);
+
+  // Batch Dialog states
+  const [batchDialogOpen, setBatchDialogOpen] = useState<boolean>(false);
+  const [batchEntries, setBatchEntries] = useState<{
+    courseId: string;
+    day: string;
+    startTime: string;
+    endTime: string;
+    room: string;
+  }[]>([]);
+  const [batchSaving, setBatchSaving] = useState<boolean>(false);
+  const [batchError, setBatchError] = useState<string | null>(null);
+
+  const handleAssignTeacher = async (courseId: string, facultyId: string) => {
+    if (!courseId || !facultyId) return;
+    setAssigningTeacher(true);
+    setMutationError(null);
+    try {
+      await api.patch(`/api/courses/${courseId}`, { assignedFaculty: facultyId });
+      const fac = facultyList.find((f) => f.id === facultyId);
+      setCourses((prev) =>
+        prev.map((c) => (c.id === courseId ? { ...c, facultyName: fac?.name ?? "Assigned" } : c))
+      );
+    } catch {
+      setMutationError("Failed to assign teacher to course");
+    } finally {
+      setAssigningTeacher(false);
+    }
+  };
+
+  const openBatchDialog = () => {
+    const semester = Number(filterSemester);
+    const semesterCourses = courses.filter(
+      (c) => c.department === filterDept && c.semester === semester
+    );
+
+    if (semesterCourses.length === 0) {
+      setMutationError(`No courses found for ${filterDept} Semester ${filterSemester}`);
+      return;
+    }
+
+    const defaultEntries = semesterCourses.map((c, idx) => {
+      const startMins = timeToMinutes(gridStart) + idx * gridDuration;
+      const startH = Math.floor(startMins / 60) % 24;
+      const startM = startMins % 60;
+      const startStr = `${String(startH).padStart(2, "0")}:${String(startM).padStart(2, "0")}`;
+      const endStr = add45Minutes(startStr, gridDuration);
+
+      return {
+        courseId: c.id,
+        day: "Monday",
+        startTime: startStr,
+        endTime: endStr,
+        room: `Room ${101 + idx}`,
+      };
+    });
+
+    setBatchEntries(defaultEntries);
+    setBatchError(null);
+    setBatchDialogOpen(true);
+  };
+
+  const handleBatchSubmit = async () => {
+    setBatchSaving(true);
+    setBatchError(null);
+    try {
+      await api.post("/api/timetable/batch", {
+        department: filterDept,
+        semester: Number(filterSemester),
+        shift: filterShift,
+        entries: batchEntries,
+      });
+      setBatchDialogOpen(false);
+      await loadTimetable();
+      router.refresh();
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } };
+      setBatchError(axiosErr.response?.data?.error ?? "Failed to create batch schedule");
+    } finally {
+      setBatchSaving(false);
+    }
+  };
 
   const filteredCourses = useMemo(() => {
     const semester = Number(filterSemester);
@@ -472,6 +583,12 @@ export default function TimetablePage() {
               onClick={handleExportPdf}
             >
               <Download className="h-4 w-4" /> Export PDF
+            </Button>
+            <Button
+              onClick={() => openBatchDialog()}
+              className="bg-purple-600 hover:bg-purple-700 text-white h-9 shadow-lg shadow-purple-600/20 gap-1.5"
+            >
+              <Sparkles className="h-4 w-4" /> Batch Generator
             </Button>
             <Button
               onClick={() => openCreateDialog()}
@@ -757,12 +874,57 @@ export default function TimetablePage() {
                 <SelectContent>
                   {filteredCourses.map((course) => (
                     <SelectItem key={course.id} value={course.id}>
-                      {course.courseCode} - {course.courseName} (Sem{" "}
-                      {course.semester})
+                      {course.courseCode} - {course.courseName} (Sem {course.semester})
+                      {(!course.facultyName || course.facultyName === "Unassigned") && " ⚠️ [No Teacher]"}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+
+              {/* Unassigned Teacher Guard Banner */}
+              {(() => {
+                const selectedCourse = courses.find((c) => c.id === form.courseId);
+                const isUnassigned = !selectedCourse?.facultyName || selectedCourse.facultyName === "Unassigned";
+                if (!selectedCourse || !isUnassigned) return null;
+
+                return (
+                  <div className="mt-2 rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 text-xs space-y-2">
+                    <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-bold">
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                      Subject Unassigned: No teacher assigned to {selectedCourse.courseCode}
+                    </div>
+                    <p className="text-muted-foreground">
+                      Assign a teacher below before finalizing this timetable entry:
+                    </p>
+                    <div className="flex items-center gap-2 pt-1">
+                      <Select
+                        value={selectedTeacherToAssign}
+                        onValueChange={setSelectedTeacherToAssign}
+                      >
+                        <SelectTrigger className="h-9 bg-card text-xs rounded-lg">
+                          <SelectValue placeholder="Select Faculty Member..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {facultyList.map((fac) => (
+                            <SelectItem key={fac.id} value={fac.id}>
+                              {fac.name} ({fac.department})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        size="sm"
+                        disabled={!selectedTeacherToAssign || assigningTeacher}
+                        onClick={() => handleAssignTeacher(selectedCourse.id, selectedTeacherToAssign)}
+                        className="h-9 bg-amber-600 hover:bg-amber-700 text-white text-xs gap-1 rounded-lg shrink-0"
+                      >
+                        {assigningTeacher ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserCheck className="h-3.5 w-3.5" />}
+                        Assign Teacher
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="grid gap-2">
@@ -863,7 +1025,10 @@ export default function TimetablePage() {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={saving}
+              disabled={saving || (() => {
+                const c = courses.find((x) => x.id === form.courseId);
+                return !c?.facultyName || c.facultyName === "Unassigned";
+              })()}
               className="bg-brand-primary hover:bg-brand-primary/90 text-white"
             >
               {saving
@@ -871,6 +1036,172 @@ export default function TimetablePage() {
                 : editingEntry
                   ? "Update Entry"
                   : "Add Entry"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Batch Schedule Generator Dialog */}
+      <Dialog open={batchDialogOpen} onOpenChange={setBatchDialogOpen}>
+        <DialogContent className="sm:max-w-[750px] max-h-[85vh] overflow-y-auto rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Sparkles className="h-6 w-6 text-purple-600" />
+              Batch Schedule Generator — {filterDept} (Sem {filterSemester})
+            </DialogTitle>
+            <DialogDescription>
+              Generate or update class timetable entries for all courses in this semester in a single action.
+            </DialogDescription>
+          </DialogHeader>
+
+          {batchError && (
+            <div className="rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs text-rose-600 dark:bg-rose-950/20 dark:border-rose-900/50 dark:text-rose-400 font-medium">
+              {batchError}
+            </div>
+          )}
+
+          <div className="space-y-4 py-2">
+            <div className="text-xs text-muted-foreground bg-muted/40 p-3 rounded-xl flex items-center justify-between">
+              <span>Target Shift: <strong className="text-foreground">{filterShift}</strong></span>
+              <span>Semester Courses: <strong className="text-foreground">{batchEntries.length}</strong></span>
+            </div>
+
+            <div className="space-y-3">
+              {batchEntries.map((entry, idx) => {
+                const course = courses.find((c) => c.id === entry.courseId);
+                const isUnassigned = !course?.facultyName || course.facultyName === "Unassigned";
+
+                return (
+                  <div key={entry.courseId} className="p-4 bg-card border border-border rounded-2xl space-y-3 shadow-xs">
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-foreground">{course?.courseCode} - {course?.courseName}</span>
+                        {isUnassigned ? (
+                          <Badge variant="destructive" className="text-[10px] py-0 px-2 uppercase font-bold">
+                            Unassigned Teacher
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] py-0 px-2 font-mono text-emerald-600 border-emerald-500/30">
+                            {course?.facultyName}
+                          </Badge>
+                        )}
+                      </div>
+
+                      {isUnassigned && (
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={selectedTeacherToAssign}
+                            onValueChange={setSelectedTeacherToAssign}
+                          >
+                            <SelectTrigger className="h-8 text-xs w-[180px] rounded-lg">
+                              <SelectValue placeholder="Assign teacher..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {facultyList.map((f) => (
+                                <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            size="sm"
+                            disabled={!selectedTeacherToAssign || assigningTeacher}
+                            onClick={() => handleAssignTeacher(entry.courseId, selectedTeacherToAssign)}
+                            className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded-lg shrink-0"
+                          >
+                            Assign
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div>
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Day</Label>
+                        <Select
+                          value={entry.day}
+                          onValueChange={(val) => {
+                            setBatchEntries((prev) =>
+                              prev.map((e, i) => (i === idx ? { ...e, day: val } : e))
+                            );
+                          }}
+                        >
+                          <SelectTrigger className="h-9 text-xs rounded-xl">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {TIMETABLE_DAYS.map((d) => (
+                              <SelectItem key={d} value={d}>{d}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Start Time</Label>
+                        <Input
+                          type="time"
+                          value={entry.startTime}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setBatchEntries((prev) =>
+                              prev.map((item, i) =>
+                                i === idx
+                                  ? { ...item, startTime: val, endTime: add45Minutes(val, gridDuration) }
+                                  : item
+                              )
+                            );
+                          }}
+                          className="h-9 text-xs rounded-xl font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">End Time</Label>
+                        <Input
+                          type="time"
+                          value={entry.endTime}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setBatchEntries((prev) =>
+                              prev.map((item, i) => (i === idx ? { ...item, endTime: val } : item))
+                            );
+                          }}
+                          className="h-9 text-xs rounded-xl font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Room</Label>
+                        <Input
+                          value={entry.room}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setBatchEntries((prev) =>
+                              prev.map((item, i) => (i === idx ? { ...item, room: val } : item))
+                            );
+                          }}
+                          className="h-9 text-xs rounded-xl"
+                          placeholder="e.g. Room 101"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 pt-4">
+            <Button variant="outline" onClick={() => setBatchDialogOpen(false)} className="rounded-xl">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleBatchSubmit}
+              disabled={batchSaving}
+              className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl gap-2 shadow-lg shadow-purple-600/20"
+            >
+              {batchSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {batchSaving ? "Generating Schedule..." : "Create All Timetable Slots"}
             </Button>
           </DialogFooter>
         </DialogContent>

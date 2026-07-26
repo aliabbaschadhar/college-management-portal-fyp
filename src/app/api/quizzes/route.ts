@@ -70,7 +70,6 @@ export async function POST(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    // Load user
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: { role: true, clerkId: true },
@@ -82,10 +81,20 @@ export async function POST(request: NextRequest) {
       title: string;
       courseId: string;
       duration: number;
-      totalMarks: number;
+      totalMarks?: number;
       dueDate: string;
       status: string;
+      questionIds?: string[];
     };
+
+    let calculatedMarks = body.totalMarks ?? 0;
+    if (body.questionIds && body.questionIds.length > 0) {
+      const selectedQuestions = await prisma.question.findMany({
+        where: { id: { in: body.questionIds } },
+        select: { marks: true },
+      });
+      calculatedMarks = selectedQuestions.reduce((acc, q) => acc + (q.marks || 1), 0);
+    }
 
     const quiz = await prisma.quiz.create({
       data: {
@@ -93,9 +102,16 @@ export async function POST(request: NextRequest) {
         courseId: body.courseId,
         createdBy: userId,
         duration: body.duration,
-        totalMarks: body.totalMarks,
+        totalMarks: calculatedMarks || 10,
         dueDate: new Date(body.dueDate),
         status: body.status,
+        ...(body.questionIds && body.questionIds.length > 0
+          ? { questions: { connect: body.questionIds.map((id) => ({ id })) } }
+          : {}),
+      },
+      include: {
+        course: { select: { courseCode: true, courseName: true } },
+        questions: true,
       },
     });
 

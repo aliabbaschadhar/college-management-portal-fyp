@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { FileText, Plus, Clock, Users, Eye, CheckCircle, Play, Square, Loader2 } from "lucide-react";
 import { api } from "@/lib/axios";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
@@ -36,9 +36,12 @@ interface ApiCourse {
 
 interface ApiQuestion {
   id: string;
+  courseId?: string;
+  type?: "MCQ" | "Short" | "Long";
   text: string;
   options: string[];
-  correctOption: number;
+  correctOption: number | null;
+  marks?: number;
   quizId: string | null;
 }
 
@@ -179,9 +182,18 @@ export default function ManageQuizzesPage() {
     );
   };
 
-  const courseQuestions = formCourse
-    ? questions.filter((q) => !q.quizId)
-    : [];
+  const courseQuestions = useMemo(() => {
+    if (!formCourse) return [];
+    return questions.filter((q) => q.courseId === formCourse || !q.courseId);
+  }, [formCourse, questions]);
+
+  useEffect(() => {
+    if (formQuestions.length > 0) {
+      const selected = questions.filter((q) => formQuestions.includes(q.id));
+      const total = selected.reduce((acc, q) => acc + (q.marks || 1), 0);
+      setFormMarks(total > 0 ? total : 10);
+    }
+  }, [formQuestions, questions]);
 
   if (loading) {
     return (

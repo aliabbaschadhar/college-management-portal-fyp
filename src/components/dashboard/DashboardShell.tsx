@@ -45,7 +45,7 @@ export function DashboardShell({ children, role, roleLabel }: DashboardShellProp
 
     const fetchPendingCounts = async () => {
       try {
-        const [admissionsRes, onboardingRes, feedbackRes] = await Promise.all([
+        const [admissionsRes, onboardingRes, feedbackRes] = await Promise.allSettled([
           api.get<unknown[]>("/api/admissions?status=Pending&limit=100"),
           api.get<unknown[]>("/api/onboarding?status=Pending"),
           api.get<{ date: string }[]>("/api/feedback"),
@@ -53,15 +53,28 @@ export function DashboardShell({ children, role, roleLabel }: DashboardShellProp
 
         if (!isMounted) return;
 
-        const admissionsCount = Array.isArray(admissionsRes.data) ? admissionsRes.data.length : 0;
-        const onboardingCount = Array.isArray(onboardingRes.data) ? onboardingRes.data.length : 0;
+        const admissionsData =
+          admissionsRes.status === "fulfilled" && Array.isArray(admissionsRes.value.data)
+            ? admissionsRes.value.data
+            : [];
+        const onboardingData =
+          onboardingRes.status === "fulfilled" && Array.isArray(onboardingRes.value.data)
+            ? onboardingRes.value.data
+            : [];
+        const feedbackData =
+          feedbackRes.status === "fulfilled" && Array.isArray(feedbackRes.value.data)
+            ? feedbackRes.value.data
+            : [];
+
+        const admissionsCount = admissionsData.length;
+        const onboardingCount = onboardingData.length;
         const totalAdmissionsCount = admissionsCount + onboardingCount;
         
         let feedbackCount = 0;
-        if (Array.isArray(feedbackRes.data) && pathname !== "/dashboard/feedback") {
+        if (feedbackData.length > 0 && pathname !== "/dashboard/feedback") {
           const lastViewed = localStorage.getItem("lastViewedFeedback");
           const lastViewedTime = lastViewed ? parseInt(lastViewed) : 0;
-          feedbackCount = feedbackRes.data.filter(
+          feedbackCount = feedbackData.filter(
             (f) => new Date(f.date).getTime() > lastViewedTime
           ).length;
         }

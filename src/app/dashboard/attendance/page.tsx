@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TableSkeleton } from "@/components/ui";
 import { useUser } from "@clerk/nextjs";
@@ -42,7 +43,7 @@ interface AttendanceWithDetails {
     shift: string;
     user: { name: string | null };
   };
-  course: { courseCode: string };
+  course: { courseCode: string; courseName?: string };
 }
 
 interface StudentItem {
@@ -54,6 +55,7 @@ interface StudentItem {
   semester: number;
   shift: string;
   blocked: boolean;
+  readmitRequested?: boolean;
   enrollmentDate: string;
   avatar: string | null;
   user: { name: string | null; email: string };
@@ -221,21 +223,40 @@ export default function ManageAttendancePage() {
 
   const handleToggleBlock = async (student: StudentStatsItem) => {
     const nextState = !student.blocked;
-    const actionText = nextState ? "Struck Off (Block)" : "Restore";
+    const actionText = nextState ? "Struck Off (Block)" : "Activate / Restore";
     if (!confirm(`Are you sure you want to ${actionText} student ${student.user?.name}?`)) {
       return;
     }
     try {
-      await api.patch(`/api/students/${student.id}`, { blocked: nextState });
+      await api.patch(`/api/students/${student.id}`, { blocked: nextState, readmitRequested: false });
       setStudents((prev) =>
-        prev.map((s) => (s.id === student.id ? { ...s, blocked: nextState } : s))
+        prev.map((s) => (s.id === student.id ? { ...s, blocked: nextState, readmitRequested: false } : s))
       );
       if (selectedStudent && selectedStudent.id === student.id) {
-        setSelectedStudent((prev) => (prev ? { ...prev, blocked: nextState } : null));
+        setSelectedStudent((prev) => (prev ? { ...prev, blocked: nextState, readmitRequested: false } : null));
       }
     } catch (err) {
       console.error("Failed to toggle student blocked status:", err);
       alert("Failed to update student block status. Please try again.");
+    }
+  };
+
+  const handleRequestReadmission = async (student: StudentStatsItem) => {
+    if (!confirm(`Send re-admission request to Admin for ${student.user?.name}?`)) {
+      return;
+    }
+    try {
+      await api.patch(`/api/students/${student.id}`, { readmitRequested: true });
+      setStudents((prev) =>
+        prev.map((s) => (s.id === student.id ? { ...s, readmitRequested: true } : s))
+      );
+      if (selectedStudent && selectedStudent.id === student.id) {
+        setSelectedStudent((prev) => (prev ? { ...prev, readmitRequested: true } : null));
+      }
+      alert(`Re-admission request sent to Admin for ${student.user?.name}.`);
+    } catch (err) {
+      console.error("Failed to request re-admission:", err);
+      alert("Failed to send re-admission request.");
     }
   };
 
@@ -327,11 +348,25 @@ export default function ManageAttendancePage() {
     };
   }, [studentStats, classStudents]);
 
+  const [filterDate, setFilterDate] = useState<string>("");
+
   // Fetch detailed logs of selected student
   const selectedStudentLogs = useMemo(() => {
     if (!selectedStudent) return [];
-    return attendance.filter((a) => a.studentId === selectedStudent.id);
-  }, [selectedStudent, attendance]);
+    return attendance.filter((a) => {
+      if (a.studentId !== selectedStudent.id) return false;
+      if (filterDate) {
+        const logDateStr = new Date(a.date).toISOString().split("T")[0];
+        if (logDateStr !== filterDate) return false;
+      }
+      return true;
+    });
+  }, [selectedStudent, attendance, filterDate]);
+
+  const currentClassCourses = useMemo(() => {
+    if (!selectedDept || !selectedSemester) return [];
+    return courses.filter((c) => c.department === selectedDept && c.semester === selectedSemester);
+  }, [courses, selectedDept, selectedSemester]);
 
   const columns: Column<StudentStatsItem>[] = [
     {
@@ -347,9 +382,23 @@ export default function ManageAttendancePage() {
                 Struck Off
               </Badge>
             )}
+            {row.readmitRequested && (
+              <Badge variant="secondary" className="text-[10px] py-0 px-1.5 uppercase font-bold tracking-wider bg-amber-500/20 text-amber-600 border border-amber-500/30">
+                Pending Re-Admission
+              </Badge>
+            )}
           </div>
           <p className="text-xs text-muted-foreground font-mono">{row.rollNo}</p>
         </div>
+      ),
+    },
+    {
+      key: "totalLectures" as keyof StudentStatsItem,
+      header: "Total Lectures",
+      render: (row) => (
+        <span className="font-mono font-bold text-foreground">
+          {row.stats.total} {row.stats.total === 1 ? "Lec" : "Lecs"}
+        </span>
       ),
     },
     {
@@ -362,20 +411,20 @@ export default function ManageAttendancePage() {
       ),
     },
     {
-      key: "absent",
-      header: "Absent",
-      render: (row) => (
-        <span className="text-rose-600 dark:text-rose-400 font-bold">
-          {row.stats.absent}
-        </span>
-      ),
-    },
-    {
       key: "late",
       header: "Late",
       render: (row) => (
         <span className="text-amber-600 dark:text-amber-400 font-bold">
           {row.stats.late}
+        </span>
+      ),
+    },
+    {
+      key: "absent",
+      header: "Absent",
+      render: (row) => (
+        <span className="text-rose-600 dark:text-rose-400 font-bold">
+          {row.stats.absent}
         </span>
       ),
     },
@@ -425,37 +474,39 @@ export default function ManageAttendancePage() {
                 variant="outline"
                 size="sm"
                 onClick={() => handleToggleBlock(row)}
-                className="h-8 text-xs gap-1 rounded-lg border-emerald-500 hover:bg-emerald-500 hover:text-white"
+                className="h-8 text-xs gap-1 rounded-lg border-emerald-500 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-600 hover:text-white font-bold"
               >
-                Restore
+                Activate / Restore
               </Button>
+            ) : row.readmitRequested ? (
+              <Badge variant="outline" className="text-xs py-1 px-2 bg-amber-500/10 text-amber-600 border-amber-500/30">
+                Re-Admission Requested
+              </Badge>
             ) : (
               <Button
                 variant="outline"
                 size="sm"
-                disabled
-                className="h-8 text-xs gap-1 rounded-lg disabled:opacity-50"
+                onClick={() => handleRequestReadmission(row)}
+                className="h-8 text-xs gap-1 rounded-lg border-amber-500 text-amber-600 hover:bg-amber-500 hover:text-white font-semibold"
               >
-                Struck Off (Contact Admin)
+                Request Re-Admission
               </Button>
             )
+          ) : isFaculty ? (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => handleStruckOffClick(row)}
+              className={`h-8 text-xs gap-1 rounded-lg ${
+                row.stats.rate < 75
+                  ? "bg-rose-600 hover:bg-rose-700 animate-pulse border-none text-white font-bold"
+                  : ""
+              }`}
+            >
+              Struck Off
+            </Button>
           ) : (
-            isFaculty ? (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => handleStruckOffClick(row)}
-                className={`h-8 text-xs gap-1 rounded-lg ${
-                  row.stats.rate < 75
-                    ? "bg-rose-600 hover:bg-rose-700 animate-pulse border-none text-white"
-                    : ""
-                }`}
-              >
-                Struck Off
-              </Button>
-            ) : (
-              <span className="text-xs text-muted-foreground font-medium px-2 py-1 bg-accent rounded-md">Active</span>
-            )
+            <span className="text-xs text-muted-foreground font-medium px-2 py-1 bg-accent rounded-md">Active</span>
           )}
         </div>
       ),
@@ -756,13 +807,38 @@ export default function ManageAttendancePage() {
         <DialogContent className="sm:max-w-[600px] border-none shadow-2xl overflow-hidden rounded-3xl">
           <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-r from-brand-primary via-brand-secondary to-brand-primary" />
           <DialogHeader className="pt-6">
-            <DialogTitle className="text-xl font-bold flex items-center gap-2">
-              <ClipboardCheck className="h-6 w-6 text-brand-primary" />
-              Attendance History Log
-            </DialogTitle>
-            <DialogDescription>
-              Reviewing marked attendance for <strong>{selectedStudent?.user?.name}</strong> ({selectedStudent?.rollNo})
-            </DialogDescription>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                  <ClipboardCheck className="h-6 w-6 text-brand-primary" />
+                  Attendance History Log
+                </DialogTitle>
+                <DialogDescription className="mt-1">
+                  Reviewing marked attendance for <strong>{selectedStudent?.user?.name}</strong> ({selectedStudent?.rollNo})
+                </DialogDescription>
+              </div>
+
+              {/* 4-Month Calendar Filter */}
+              <div className="flex items-center gap-2 shrink-0">
+                <Input
+                  type="date"
+                  value={filterDate}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFilterDate(e.target.value)}
+                  className="h-9 w-36 text-xs rounded-xl font-mono"
+                  title="Filter by date (past 4 months)"
+                />
+                {filterDate && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setFilterDate("")}
+                    className="h-9 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+            </div>
           </DialogHeader>
 
           <div className="py-4 max-h-[60vh] overflow-y-auto pr-1">
@@ -773,7 +849,9 @@ export default function ManageAttendancePage() {
                 {selectedStudentLogs.map((log) => (
                   <div key={log.id} className="p-4 bg-accent/40 border border-border rounded-2xl flex items-center justify-between gap-4">
                     <div>
-                      <p className="font-semibold text-sm text-foreground">Course: {log.course.courseCode}</p>
+                      <p className="font-semibold text-sm text-foreground">
+                        {log.course.courseCode}{log.course.courseName ? ` - ${log.course.courseName}` : ""}
+                      </p>
                       <p className="text-xs text-muted-foreground font-mono flex items-center gap-1.5 mt-1">
                         <Calendar className="h-3 w-3" />
                         {new Date(log.date).toLocaleDateString(undefined, {

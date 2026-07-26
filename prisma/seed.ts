@@ -273,6 +273,7 @@ async function main() {
     await prisma.question.create({
       data: {
         id: q.id,
+        courseId: parentQuiz ? parentQuiz.courseId : mockCourses[0].id,
         text: q.text,
         options: q.options,
         correctOption: q.correctOption,

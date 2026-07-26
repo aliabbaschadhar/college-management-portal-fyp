@@ -27,13 +27,13 @@ export async function GET() {
     
     const now = Date.now();
     const updatedAtTime = new Date(dbSettings.updatedAt).getTime();
-    const isExpired = now - updatedAtTime > 5 * 60 * 1000;
+    const isExpired = now - updatedAtTime > 2 * 60 * 1000;
     
     if (isExpired) {
       return NextResponse.json({ secret: "" });
     }
     
-    const expiresAt = new Date(updatedAtTime + 5 * 60 * 1000).toISOString();
+    const expiresAt = new Date(updatedAtTime + 2 * 60 * 1000).toISOString();
     return NextResponse.json({
       secret: dbSettings.value,
       expiresAt,
@@ -57,7 +57,7 @@ export async function POST() {
       create: { key: "admin_onboarding_secret", value: generatedSecret },
     });
 
-    const expiresAt = new Date(now.getTime() + 5 * 60 * 1000).toISOString();
+    const expiresAt = new Date(now.getTime() + 2 * 60 * 1000).toISOString();
 
     return NextResponse.json({
       success: true,

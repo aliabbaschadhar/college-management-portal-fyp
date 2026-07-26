@@ -505,7 +505,7 @@ function AdminSettingsSection() {
             Admin Onboarding Secret Key
           </Label>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            This secret key is required when a new user requests the ADMIN role during portal onboarding. It is valid for 5 minutes after generation.
+            This secret key is required when a new user requests the ADMIN role during portal onboarding. It is valid for 2 minutes after generation.
           </p>
           <div className="relative">
             <Input
@@ -528,15 +528,24 @@ function AdminSettingsSection() {
           <p className="text-xs text-rose-500 font-semibold">{errorMsg}</p>
         )}
 
-        <div className="flex justify-end pt-2">
+        <div className="flex items-center justify-between pt-2">
+          {timeLeft ? (
+            <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
+              Active key generated. Button is locked until key expires.
+            </p>
+          ) : (
+            <span />
+          )}
           <Button
             onClick={handleGenerate}
-            disabled={loading}
+            disabled={loading || !!timeLeft}
             className={cn(
-              "h-11 px-8 rounded-xl gap-2 transition-all duration-200",
+              "h-11 px-8 rounded-xl gap-2 transition-all duration-200 font-medium",
               saved
-                ? "bg-emerald-600 text-white hover:bg-emerald-600"
-                : "bg-brand-primary text-white hover:opacity-90",
+                ? "bg-emerald-600 text-white hover:bg-emerald-600 shadow-sm"
+                : !!timeLeft
+                  ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400 border border-blue-200 dark:border-blue-800/60 opacity-80 cursor-not-allowed"
+                  : "bg-blue-600 text-white hover:bg-blue-700 shadow-md active:scale-[0.98]",
             )}
           >
             {loading ? (
@@ -548,6 +557,8 @@ function AdminSettingsSection() {
               <>
                 <Check className="h-4 w-4" /> Secret Key Generated!
               </>
+            ) : timeLeft ? (
+              "Key Active (Locked)"
             ) : (
               "Generate Secret Key"
             )}

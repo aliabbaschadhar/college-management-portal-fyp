@@ -22,6 +22,7 @@ export async function PATCH(
       avatar?: string;
       shift?: string;
       blocked?: boolean;
+      readmitRequested?: boolean;
     };
 
     if (body.blocked === false) {
@@ -37,16 +38,24 @@ export async function PATCH(
       }
     }
 
+    const updateData: Prisma.StudentUpdateInput = {
+      ...(body.phone !== undefined ? { phone: body.phone } : {}),
+      ...(body.department !== undefined ? { department: body.department } : {}),
+      ...(body.semester !== undefined ? { semester: body.semester } : {}),
+      ...(body.avatar !== undefined ? { avatar: body.avatar } : {}),
+      ...(body.shift !== undefined ? { shift: body.shift } : {}),
+      ...(body.blocked !== undefined
+        ? {
+            blocked: body.blocked,
+            ...(body.blocked === false ? { readmitRequested: false } : {}),
+          }
+        : {}),
+      ...(body.readmitRequested !== undefined ? { readmitRequested: body.readmitRequested } : {}),
+    };
+
     const student = await prisma.student.update({
       where: { id },
-      data: {
-        ...(body.phone !== undefined ? { phone: body.phone } : {}),
-        ...(body.department !== undefined ? { department: body.department } : {}),
-        ...(body.semester !== undefined ? { semester: body.semester } : {}),
-        ...(body.avatar !== undefined ? { avatar: body.avatar } : {}),
-        ...(body.shift !== undefined ? { shift: body.shift } : {}),
-        ...(body.blocked !== undefined ? { blocked: body.blocked } : {}),
-      },
+      data: updateData,
       include: { user: { select: { name: true } } },
     });
 

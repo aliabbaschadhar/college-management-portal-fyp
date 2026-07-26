@@ -34,6 +34,7 @@ model Student {
   approvedBy     String?
   cgpa           Float         @default(0.0)
   blocked        Boolean       @default(false)
+  readmitRequested Boolean     @default(false)
   attendances    Attendance[]
   enrollments    Enrollment[]
   fees           Fee[]
@@ -44,15 +45,16 @@ model Student {
 }
 
 model Faculty {
-  id             String   @id @default(uuid())
-  userId         String   @unique
+  id             String              @id @default(uuid())
+  userId         String              @unique
   phone          String?
   department     String
   specialization String
-  joinDate       DateTime @default(now())
+  joinDate       DateTime            @default(now())
   avatar         String?
   teaches        Course[]
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attendances    FacultyAttendance[]
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Admin {
@@ -76,6 +78,7 @@ model Course {
   grades          Grade[]
   quizzes         Quiz[]
   timetables      Timetable[]
+  questions       Question[]
 }
 
 model Enrollment {
@@ -175,12 +178,19 @@ model Quiz {
 
 model Question {
   id            String   @id @default(uuid())
+  courseId      String
+  type          String   @default("MCQ")
   text          String
   options       String[]
-  correctOption Int
-  quizId        String
-  quiz          Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  correctOption Int?
+  sampleAnswer  String?
+  marks         Int      @default(1)
+  quizId        String?
+  quiz          Quiz?    @relation(fields: [quizId], references: [id], onDelete: SetNull)
+  course        Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
 
+  @@index([courseId])
   @@index([quizId])
 }
 
@@ -319,3 +329,19 @@ enum FeedbackType {
   Faculty
   Course
 }
+
+model FacultyAttendance {
+  id           String           @id @default(uuid())
+  facultyId    String
+  date         DateTime
+  status       AttendanceStatus
+  checkInTime  DateTime?
+  checkOutTime DateTime?
+  markedBy     String           @default("SELF")
+  notes        String?
+  faculty      Faculty          @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+
+  @@unique([facultyId, date])
+  @@index([date])
+}
+

@@ -29,7 +29,7 @@ export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose, onNa
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
-    return pathname.startsWith(href);
+    return pathname === href || pathname.startsWith(href + "/");
   };
 
   return (

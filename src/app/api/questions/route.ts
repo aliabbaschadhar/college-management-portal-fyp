@@ -19,35 +19,34 @@ export async function GET(request: NextRequest) {
     const quizId = searchParams.get("quizId");
     const courseId = searchParams.get("courseId");
 
-    const quizWhere: Prisma.QuizWhereInput = {};
-    if (courseId) {
-      quizWhere.courseId = courseId;
-    }
-
-    if (user.role === "FACULTY") {
-      quizWhere.OR = [
-        { createdBy: userId },
-        { course: { assignedFaculty: user.faculty?.id } },
-      ];
-    } else if (user.role === "STUDENT") {
-      quizWhere.status = "Published";
-      quizWhere.course = { enrollments: { some: { student: { userId: user.id } } } };
-    }
-
     const whereClause: Prisma.QuestionWhereInput = {
+      ...(courseId ? { courseId } : {}),
       ...(quizId ? { quizId } : {}),
-      ...(Object.keys(quizWhere).length > 0 ? { quiz: quizWhere } : {}),
     };
+
+    if (user.role === "FACULTY" && user.faculty?.id) {
+      if (!courseId && !quizId) {
+        whereClause.course = { assignedFaculty: user.faculty.id };
+      }
+    }
 
     const questions = await prisma.question.findMany({
       where: whereClause,
       select: {
         id: true,
+        courseId: true,
+        type: true,
         text: true,
         options: true,
+        correctOption: true,
+        sampleAnswer: true,
+        marks: true,
         quizId: true,
-        quiz: { select: { courseId: true, title: true, course: { select: { courseCode: true } } } },
+        course: { select: { courseCode: true, courseName: true } },
+        quiz: { select: { title: true } },
+        createdAt: true,
       },
+      orderBy: { createdAt: "desc" },
     });
 
     return NextResponse.json(questions);
@@ -62,7 +61,6 @@ export async function POST(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    // Load user role and faculty info
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: { role: true, clerkId: true, faculty: { select: { id: true } } },
@@ -71,46 +69,60 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = (await request.json()) as {
+      courseId: string;
+      type?: "MCQ" | "Short" | "Long";
       text: string;
-      options: string[];
-      correctOption: number;
-      quizId: string;
+      options?: string[];
+      correctOption?: number | null;
+      sampleAnswer?: string;
+      marks?: number;
+      quizId?: string;
     };
 
-    // Load parent quiz with course info
-    const quiz = await prisma.quiz.findUnique({
-      where: { id: body.quizId },
-      include: { course: { select: { assignedFaculty: true } } },
-    });
-
-    if (!quiz) {
-      return NextResponse.json({ error: "Quiz not found" }, { status: 404 });
+    if (!body.courseId || !body.text) {
+      return NextResponse.json({ error: "courseId and text are required" }, { status: 400 });
     }
 
-    // Verify authorization: admin or faculty assigned to course or quiz creator
+    const course = await prisma.course.findUnique({
+      where: { id: body.courseId },
+      select: { assignedFaculty: true },
+    });
+
+    if (!course) {
+      return NextResponse.json({ error: "Course not found" }, { status: 404 });
+    }
+
     const isAdmin = user.role === "ADMIN";
     const isFacultyAssignedToCourse =
-      user.faculty && quiz.course?.assignedFaculty === user.faculty.id;
-    const isQuizCreator = quiz.createdBy === user.clerkId;
+      user.faculty && (course.assignedFaculty === null || course.assignedFaculty === user.faculty.id);
 
-    if (!isAdmin && !isFacultyAssignedToCourse && !isQuizCreator) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!isAdmin && !isFacultyAssignedToCourse) {
+      return NextResponse.json({ error: "Forbidden: You are not assigned to this course" }, { status: 403 });
     }
 
     const question = await prisma.question.create({
       data: {
+        courseId: body.courseId,
+        type: body.type ?? "MCQ",
         text: body.text,
-        options: body.options,
-        correctOption: body.correctOption,
-        quizId: body.quizId,
+        options: body.options ?? [],
+        correctOption: body.correctOption ?? null,
+        sampleAnswer: body.sampleAnswer ?? null,
+        marks: body.marks ?? 1,
+        quizId: body.quizId ?? null,
       },
       select: {
         id: true,
+        courseId: true,
+        type: true,
         text: true,
         options: true,
         correctOption: true,
+        sampleAnswer: true,
+        marks: true,
         quizId: true,
-        quiz: { select: { courseId: true, title: true, course: { select: { courseCode: true } } } },
+        course: { select: { courseCode: true, courseName: true } },
+        createdAt: true,
       },
     });
 
