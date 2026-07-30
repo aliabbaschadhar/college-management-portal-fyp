@@ -123,24 +123,6 @@ export function StudentDashboardHome() {
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] =
     useState<StudentDashboardResponse | null>(null);
-  const [showWelcome, setShowWelcome] = useState(false);
-
-  useEffect(() => {
-    if (user?.id && dashboardData) {
-      const shownKey = `welcome_shown_${user.id}`;
-      const hasShown = localStorage.getItem(shownKey);
-      if (!hasShown) {
-        setShowWelcome(true);
-      }
-    }
-  }, [user?.id, dashboardData]);
-
-  const dismissWelcome = () => {
-    if (user?.id) {
-      localStorage.setItem(`welcome_shown_${user.id}`, "true");
-    }
-    setShowWelcome(false);
-  };
 
   const fetchDashboard = async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
@@ -401,7 +383,7 @@ export function StudentDashboardHome() {
           </h3>
           <ChartContainer
             config={attendanceChartConfig}
-            className="min-h-[280px] w-full"
+            className="h-[200px] w-full"
           >
             <BarChart accessibilityLayer data={attendanceChartData}>
               <CartesianGrid vertical={false} />
@@ -442,7 +424,7 @@ export function StudentDashboardHome() {
           </h3>
           <ChartContainer
             config={gradeChartConfig}
-            className="min-h-[280px] w-full"
+            className="h-[200px] w-full"
           >
             <BarChart accessibilityLayer data={gradeChartData}>
               <CartesianGrid vertical={false} />

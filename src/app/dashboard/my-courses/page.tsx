@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/axios";
-import { BookOpen, Users, Clock, GraduationCap } from "lucide-react";
+import { BookOpen, Users, Clock, GraduationCap, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { GridSkeleton } from "@/components/ui";
 
 interface CourseWithDetails {
@@ -41,16 +42,28 @@ const ICON_COLORS = [
 export default function MyCoursesPage() {
   const [courses, setCourses] = useState<CourseWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchCourses = useCallback(async () => {
+    try {
+      const r = await api.get<CourseWithDetails[]>("/api/courses");
+      setCourses(r.data);
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    api
-      .get<CourseWithDetails[]>("/api/courses")
-      .then((r) => {
-        setCourses(r.data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+    fetchCourses();
+  }, [fetchCourses]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchCourses();
+    setRefreshing(false);
+  };
 
   if (loading) {
     return (
@@ -77,6 +90,18 @@ export default function MyCoursesPage() {
           { label: "Dashboard", href: "/dashboard" },
           { label: "My Courses" },
         ]}
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="geo-pressable flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer rounded-xl"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        }
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 mt-6">

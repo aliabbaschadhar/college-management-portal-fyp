@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { api } from "@/lib/axios";
-import { Clock } from "lucide-react";
+import { Clock, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion } from "framer-motion";
 import { TableSkeleton } from "@/components/ui";
+import { Button } from "@/components/ui/button";
 
 interface TimetableEntry {
   id: string;
@@ -82,30 +83,43 @@ export default function MyTimetablePage() {
   const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
   const [studentProfile, setStudentProfile] = useState<StudentProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Dynamic grid configuration states
   const [gridStart, setGridStart] = useState("07:45");
   const [gridDuration, setGridDuration] = useState(45);
   const [gridSlotsCount, setGridSlotsCount] = useState(7);
 
-  useEffect(() => {
-    Promise.all([
-      api.get<TimetableEntry[]>("/api/timetable"),
-      api.get<{ studentProfile?: StudentProfile }>("/api/dashboard/student").catch(() => null)
-    ])
-      .then(([ttRes, profileRes]) => {
-        const rawTimetable = Array.isArray(ttRes.data) ? ttRes.data : [];
-        const filteredTimetable = rawTimetable.filter(
-          (t) => t.course?.courseCode?.toUpperCase() !== "CC-411"
-        );
-        setTimetable(filteredTimetable);
-        if (profileRes && profileRes.data && profileRes.data.studentProfile) {
-          setStudentProfile(profileRes.data.studentProfile);
-        }
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+  const fetchTimetableData = useCallback(async () => {
+    try {
+      const [ttRes, profileRes] = await Promise.all([
+        api.get<TimetableEntry[]>("/api/timetable"),
+        api.get<{ studentProfile?: StudentProfile }>("/api/dashboard/student").catch(() => null)
+      ]);
+      const rawTimetable = Array.isArray(ttRes.data) ? ttRes.data : [];
+      const filteredTimetable = rawTimetable.filter(
+        (t) => t.course?.courseCode?.toUpperCase() !== "CC-411"
+      );
+      setTimetable(filteredTimetable);
+      if (profileRes && profileRes.data && profileRes.data.studentProfile) {
+        setStudentProfile(profileRes.data.studentProfile);
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchTimetableData();
+  }, [fetchTimetableData]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchTimetableData();
+    setRefreshing(false);
+  };
 
   useEffect(() => {
     if (!studentProfile) return;
@@ -238,6 +252,18 @@ export default function MyTimetablePage() {
           { label: "Dashboard", href: "/dashboard" },
           { label: "Timetable" },
         ]}
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="geo-pressable flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer rounded-xl"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        }
       />
 
       {/* Legend */}

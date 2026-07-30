@@ -54,7 +54,7 @@ export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose, onNa
         <div className="flex h-16 items-center gap-3 border-b border-border px-4">
           <div className="h-9 w-9 shrink-0 overflow-hidden">
             <Image
-              src="/logo.svg"
+              src="/collegelogo.png"
               alt="College Management Portal logo"
               width={146}
               height={108}

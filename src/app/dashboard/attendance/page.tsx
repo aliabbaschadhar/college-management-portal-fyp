@@ -353,11 +353,6 @@ export default function ManageAttendancePage() {
     });
   }, [selectedStudent, attendance, filterDate]);
 
-  const currentClassCourses = useMemo(() => {
-    if (!selectedDept || !selectedSemester) return [];
-    return courses.filter((c) => c.department === selectedDept && c.semester === selectedSemester);
-  }, [courses, selectedDept, selectedSemester]);
-
   const columns: Column<StudentStatsItem>[] = [
     {
       key: "user",
@@ -368,7 +363,16 @@ export default function ManageAttendancePage() {
         return (
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-foreground">{row.user?.name ?? "—"}</span>
+              <button
+                onClick={() => {
+                  setSelectedStudent(row);
+                  setLogDialogOpen(true);
+                }}
+                className="font-bold text-foreground hover:text-brand-primary hover:underline transition-colors text-left cursor-pointer"
+                title="Click to view 3-month attendance history"
+              >
+                {row.user?.name ?? "—"}
+              </button>
               {pct < 75 && !row.blocked && (
                 <Badge variant="destructive" className="bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 text-[10px] py-0 px-1.5 uppercase font-bold tracking-wider">
                   Shortage Alert ({pct}%)

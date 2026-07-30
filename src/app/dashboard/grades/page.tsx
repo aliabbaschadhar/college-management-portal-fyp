@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/axios";
-import { Lock, Unlock, Save, CheckCircle, Trash2 } from "lucide-react";
+import { Lock, Unlock, Save, CheckCircle, Trash2, RefreshCw } from "lucide-react";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { useUser } from "@clerk/nextjs";
@@ -60,14 +60,50 @@ export default function FacultyGradesPage() {
   const [saving, setSaving] = useState(false);
   const [loadingGrades, setLoadingGrades] = useState(false);
   const [focusedInput, setFocusedInput] = useState<{ id: string; field: string } | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Fetch initial assigned courses list
-  useEffect(() => {
-    api
-      .get<CourseOption[]>("/api/courses")
-      .then((r) => setCourses(Array.isArray(r.data) ? r.data : []))
-      .catch(() => {});
+  // Fetch initial assigned courses list and pre-select defaults
+  const fetchCourses = useCallback(async () => {
+    try {
+      const res = await api.get<CourseOption[]>("/api/courses");
+      const list = Array.isArray(res.data) ? res.data : [];
+      setCourses(list);
+      if (list.length > 0) {
+        const firstDept = list[0].department;
+        const deptSemesters = Array.from(
+          new Set(list.filter((c) => c.department === firstDept).map((c) => c.semester))
+        ).sort((a, b) => a - b);
+        const firstSem = deptSemesters[0];
+        const matchingCourse = list.find(
+          (c) => c.department === firstDept && c.semester === firstSem
+        );
+
+        setSelectedDept(firstDept);
+        if (firstSem !== undefined) setSelectedSemester(firstSem.toString());
+        if (matchingCourse) setSelectedCourse(matchingCourse.id);
+      }
+    } catch {
+      /* ignore */
+    }
   }, []);
+
+  useEffect(() => {
+    fetchCourses();
+  }, [fetchCourses]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchCourses();
+    if (selectedCourse) {
+      setLoadingGrades(true);
+      api
+        .get<GradeEntry[]>(`/api/grades?courseId=${selectedCourse}`)
+        .then((r) => setGrades(Array.isArray(r.data) ? r.data : []))
+        .catch(() => setGrades([]))
+        .finally(() => setLoadingGrades(false));
+    }
+    setRefreshing(false);
+  };
 
   // Compute unique departments from assigned courses
   const depts = Array.from(new Set(courses.map((c) => c.department))).sort();
@@ -190,6 +226,18 @@ export default function FacultyGradesPage() {
           { label: "Dashboard", href: "/dashboard" },
           { label: "Grades" },
         ]}
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="geo-pressable flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer rounded-xl"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        }
       />
 
       {/* Selectors Row */}

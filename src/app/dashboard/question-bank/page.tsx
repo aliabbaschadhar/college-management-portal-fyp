@@ -230,9 +230,14 @@ export default function QuestionBankPage() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0 space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline" className="font-mono text-xs bg-muted/40">
-                      {q.course?.courseCode ?? "Course"}
-                    </Badge>
+                    {(() => {
+                      const matchedCourse = q.course ?? courses.find((c) => c.id === q.courseId);
+                      return (
+                        <Badge variant="outline" className="font-sans text-xs bg-muted/40 font-medium">
+                          {matchedCourse ? `${matchedCourse.courseCode} - ${matchedCourse.courseName}` : "Course"}
+                        </Badge>
+                      );
+                    })()}
                     <Badge variant="secondary" className={typeBadgeColors[q.type]}>
                       {q.type}
                     </Badge>

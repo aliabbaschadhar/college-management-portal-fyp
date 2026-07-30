@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { FileText, Clock, ArrowRight, Trophy, AlertCircle } from "lucide-react";
+import { FileText, Clock, ArrowRight, Trophy, AlertCircle, RefreshCw } from "lucide-react";
 import { api } from "@/lib/axios";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion, AnimatePresence } from "framer-motion";
@@ -34,6 +34,7 @@ type QuizView = "list" | "attempt" | "result";
 export default function TakeQuizPage() {
   const [quizzes, setQuizzes] = useState<QuizWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [view, setView] = useState<QuizView>("list");
   const [activeQuiz, setActiveQuiz] = useState<QuizWithDetails | null>(null);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
@@ -43,6 +44,17 @@ export default function TakeQuizPage() {
   const [score, setScore] = useState(0);
   const [isBlocked, setIsBlocked] = useState(false);
   const [blockedCourseIds, setBlockedCourseIds] = useState<string[]>([]);
+
+  const fetchQuizzesData = useCallback(async () => {
+    try {
+      const res = await api.get<QuizWithDetails[]>("/api/quizzes?status=Published");
+      setQuizzes(res.data);
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     api.get("/api/me")
@@ -63,13 +75,15 @@ export default function TakeQuizPage() {
         }
       })
       .catch(() => {});
-  }, []);
 
-  useEffect(() => {
-    api.get<QuizWithDetails[]>("/api/quizzes?status=Published")
-      .then((res) => { setQuizzes(res.data); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, []);
+    fetchQuizzesData();
+  }, [fetchQuizzesData]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchQuizzesData();
+    setRefreshing(false);
+  };
 
   const startQuiz = useCallback(async (quiz: QuizWithDetails) => {
     try {
@@ -153,6 +167,18 @@ export default function TakeQuizPage() {
           title="Take Quiz"
           subtitle="View available quizzes and past attempts"
           breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Take Quiz" }]}
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="geo-pressable flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer rounded-xl"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          }
         />
 
         {isBlocked && (

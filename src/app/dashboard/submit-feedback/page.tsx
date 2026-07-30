@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Star, Send, MessageSquare, CheckCircle, Loader2 } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Star, Send, MessageSquare, CheckCircle, Loader2, RefreshCw } from "lucide-react";
 import { api } from "@/lib/axios";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion } from "framer-motion";
@@ -52,26 +52,35 @@ export default function SubmitFeedbackPage() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchFeedbackData = useCallback(async () => {
+    try {
+      const [crsRes, facRes, fbRes] = await Promise.all([
+        api.get<CourseOption[]>("/api/courses"),
+        api.get<FacultyOption[]>("/api/faculty"),
+        api.get<PastFeedback[]>("/api/feedback"),
+      ]);
+      setCourses(crsRes.data);
+      setFacultyList(facRes.data);
+      setPastFeedback(fbRes.data);
+    } catch (err) {
+      console.error("Error loading feedback lists:", err);
+    } finally {
+      setInitialLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     setInitialLoading(true);
-    Promise.all([
-      api.get<CourseOption[]>("/api/courses"),
-      api.get<FacultyOption[]>("/api/faculty"),
-      api.get<PastFeedback[]>("/api/feedback"),
-    ])
-      .then(([crsRes, facRes, fbRes]) => {
-        setCourses(crsRes.data);
-        setFacultyList(facRes.data);
-        setPastFeedback(fbRes.data);
-      })
-      .catch((err) => {
-        console.error("Error loading feedback lists:", err);
-      })
-      .finally(() => {
-        setInitialLoading(false);
-      });
-  }, []);
+    fetchFeedbackData();
+  }, [fetchFeedbackData]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchFeedbackData();
+    setRefreshing(false);
+  };
 
   const handleSubmit = async () => {
     if (!targetId || rating === 0) return;
@@ -165,6 +174,18 @@ export default function SubmitFeedbackPage() {
         title="Submit Feedback"
         subtitle="Share your thoughts about courses and faculty"
         breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Feedback" }]}
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="geo-pressable flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer rounded-xl"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        }
       />
 
       {initialLoading ? (

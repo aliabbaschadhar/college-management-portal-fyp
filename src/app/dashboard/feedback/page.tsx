@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/axios";
 import { Star, MessageSquare, TrendingUp, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,20 +38,25 @@ export default function FacultyFeedbackPage() {
   const [feedback, setFeedback] = useState<FeedbackItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchFeedback = () => {
-    setLoading(true);
-    api
-      .get<FeedbackItem[]>("/api/feedback")
-      .then((r) => {
-        setFeedback(r.data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  };
+  const fetchFeedback = useCallback(async () => {
+    try {
+      const r = await api.get<FeedbackItem[]>("/api/feedback");
+      setFeedback(r.data);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchFeedback();
-  }, []);
+  }, [fetchFeedback]);
+
+  const handleRefresh = () => {
+    setLoading(true);
+    fetchFeedback();
+  };
 
   const avgRating =
     feedback.length > 0
@@ -113,7 +118,7 @@ export default function FacultyFeedbackPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={fetchFeedback}
+            onClick={handleRefresh}
             className="flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_var(--border)] active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_var(--border)] transition-all rounded-xl"
           >
             <RefreshCw className="h-4 w-4" />

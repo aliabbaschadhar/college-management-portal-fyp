@@ -72,7 +72,7 @@ const Footer = () => {
             <Link href="/" className="flex items-center gap-3 group mb-5 relative">
               <div className="h-10 w-10 overflow-hidden transition-all duration-300 group-hover:rotate-[3deg]">
                 <Image
-                  src="/logo.svg"
+                  src="/collegelogo.png"
                   alt="College Management Portal logo"
                   width={146}
                   height={108}

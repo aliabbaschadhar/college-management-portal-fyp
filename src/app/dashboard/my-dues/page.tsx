@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/axios";
-import { CreditCard, CheckCircle, AlertTriangle, XCircle } from "lucide-react";
+import { CreditCard, CheckCircle, AlertTriangle, XCircle, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { StatsCardSkeleton, TableSkeleton } from "@/components/ui";
 
 interface FeeRecord {
@@ -40,16 +41,28 @@ const statusIcons: Record<
 export default function MyDuesPage() {
   const [fees, setFees] = useState<FeeRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchDuesData = useCallback(async () => {
+    try {
+      const r = await api.get<FeeRecord[]>("/api/fees");
+      setFees(r.data);
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    api
-      .get<FeeRecord[]>("/api/fees")
-      .then((r) => {
-        setFees(r.data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+    fetchDuesData();
+  }, [fetchDuesData]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchDuesData();
+    setRefreshing(false);
+  };
 
   const totalAmount = fees.reduce((sum, f) => sum + f.amount, 0);
   const paidAmount = fees
@@ -92,6 +105,18 @@ export default function MyDuesPage() {
           { label: "Dashboard", href: "/dashboard" },
           { label: "My Dues" },
         ]}
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="geo-pressable flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer rounded-xl"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        }
       />
 
       {/* Stats */}

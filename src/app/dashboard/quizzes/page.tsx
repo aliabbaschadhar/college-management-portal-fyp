@@ -93,6 +93,7 @@ export default function ManageQuizzesPage() {
   const [formMarks, setFormMarks] = useState(20);
   const [formQuestions, setFormQuestions] = useState<string[]>([]);
   const [formDueDate, setFormDueDate] = useState("");
+  const [activeQuestionTab, setActiveQuestionTab] = useState<"all" | "MCQ" | "Short" | "Long">("all");
 
   const fetchQuizzes = async () => {
     try {
@@ -411,36 +412,109 @@ export default function ManageQuizzesPage() {
               <Input type="date" value={formDueDate} onChange={(e) => setFormDueDate(e.target.value)} />
             </div>
 
-            {/* Question Selection */}
+            {/* Question Selection Classified */}
             {formCourse && (
-              <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">
-                  Select Questions ({formQuestions.length} selected)
-                </label>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-foreground block">
+                    Select Questions ({formQuestions.length} selected)
+                  </label>
+                </div>
+
                 {courseQuestions.length === 0 ? (
                   <p className="text-xs text-muted-foreground">No unassigned questions available. Add questions in the Question Bank first.</p>
                 ) : (
-                  <div className="space-y-2 max-h-[200px] overflow-y-auto rounded-lg border border-border p-2">
-                    {courseQuestions.map((q) => (
-                      <button
-                        key={q.id}
-                        onClick={() => toggleQuestion(q.id)}
-                        className={`w-full text-left rounded-lg p-2.5 text-xs transition-all ${
-                          formQuestions.includes(q.id)
-                            ? "bg-brand-primary/10 border border-brand-primary/30"
-                            : "bg-muted hover:bg-accent/50"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className={`h-4 w-4 rounded border-2 flex items-center justify-center ${
-                            formQuestions.includes(q.id) ? "border-brand-primary bg-brand-primary" : "border-muted-foreground/30"
-                          }`}>
-                            {formQuestions.includes(q.id) && <CheckCircle className="h-3 w-3 text-white" />}
-                          </div>
-                          <span className="text-foreground">{q.text}</span>
-                        </div>
-                      </button>
-                    ))}
+                  <div className="space-y-3">
+                    {/* Classification Tabs */}
+                    <div className="flex flex-wrap gap-1.5 border-b border-border pb-2">
+                      {(["all", "MCQ", "Short", "Long"] as const).map((tab) => {
+                        const tabQuestions = tab === "all"
+                          ? courseQuestions
+                          : courseQuestions.filter((q) => (q.type || "MCQ") === tab);
+                        const selectedCount = tabQuestions.filter((q) => formQuestions.includes(q.id)).length;
+                        const isCurrent = (activeQuestionTab || "all") === tab;
+                        const label = tab === "all" ? "All Questions" : tab === "MCQ" ? "MCQs" : tab === "Short" ? "Short Questions" : "Long Questions";
+
+                        return (
+                          <button
+                            key={tab}
+                            type="button"
+                            onClick={() => setActiveQuestionTab(tab)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                              isCurrent
+                                ? "bg-brand-primary text-white shadow-xs"
+                                : "bg-accent/40 text-muted-foreground hover:bg-accent hover:text-foreground"
+                            }`}
+                          >
+                            <span>{label}</span>
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                              isCurrent ? "bg-white/20 text-white" : "bg-muted text-foreground"
+                            }`}>
+                              {selectedCount}/{tabQuestions.length}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Classified Questions List */}
+                    <div className="space-y-2 max-h-[220px] overflow-y-auto rounded-xl border border-border p-2">
+                      {courseQuestions
+                        .filter((q) => {
+                          const tab = activeQuestionTab || "all";
+                          if (tab === "all") return true;
+                          return (q.type || "MCQ") === tab;
+                        })
+                        .map((q) => {
+                          const isSelected = formQuestions.includes(q.id);
+                          const qType = q.type || "MCQ";
+                          const typeBadgeClass =
+                            qType === "MCQ"
+                              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                              : qType === "Short"
+                              ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                              : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400";
+
+                          return (
+                            <button
+                              key={q.id}
+                              type="button"
+                              onClick={() => toggleQuestion(q.id)}
+                              className={`w-full text-left rounded-xl p-3 text-xs transition-all border ${
+                                isSelected
+                                  ? "bg-brand-primary/10 border-brand-primary/40 shadow-xs"
+                                  : "bg-card hover:bg-accent/40 border-border"
+                              }`}
+                            >
+                              <div className="flex items-start gap-2.5">
+                                <div className={`h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center mt-0.5 ${
+                                  isSelected ? "border-brand-primary bg-brand-primary" : "border-muted-foreground/30"
+                                }`}>
+                                  {isSelected && <CheckCircle className="h-3 w-3 text-white" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Badge variant="secondary" className={`text-[10px] py-0 px-1.5 font-bold ${typeBadgeClass}`}>
+                                      {qType}
+                                    </Badge>
+                                    <span className="text-[10px] text-muted-foreground font-mono">
+                                      {q.marks || 1} {q.marks === 1 ? "Mark" : "Marks"}
+                                    </span>
+                                  </div>
+                                  <span className="text-foreground font-medium block leading-snug">{q.text}</span>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      {courseQuestions.filter((q) => {
+                        const tab = activeQuestionTab || "all";
+                        if (tab === "all") return true;
+                        return (q.type || "MCQ") === tab;
+                      }).length === 0 && (
+                        <p className="text-xs text-muted-foreground text-center py-4">No questions found in this category.</p>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/axios";
-import { GraduationCap, Lock, Unlock, TrendingUp } from "lucide-react";
+import { GraduationCap, Lock, Unlock, TrendingUp, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ChartSkeleton, TableSkeleton } from "@/components/ui";
 import {
   ChartContainer,
@@ -38,16 +39,28 @@ const chartConfig = {
 export default function MyGradesPage() {
   const [grades, setGrades] = useState<GradeWithCourse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchGrades = async () => {
+    try {
+      const r = await api.get<GradeWithCourse[]>("/api/grades");
+      setGrades(r.data);
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    api
-      .get<GradeWithCourse[]>("/api/grades")
-      .then((r) => {
-        setGrades(r.data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    fetchGrades();
   }, []);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchGrades();
+    setRefreshing(false);
+  };
 
   const previousCGPA = grades[0]?.student?.cgpa ?? 0.0;
 
@@ -91,6 +104,18 @@ export default function MyGradesPage() {
           { label: "Dashboard", href: "/dashboard" },
           { label: "My Grades" },
         ]}
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="geo-pressable flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer rounded-xl"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        }
       />
 
       {/* Overall GPA Card */}
@@ -118,7 +143,7 @@ export default function MyGradesPage() {
         <h3 className="text-sm font-semibold text-foreground mb-4">
           Mark Distribution
         </h3>
-        <ChartContainer config={chartConfig} className="min-h-[280px] w-full">
+        <ChartContainer config={chartConfig} className="h-[200px] w-full">
           <BarChart accessibilityLayer data={chartData}>
             <CartesianGrid vertical={false} />
             <XAxis

@@ -171,7 +171,7 @@ export default function ManageDuesPage() {
     }
   };
 
-  const handleDeleteFee = async (id: string, name: string) => {
+  const handleDeleteFee = async (id: string) => {
     setDeletingFeeId(id);
     try {
       await api.delete(`/api/fees/${id}`);
@@ -701,7 +701,7 @@ export default function ManageDuesPage() {
                         )}
 
                         <button
-                          onClick={() => handleDeleteFee(fee.id, selectedStudent ? (selectedStudent.user?.name || selectedStudent.rollNo) : "Unknown Student")}
+                          onClick={() => handleDeleteFee(fee.id)}
                           disabled={deletingFeeId === fee.id}
                           className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors text-rose-500 disabled:opacity-50"
                           title="Delete Fee"

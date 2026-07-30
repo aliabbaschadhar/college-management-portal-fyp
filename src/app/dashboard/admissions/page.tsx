@@ -219,7 +219,7 @@ export default function ManageAdmissionsPage() {
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
+  const handleDelete = async (id: string) => {
     setMutationError(null);
     setDeletingId(id);
     try {
@@ -352,7 +352,7 @@ export default function ManageAdmissionsPage() {
           )}
           {row.status !== "Approved" && (
             <button
-              onClick={() => handleDelete(row.id, row.studentName)}
+              onClick={() => handleDelete(row.id)}
               disabled={submittingId !== null || deletingId !== null || importing}
               className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               title="Delete"
