@@ -383,24 +383,46 @@ export default function ManageAttendancePage() {
     return courses.filter((c) => studentLogCourseIds.has(c.id));
   }, [selectedStudent, attendance, courses]);
 
-  // Fetch 90-day detailed logs of selected student with course filter
+  // Fetch present day attendance by default, or 90-day detailed logs for a selected course
   const selectedStudentLogs = useMemo(() => {
     if (!selectedStudent) return [];
-    const ninetyDaysAgo = new Date();
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-
-    return attendance
-      .filter((a) => {
+    
+    if (selectedLogCourseId === "all") {
+      // Show present day (today's) attendance of total enrolled courses only
+      const todayStr = new Date().toISOString().split("T")[0];
+      const todayLogs = attendance.filter((a) => {
         if (a.studentId !== selectedStudent.id) return false;
-        if (new Date(a.date) < ninetyDaysAgo) return false;
-        if (selectedLogCourseId !== "all" && a.courseId !== selectedLogCourseId) return false;
-        if (filterDate) {
-          const logDateStr = new Date(a.date).toISOString().split("T")[0];
-          if (logDateStr !== filterDate) return false;
-        }
-        return true;
-      })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const logDateStr = new Date(a.date).toISOString().split("T")[0];
+        return logDateStr === todayStr;
+      });
+
+      // Fallback: If no attendance marked yet today, show latest logged date records
+      if (todayLogs.length > 0) return todayLogs;
+      const studentAllLogs = attendance
+        .filter((a) => a.studentId === selectedStudent.id)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      if (studentAllLogs.length === 0) return [];
+      const latestDateStr = new Date(studentAllLogs[0].date).toISOString().split("T")[0];
+      return attendance.filter(
+        (a) => a.studentId === selectedStudent.id && new Date(a.date).toISOString().split("T")[0] === latestDateStr
+      );
+    } else {
+      // Specific course selected: 90 days history
+      const ninetyDaysAgo = new Date();
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+      return attendance
+        .filter((a) => {
+          if (a.studentId !== selectedStudent.id) return false;
+          if (a.courseId !== selectedLogCourseId) return false;
+          if (new Date(a.date) < ninetyDaysAgo) return false;
+          if (filterDate) {
+            const logDateStr = new Date(a.date).toISOString().split("T")[0];
+            if (logDateStr !== filterDate) return false;
+          }
+          return true;
+        })
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
   }, [selectedStudent, attendance, selectedLogCourseId, filterDate]);
 
   const columns: Column<StudentStatsItem>[] = [
@@ -418,10 +440,11 @@ export default function ManageAttendancePage() {
                   setSelectedStudent(row);
                   setLogDialogOpen(true);
                 }}
-                className="font-bold text-foreground hover:text-brand-primary hover:underline transition-colors text-left cursor-pointer"
-                title="Click to view 3-month attendance history"
+                className="font-bold text-foreground hover:text-brand-primary hover:underline transition-colors text-left cursor-pointer flex items-center gap-1.5"
+                title="Click to view attendance history"
               >
-                {row.user?.name ?? "—"}
+                <span>{row.user?.name ?? "—"}</span>
+                <Eye className="h-3.5 w-3.5 text-brand-primary shrink-0 opacity-80" />
               </button>
               {pct < 75 && !row.blocked && (
                 <Badge variant="destructive" className="bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 text-[10px] py-0 px-1.5 uppercase font-bold tracking-wider">
@@ -1058,9 +1081,85 @@ export default function ManageAttendancePage() {
             })()}
 
             {selectedStudentLogs.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">No attendance records found for this student.</p>
-            ) : (
+              <p className="text-sm text-muted-foreground text-center py-8">No attendance records found for this selection.</p>
+            ) : selectedLogCourseId !== "all" ? (
               <div className="space-y-3">
+                {/* 90-Day Compact P, A, L Grid View */}
+                {(() => {
+                  const total = selectedStudentLogs.length;
+                  const presents = selectedStudentLogs.filter((h) => h.status === "Present").length;
+                  const lates = selectedStudentLogs.filter((h) => h.status === "Late").length;
+                  const absents = selectedStudentLogs.filter((h) => h.status === "Absent").length;
+                  const rate = total > 0 ? Math.round(((presents + lates) / total) * 100) : 0;
+
+                  return (
+                    <div className="grid grid-cols-4 gap-3 p-3 bg-muted/30 rounded-2xl text-center mb-3">
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Presents</p>
+                        <p className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">{presents}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Lates</p>
+                        <p className="text-lg font-extrabold text-amber-600 dark:text-amber-400">{lates}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Absents</p>
+                        <p className="text-lg font-extrabold text-rose-600 dark:text-rose-400">{absents}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Overall Rate</p>
+                        <p className="text-lg font-extrabold text-brand-primary">{rate}%</p>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="flex items-center gap-4 text-xs justify-center py-1">
+                  <span className="flex items-center gap-1 font-semibold text-emerald-600">
+                    <span className="h-5 w-5 rounded-md bg-emerald-500/20 flex items-center justify-center text-[10px] font-bold">P</span> Present
+                  </span>
+                  <span className="flex items-center gap-1 font-semibold text-amber-600">
+                    <span className="h-5 w-5 rounded-md bg-amber-500/20 flex items-center justify-center text-[10px] font-bold">L</span> Late
+                  </span>
+                  <span className="flex items-center gap-1 font-semibold text-rose-600">
+                    <span className="h-5 w-5 rounded-md bg-rose-500/20 flex items-center justify-center text-[10px] font-bold">A</span> Absent
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-[300px] overflow-y-auto p-1">
+                  {selectedStudentLogs.map((log) => {
+                    const formattedDate = new Date(log.date).toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                    });
+                    const letter = log.status[0];
+                    return (
+                      <div
+                        key={log.id}
+                        className={`p-2 rounded-xl border flex items-center justify-between text-xs font-mono ${
+                          log.status === "Present"
+                            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                            : log.status === "Late"
+                            ? "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"
+                            : "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400"
+                        }`}
+                      >
+                        <span className="font-sans font-medium text-foreground text-[11px]">{formattedDate}</span>
+                        <span className="h-6 w-6 rounded-lg bg-card flex items-center justify-center font-bold text-xs shadow-xs">
+                          {letter}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              /* Today's Present Day Attendance list across enrolled courses */
+              <div className="space-y-3">
+                <div className="p-2.5 rounded-xl bg-brand-primary/10 border border-brand-primary/20 text-xs text-brand-primary font-semibold flex items-center justify-between">
+                  <span>Present Day Enrolled Courses Attendance</span>
+                  <span className="font-mono">{new Date().toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</span>
+                </div>
                 {selectedStudentLogs.map((log) => (
                   <div key={log.id} className="p-4 bg-accent/40 border border-border rounded-2xl flex items-center justify-between gap-4">
                     <div>

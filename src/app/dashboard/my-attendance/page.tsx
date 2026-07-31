@@ -163,10 +163,10 @@ export default function MyAttendancePage() {
             }}
             className="flex items-center gap-2 group text-left hover:underline cursor-pointer"
           >
-            <span className="font-bold text-foreground group-hover:text-brand-primary">
-              {foundCourse?.courseName || row.course?.courseName || "Course"} {row.course?.courseCode || foundCourse?.courseCode || ""}
+            <span className="font-bold text-foreground group-hover:text-brand-primary flex items-center gap-1.5">
+              <span>{foundCourse?.courseName || row.course?.courseName || "Course"} - {foundCourse?.courseCode || row.course?.courseCode || ""}</span>
+              <Eye className="h-3.5 w-3.5 text-brand-primary opacity-80 shrink-0" />
             </span>
-            <Eye className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 text-brand-primary transition-opacity shrink-0" />
           </button>
         );
       },
@@ -240,7 +240,7 @@ export default function MyAttendancePage() {
                 <SelectItem value="all">All Courses</SelectItem>
                 {courses.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
-                    {c.courseName} ({c.courseCode})
+                    {c.courseName} - {c.courseCode}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -366,49 +366,95 @@ export default function MyAttendancePage() {
 
       {/* 3-Month Course Attendance History Dialog */}
       <Dialog open={!!selectedCourseModal} onOpenChange={(open) => { if (!open) setSelectedCourseModal(null); }}>
-        <DialogContent className="sm:max-w-[550px] border-none shadow-2xl overflow-hidden rounded-3xl">
+        <DialogContent className="sm:max-w-[650px] border-none shadow-2xl overflow-hidden rounded-3xl">
           <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-r from-brand-primary via-brand-secondary to-brand-primary" />
           <DialogHeader className="pt-6">
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <Calendar className="h-6 w-6 text-brand-primary" />
-              {selectedCourseModal?.courseCode} - 3-Month Attendance History
+              90-Day Attendance History — {selectedCourseModal?.courseName} - {selectedCourseModal?.courseCode}
             </DialogTitle>
             <DialogDescription className="mt-1">
-              Reviewing your past 90-day attendance record for <strong>{selectedCourseModal?.courseName}</strong>.
+              Reviewing your past 90-day attendance report for <strong>{selectedCourseModal?.courseName}</strong> ({selectedCourseModal?.courseCode}).
             </DialogDescription>
           </DialogHeader>
 
-          <div className="py-4 max-h-[55vh] overflow-y-auto pr-1">
+          <div className="py-4 max-h-[60vh] overflow-y-auto pr-1">
             {courseThreeMonthLogs.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
                 No attendance records found for this course in the last 3 months.
               </p>
             ) : (
-              <div className="space-y-3">
-                {courseThreeMonthLogs.map((log) => (
-                  <div
-                    key={log.id}
-                    className="p-3.5 bg-accent/30 border border-border rounded-2xl flex items-center justify-between gap-4 hover:bg-accent/50 transition-colors"
-                  >
-                    <div>
-                      <p className="font-bold text-sm text-foreground">
-                        {log.course?.courseCode}
-                      </p>
-                      <p className="text-xs text-muted-foreground font-mono flex items-center gap-1.5 mt-0.5">
-                        <Calendar className="h-3 w-3" />
-                        {new Date(log.date).toLocaleDateString(undefined, {
-                          weekday: "short",
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </p>
+              <div className="space-y-4">
+                {/* Summary Stats Bar */}
+                {(() => {
+                  const total = courseThreeMonthLogs.length;
+                  const presents = courseThreeMonthLogs.filter((h) => h.status === "Present").length;
+                  const lates = courseThreeMonthLogs.filter((h) => h.status === "Late").length;
+                  const absents = courseThreeMonthLogs.filter((h) => h.status === "Absent").length;
+                  const rate = total > 0 ? Math.round(((presents + lates) / total) * 100) : 0;
+
+                  return (
+                    <div className="grid grid-cols-4 gap-3 p-3 bg-muted/30 rounded-2xl text-center">
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Presents</p>
+                        <p className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">{presents}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Lates</p>
+                        <p className="text-lg font-extrabold text-amber-600 dark:text-amber-400">{lates}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Absents</p>
+                        <p className="text-lg font-extrabold text-rose-600 dark:text-rose-400">{absents}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Overall Rate</p>
+                        <p className="text-lg font-extrabold text-brand-primary">{rate}%</p>
+                      </div>
                     </div>
-                    <Badge className={`${statusColors[log.status]} font-bold`}>
-                      {log.status}
-                    </Badge>
-                  </div>
-                ))}
+                  );
+                })()}
+
+                {/* P, A, L Legend */}
+                <div className="flex items-center gap-4 text-xs justify-center pt-1">
+                  <span className="flex items-center gap-1 font-semibold text-emerald-600">
+                    <span className="h-5 w-5 rounded-md bg-emerald-500/20 flex items-center justify-center text-[10px] font-bold">P</span> Present
+                  </span>
+                  <span className="flex items-center gap-1 font-semibold text-amber-600">
+                    <span className="h-5 w-5 rounded-md bg-amber-500/20 flex items-center justify-center text-[10px] font-bold">L</span> Late
+                  </span>
+                  <span className="flex items-center gap-1 font-semibold text-rose-600">
+                    <span className="h-5 w-5 rounded-md bg-rose-500/20 flex items-center justify-center text-[10px] font-bold">A</span> Absent
+                  </span>
+                </div>
+
+                {/* P, A, L Compact Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-[300px] overflow-y-auto p-1">
+                  {courseThreeMonthLogs.map((log) => {
+                    const formattedDate = new Date(log.date).toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                    });
+                    const letter = log.status[0];
+                    return (
+                      <div
+                        key={log.id}
+                        className={`p-2 rounded-xl border flex items-center justify-between text-xs font-mono ${
+                          log.status === "Present"
+                            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                            : log.status === "Late"
+                            ? "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"
+                            : "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400"
+                        }`}
+                      >
+                        <span className="font-sans font-medium text-foreground text-[11px]">{formattedDate}</span>
+                        <span className="h-6 w-6 rounded-lg bg-card flex items-center justify-center font-bold text-xs shadow-xs">
+                          {letter}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>

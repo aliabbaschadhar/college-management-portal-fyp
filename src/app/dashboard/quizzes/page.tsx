@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useStoredState } from "@/hooks/useStoredState";
-import { FileText, Plus, Clock, Users, Eye, CheckCircle, Play, Square, Loader2, Trash2 } from "lucide-react";
+import { FileText, Plus, Clock, Users, Eye, CheckCircle, Play, Square, Loader2, Trash2, RefreshCw } from "lucide-react";
 import { api } from "@/lib/axios";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
@@ -106,7 +106,6 @@ export default function ManageQuizzesPage() {
   const [formMarks, setFormMarks] = useState(20);
   const [formQuestions, setFormQuestions] = useState<string[]>([]);
   const [formDueDate, setFormDueDate] = useState("");
-  const [activeQuestionTab, setActiveQuestionTab] = useState<"MCQ" | "Short" | "Long">("MCQ");
 
   const fetchQuizzes = async () => {
     try {
@@ -244,9 +243,23 @@ export default function ManageQuizzesPage() {
         subtitle="Create, publish, and review quiz results"
         breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Quizzes" }]}
         action={
-          <Button onClick={() => { resetForm(); setShowCreate(true); }} className="gap-2">
-            <Plus className="h-4 w-4" /> Create Quiz
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                setLoading(true);
+                await fetchQuizzes();
+                setLoading(false);
+              }}
+              className="gap-2 rounded-xl border-2"
+            >
+              <RefreshCw className="h-4 w-4" /> Refresh
+            </Button>
+            <Button onClick={() => { resetForm(); setShowCreate(true); }} className="gap-2">
+              <Plus className="h-4 w-4" /> {activeSubTab === "quizzes" ? "Create Quiz" : "Create Assignment"}
+            </Button>
+          </div>
         }
       />
 
@@ -260,7 +273,7 @@ export default function ManageQuizzesPage() {
               : "bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
           }`}
         >
-          Quizzes (Online MCQs)
+          Quiz - Online MCQs
         </button>
         <button
           onClick={() => setActiveSubTab("assignments")}
@@ -270,7 +283,7 @@ export default function ManageQuizzesPage() {
               : "bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
           }`}
         >
-          Assignments (Hardform Submissions)
+          Assignment - Hardform Submission
         </button>
       </div>
 
@@ -454,16 +467,24 @@ export default function ManageQuizzesPage() {
         </div>
       )}
 
-      {/* Create Quiz Modal */}
+      {/* Create Quiz / Assignment Modal */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Create New Quiz</DialogTitle>
+            <DialogTitle>
+              {activeSubTab === "quizzes" ? "Create New Quiz" : "Create New Assignment"}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-foreground mb-1.5 block">Quiz Title</label>
-              <Input value={formTitle} onChange={(e) => setFormTitle(e.target.value)} placeholder="e.g. Midterm Practice Quiz" />
+              <label className="text-sm font-medium text-foreground mb-1.5 block">
+                {activeSubTab === "quizzes" ? "Quiz Title" : "Assignment Title"}
+              </label>
+              <Input
+                value={formTitle}
+                onChange={(e) => setFormTitle(e.target.value)}
+                placeholder={activeSubTab === "quizzes" ? "e.g. Midterm MCQs Quiz" : "e.g. Chapter 4 Practice Assignment"}
+              />
             </div>
             <div>
               <label className="text-sm font-medium text-foreground mb-1.5 block">Course</label>
@@ -493,103 +514,71 @@ export default function ManageQuizzesPage() {
               <Input type="date" value={formDueDate} onChange={(e) => setFormDueDate(e.target.value)} />
             </div>
 
-            {/* Question Selection Classified */}
-            {formCourse && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-foreground block">
-                    Select Questions ({formQuestions.length} selected)
-                  </label>
-                </div>
+            {/* Question Selection for Quiz (MCQs Only) vs Assignment (Questions Only) */}
+            {formCourse && (() => {
+              const availableQuestions = courseQuestions.filter((q) =>
+                activeSubTab === "quizzes" ? (q.type || "MCQ") === "MCQ" : (q.type || "MCQ") !== "MCQ"
+              );
 
-                {courseQuestions.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No unassigned questions available. Add questions in the Question Bank first.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {/* Classification Tabs (MCQ, Short, Long) */}
-                    <div className="flex flex-wrap gap-1.5 border-b border-border pb-2">
-                      {(["MCQ", "Short", "Long"] as const).map((tab) => {
-                        const tabQuestions = courseQuestions.filter((q) => (q.type || "MCQ") === tab);
-                        const selectedCount = tabQuestions.filter((q) => formQuestions.includes(q.id)).length;
-                        const isCurrent = activeQuestionTab === tab;
-                        const label = tab === "MCQ" ? "MCQs" : tab === "Short" ? "Short Questions" : "Long Questions";
+              return (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-foreground block">
+                      Select {activeSubTab === "quizzes" ? "MCQ Questions" : "Assignment Questions"} ({formQuestions.length} selected)
+                    </label>
+                  </div>
+
+                  {availableQuestions.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No {activeSubTab === "quizzes" ? "MCQ" : "non-MCQ"} questions available for this course. Add {activeSubTab === "quizzes" ? "MCQs" : "questions"} in the Question Bank first.
+                    </p>
+                  ) : (
+                    <div className="space-y-2 max-h-[220px] overflow-y-auto rounded-xl border border-border p-2">
+                      {availableQuestions.map((q) => {
+                        const isSelected = formQuestions.includes(q.id);
+                        const qType = q.type || "MCQ";
+                        const typeBadgeClass =
+                          qType === "MCQ"
+                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                            : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400";
 
                         return (
                           <button
-                            key={tab}
+                            key={q.id}
                             type="button"
-                            onClick={() => setActiveQuestionTab(tab)}
-                            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                              isCurrent
-                                ? "bg-brand-primary text-white shadow-md scale-105"
-                                : "bg-accent/40 text-muted-foreground hover:bg-accent hover:text-foreground"
+                            onClick={() => toggleQuestion(q.id)}
+                            className={`w-full text-left rounded-xl p-3 text-xs transition-all border ${
+                              isSelected
+                                ? "bg-brand-primary/10 border-brand-primary/40 shadow-xs"
+                                : "bg-card hover:bg-accent/40 border-border"
                             }`}
                           >
-                            <span>{label}</span>
-                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                              isCurrent ? "bg-white/20 text-white" : "bg-muted text-foreground"
-                            }`}>
-                              {selectedCount}/{tabQuestions.length}
-                            </span>
+                            <div className="flex items-start gap-2.5">
+                              <div className={`h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center mt-0.5 ${
+                                isSelected ? "border-brand-primary bg-brand-primary" : "border-muted-foreground/30"
+                              }`}>
+                                {isSelected && <CheckCircle className="h-3 w-3 text-white" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <Badge variant="secondary" className={`text-[10px] py-0 px-1.5 font-bold ${typeBadgeClass}`}>
+                                    {qType === "MCQ" ? "MCQ" : "Question"}
+                                  </Badge>
+                                  <span className="text-[10px] text-muted-foreground font-mono">
+                                    {q.marks || 1} {q.marks === 1 ? "Mark" : "Marks"}
+                                  </span>
+                                </div>
+                                <span className="text-foreground font-medium block leading-snug">{q.text}</span>
+                              </div>
+                            </div>
                           </button>
                         );
                       })}
                     </div>
-
-                    {/* Classified Questions List */}
-                    <div className="space-y-2 max-h-[220px] overflow-y-auto rounded-xl border border-border p-2">
-                      {courseQuestions
-                        .filter((q) => (q.type || "MCQ") === activeQuestionTab)
-                        .map((q) => {
-                          const isSelected = formQuestions.includes(q.id);
-                          const qType = q.type || "MCQ";
-                          const typeBadgeClass =
-                            qType === "MCQ"
-                              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                              : qType === "Short"
-                              ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                              : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400";
-
-                          return (
-                            <button
-                              key={q.id}
-                              type="button"
-                              onClick={() => toggleQuestion(q.id)}
-                              className={`w-full text-left rounded-xl p-3 text-xs transition-all border ${
-                                isSelected
-                                  ? "bg-brand-primary/10 border-brand-primary/40 shadow-xs"
-                                  : "bg-card hover:bg-accent/40 border-border"
-                              }`}
-                            >
-                              <div className="flex items-start gap-2.5">
-                                <div className={`h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center mt-0.5 ${
-                                  isSelected ? "border-brand-primary bg-brand-primary" : "border-muted-foreground/30"
-                                }`}>
-                                  {isSelected && <CheckCircle className="h-3 w-3 text-white" />}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Badge variant="secondary" className={`text-[10px] py-0 px-1.5 font-bold ${typeBadgeClass}`}>
-                                      {qType}
-                                    </Badge>
-                                    <span className="text-[10px] text-muted-foreground font-mono">
-                                      {q.marks || 1} {q.marks === 1 ? "Mark" : "Marks"}
-                                    </span>
-                                  </div>
-                                  <span className="text-foreground font-medium block leading-snug">{q.text}</span>
-                                </div>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      {courseQuestions.filter((q) => (q.type || "MCQ") === activeQuestionTab).length === 0 && (
-                        <p className="text-xs text-muted-foreground text-center py-4">No questions found in this category.</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              );
+            })()}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreate(false)} disabled={creating}>Cancel</Button>

@@ -196,7 +196,7 @@ export default function MyGradesPage() {
                     <td className="py-3 px-4">
                       <div>
                         <span className="font-semibold text-foreground">
-                          {g.course?.courseName || ""} {g.course?.courseCode || ""}
+                          {g.course?.courseName ? `${g.course.courseName} - ${g.course.courseCode}` : g.course?.courseCode || ""}
                         </span>
                       </div>
                     </td>

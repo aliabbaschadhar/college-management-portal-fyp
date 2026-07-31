@@ -13,6 +13,7 @@ import {
   Edit3,
   Calendar as CalendarIcon,
   RefreshCw,
+  Eye,
 } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { StatsCard } from "@/components/dashboard/StatsCard";
@@ -524,7 +525,8 @@ export default function FacultyAttendancePage() {
                             title="Click to view 3-month attendance history"
                           >
                             <p className="font-semibold text-foreground group-hover:text-brand-primary transition-colors flex items-center gap-1.5">
-                              {fac.name}
+                              <span>{fac.name}</span>
+                              <Eye className="h-3.5 w-3.5 text-brand-primary shrink-0 opacity-80" />
                               <Badge variant="outline" className="text-[9px] py-0 px-1 font-normal opacity-0 group-hover:opacity-100 transition-opacity border-brand-primary/40 text-brand-primary">
                                 3-Mo Log
                               </Badge>

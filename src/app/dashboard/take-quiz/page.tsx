@@ -49,7 +49,7 @@ interface MyQuizAttempt {
 export default function TakeQuizPage() {
   const [quizzes, setQuizzes] = useState<QuizWithDetails[]>([]);
   const [myAttempts, setMyAttempts] = useState<MyQuizAttempt[]>([]);
-  const [activeTab, setActiveTab] = useState<"available" | "history">("available");
+  const [activeTab, setActiveTab] = useState<"quizzes" | "assignments" | "history">("quizzes");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [view, setView] = useState<QuizView>("list");
@@ -204,12 +204,19 @@ export default function TakeQuizPage() {
 
   // ─── LIST VIEW ───────────────────────────────────────────
   if (view === "list") {
+    const onlineQuizzes = quizzes.filter(
+      (q) => q.status === "Published" && !q.questions?.some((quest) => quest.type === "Short" || quest.type === "Long")
+    );
+    const hardformAssignments = quizzes.filter(
+      (q) => q.status === "Published" && q.questions?.some((quest) => quest.type === "Short" || quest.type === "Long")
+    );
+
     return (
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-6">
         <PageHeader
-          title="Take Quiz"
-          subtitle="View available quizzes and past attempts"
-          breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Take Quiz" }]}
+          title="Quizzes & Assignments"
+          subtitle="Attempt online MCQ quizzes and track hardform assignment deadlines"
+          breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "My Quizzes" }]}
           action={
             <Button
               variant="outline"
@@ -225,16 +232,26 @@ export default function TakeQuizPage() {
         />
 
         {/* Navigation Sub-Tabs */}
-        <div className="flex items-center gap-2 border-b border-border pb-3">
+        <div className="flex items-center gap-2 border-b border-border pb-3 flex-wrap">
           <button
-            onClick={() => setActiveTab("available")}
+            onClick={() => setActiveTab("quizzes")}
             className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-              activeTab === "available"
+              activeTab === "quizzes"
                 ? "bg-brand-primary text-white shadow-sm"
                 : "bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}
           >
-            Available Quizzes & Assignments ({quizzes.filter((q) => q.status === "Published").length})
+            Quizzes - Online MCQs ({onlineQuizzes.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("assignments")}
+            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+              activeTab === "assignments"
+                ? "bg-brand-primary text-white shadow-sm"
+                : "bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            Assignments - Hardform Submissions ({hardformAssignments.length})
           </button>
           <button
             onClick={() => setActiveTab("history")}
@@ -244,7 +261,7 @@ export default function TakeQuizPage() {
                 : "bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}
           >
-            Attempted History & Scores ({myAttempts.length})
+            Attempted History &amp; Scores ({myAttempts.length})
           </button>
         </div>
 
@@ -301,95 +318,141 @@ export default function TakeQuizPage() {
               })
             )}
           </div>
-        ) : (
+        ) : activeTab === "assignments" ? (
+          /* Hardform Assignments Tab */
           <div className="space-y-4">
-          {quizzes.filter((q) => q.status === "Published").map((quiz) => {
-            const daysLeft = Math.ceil(
-              (new Date(quiz.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-            );
-            const isQuizBlocked = isBlocked || blockedCourseIds.includes(quiz.courseId);
-            const hasShortOrLong = quiz.questions?.some((q: QuizQuestion) => q.type === "Short" || q.type === "Long");
+            {hardformAssignments.length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground bg-card border border-border rounded-2xl">
+                <FileText className="h-10 w-10 mx-auto mb-2 opacity-30 text-amber-500" />
+                <p className="text-sm font-bold text-foreground">No hardform assignments published</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Assignments will be displayed here with submission deadlines.
+                </p>
+              </div>
+            ) : (
+              hardformAssignments.map((quiz) => {
+                const daysLeft = Math.ceil((new Date(quiz.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                return (
+                  <motion.div
+                    key={quiz.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5 flex items-center justify-between gap-4 hover:shadow-md transition-shadow"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-sm font-bold text-foreground">{quiz.title}</h3>
+                        <Badge variant="outline" className="text-[10px] uppercase font-bold py-0 px-2 bg-amber-500/10 text-amber-600 border-amber-500/30">
+                          Hardform Submission
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {quiz.course?.courseCode} — {quiz.course?.courseName} • Total Marks: {quiz.totalMarks}
+                      </p>
+                      <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1 mt-1">
+                        <Clock className="h-3.5 w-3.5" />
+                        Deadline: {new Date(quiz.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                      </p>
+                    </div>
 
-            return (
-              <motion.div
-                key={quiz.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="rounded-xl border border-border bg-card p-5 flex items-center gap-4 hover:shadow-md transition-shadow"
-              >
-                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${hasShortOrLong ? "bg-amber-500/10" : "bg-purple-500/10"}`}>
-                  <FileText className={`h-6 w-6 ${hasShortOrLong ? "text-amber-500" : "text-purple-500"}`} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-sm font-semibold text-foreground">{quiz.title}</h3>
-                    {hasShortOrLong ? (
-                      <Badge variant="outline" className="text-[10px] uppercase font-bold py-0 px-2 bg-amber-500/10 text-amber-600 border-amber-500/30">
-                        Hardform Assignment
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-[10px] uppercase font-bold py-0 px-2 bg-purple-500/10 text-purple-600 border-purple-500/30">
-                        Online MCQ Quiz
-                      </Badge>
-                    )}
-                    {isQuizBlocked && (
-                      <Badge variant="destructive" className="text-[10px] uppercase font-bold py-0 px-1.5">
-                        Restricted: Struck Off
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {quiz.course?.courseCode} • {quiz.questions?.length || 0} questions • {quiz.duration} mins • {quiz.totalMarks} marks
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Due: {new Date(quiz.dueDate).toLocaleDateString()}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  {completedAttempts[quiz.id] ? (
-                    <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs px-3 py-1.5 font-bold">
-                      Completed Score: {completedAttempts[quiz.id].score}/{quiz.totalMarks}
-                    </Badge>
-                  ) : new Date(quiz.dueDate).getTime() < Date.now() ? (
-                    <Badge variant="secondary" className="bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-xs px-3 py-1.5 font-bold">
-                      Deadline Expired
-                    </Badge>
-                  ) : (
-                    <>
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
                       <Badge
                         variant="secondary"
                         className={
                           daysLeft <= 2
-                            ? "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
-                            : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                            ? "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 font-bold"
+                            : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 font-bold"
                         }
                       >
-                        {daysLeft <= 0 ? "Due Today" : `${daysLeft}d left`}
+                        {daysLeft <= 0 ? "Due Today" : `${daysLeft} days remaining`}
                       </Badge>
-                      {hasShortOrLong ? (
-                        <Badge variant="secondary" className="text-xs px-3 py-1.5 font-medium bg-muted text-muted-foreground">
-                          Hard Copy Submission to Teacher
+                      <span className="text-[11px] font-medium text-muted-foreground bg-card border border-border px-2.5 py-1 rounded-lg">
+                        Submit hard copy to course faculty
+                      </span>
+                    </div>
+                  </motion.div>
+                );
+              })
+            )}
+          </div>
+        ) : (
+          /* Online MCQs Quizzes Tab */
+          <div className="space-y-4">
+            {onlineQuizzes.length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground bg-card border border-border rounded-2xl">
+                <FileText className="h-10 w-10 mx-auto mb-2 opacity-30 text-purple-500" />
+                <p className="text-sm font-bold text-foreground">No online MCQ quizzes available</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Active online quizzes will appear here for you to attempt.
+                </p>
+              </div>
+            ) : (
+              onlineQuizzes.map((quiz) => {
+                const daysLeft = Math.ceil((new Date(quiz.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                const isQuizBlocked = isBlocked || blockedCourseIds.includes(quiz.courseId);
+
+                return (
+                  <motion.div
+                    key={quiz.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-xl border border-border bg-card p-5 flex items-center gap-4 hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-purple-500/10">
+                      <FileText className="h-6 w-6 text-purple-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-sm font-semibold text-foreground">{quiz.title}</h3>
+                        <Badge variant="outline" className="text-[10px] uppercase font-bold py-0 px-2 bg-purple-500/10 text-purple-600 border-purple-500/30">
+                          Online MCQ Quiz
+                        </Badge>
+                        {isQuizBlocked && (
+                          <Badge variant="destructive" className="text-[10px] uppercase font-bold py-0 px-1.5">
+                            Restricted: Struck Off
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {quiz.course?.courseCode} • {quiz.questions?.length || 0} questions • {quiz.duration} mins • {quiz.totalMarks} marks
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Due: {new Date(quiz.dueDate).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      {completedAttempts[quiz.id] ? (
+                        <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs px-3 py-1.5 font-bold">
+                          Completed Score: {completedAttempts[quiz.id].score}/{quiz.totalMarks}
+                        </Badge>
+                      ) : new Date(quiz.dueDate).getTime() < Date.now() ? (
+                        <Badge variant="secondary" className="bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-xs px-3 py-1.5 font-bold">
+                          Deadline Expired
                         </Badge>
                       ) : (
-                        <Button size="sm" onClick={() => startQuiz(quiz)} disabled={isQuizBlocked} className="gap-1">
-                          Start <ArrowRight className="h-3.5 w-3.5" />
-                        </Button>
+                        <>
+                          <Badge
+                            variant="secondary"
+                            className={
+                              daysLeft <= 2
+                                ? "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+                                : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                            }
+                          >
+                            {daysLeft <= 0 ? "Due Today" : `${daysLeft}d left`}
+                          </Badge>
+                          <Button size="sm" onClick={() => startQuiz(quiz)} disabled={isQuizBlocked} className="gap-1">
+                            Start <ArrowRight className="h-3.5 w-3.5" />
+                          </Button>
+                        </>
                       )}
-                    </>
-                  )}
-                </div>
-              </motion.div>
-            );
-          })}
-          {quizzes.filter((q) => q.status === "Published").length === 0 && (
-            <div className="text-center py-16 text-muted-foreground">
-              <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
-              <p className="text-lg font-medium">No quizzes available</p>
-              <p className="text-sm mt-1">Check back later for new quizzes.</p>
-            </div>
-          )}
-        </div>
-      )}
+                    </div>
+                  </motion.div>
+                );
+              })
+            )}
+          </div>
+        )}
       </motion.div>
     );
   }

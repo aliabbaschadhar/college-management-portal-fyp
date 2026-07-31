@@ -16,6 +16,7 @@ export async function PATCH(
     const { userId } = await auth();
     const { id } = await params;
     const body = (await request.json()) as {
+      rollNo?: string;
       phone?: string;
       department?: string;
       semester?: number;
@@ -39,6 +40,7 @@ export async function PATCH(
     }
 
     const updateData: Prisma.StudentUpdateInput = {
+      ...(body.rollNo !== undefined ? { rollNo: body.rollNo } : {}),
       ...(body.phone !== undefined ? { phone: body.phone } : {}),
       ...(body.department !== undefined ? { department: body.department } : {}),
       ...(body.semester !== undefined ? { semester: body.semester } : {}),
@@ -66,7 +68,7 @@ export async function PATCH(
           action: "UPDATED",
           entity: "Student",
           entityId: id,
-          description: `Edited student profile: ${student.user.name ?? student.rollNo}`,
+          description: `Edited student profile: ${student.user.name ?? student.rollNo} (Roll No: ${student.rollNo}, Dept: ${student.department}, Sem: ${student.semester})`,
           adminClerkId: userId,
           adminName,
         });

@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BookOpen, Plus, Pencil, Trash2, CheckCircle, Loader2, HelpCircle, FileSpreadsheet, Upload, FileText, ChevronDown } from "lucide-react";
+import { BookOpen, Plus, Pencil, Trash2, Loader2, HelpCircle, FileSpreadsheet, Upload, FileText, ChevronDown, RefreshCw } from "lucide-react";
 import { api } from "@/lib/axios";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { ListSkeleton } from "@/components/ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,34 +30,29 @@ interface CourseItem {
   id: string;
   courseCode: string;
   courseName: string;
-  department: string;
 }
 
 interface QuestionItem {
   id: string;
   courseId: string;
-  type: "MCQ" | "Short" | "Long";
   text: string;
-  options: string[];
-  correctOption: number | null;
-  sampleAnswer: string | null;
+  type: "MCQ" | "Short" | "Long";
   marks: number;
-  quizId: string | null;
-  course?: { courseCode: string; courseName: string };
-  createdAt: string;
+  options?: string[];
+  correctOption?: number;
+  sampleAnswer?: string;
+  course?: CourseItem;
 }
 
-const typeBadgeColors: Record<"MCQ" | "Short" | "Long", string> = {
-  MCQ: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200",
-  Short: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200",
-  Long: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border-purple-200",
+const typeBadgeColors: Record<string, string> = {
+  MCQ: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20",
+  Short: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20",
+  Long: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20",
 };
 
 export default function QuestionBankPage() {
   const [courses, setCourses] = useState<CourseItem[]>([]);
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
-  const [selectedCourseId, setSelectedCourseId] = useState<string>("all");
-  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<QuestionItem | null>(null);
@@ -97,15 +92,9 @@ export default function QuestionBankPage() {
       });
   }, []);
 
-  const filteredQuestions = questions.filter((q) => {
-    if (selectedCourseId !== "all" && q.courseId !== selectedCourseId) return false;
-    if (selectedTypeFilter !== "all" && q.type !== selectedTypeFilter) return false;
-    return true;
-  });
-
   const openAddModal = () => {
     setEditingQuestion(null);
-    setFormCourseId(selectedCourseId !== "all" ? selectedCourseId : courses[0]?.id || "");
+    setFormCourseId(courses[0]?.id || "");
     setFormType("MCQ");
     setFormText("");
     setFormMarks(1);
@@ -117,7 +106,7 @@ export default function QuestionBankPage() {
   };
 
   const openCsvModal = () => {
-    setCsvCourseId(selectedCourseId !== "all" ? selectedCourseId : courses[0]?.id || "");
+    setCsvCourseId("");
     setCsvText("");
     setCsvError(null);
     setShowCsvModal(true);
@@ -270,6 +259,27 @@ export default function QuestionBankPage() {
         breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Question Bank" }]}
         action={
           <div className="flex flex-wrap items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setLoading(true);
+                Promise.all([
+                  api.get<CourseItem[]>("/api/courses"),
+                  api.get<QuestionItem[]>("/api/questions"),
+                ])
+                  .then(([coursesRes, qsRes]) => {
+                    setCourses(Array.isArray(coursesRes.data) ? coursesRes.data : []);
+                    setQuestions(Array.isArray(qsRes.data) ? qsRes.data : []);
+                    setLoading(false);
+                  })
+                  .catch(() => setLoading(false));
+              }}
+              className="gap-2 rounded-xl border-2"
+            >
+              <RefreshCw className="h-4 w-4" /> Refresh
+            </Button>
+
             <Button variant="outline" onClick={openCsvModal} className="gap-2 rounded-xl border-2">
               <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Bulk CSV
             </Button>
@@ -296,8 +306,8 @@ export default function QuestionBankPage() {
           });
 
           return (
-            <div key={category.key} className="rounded-3xl border border-border bg-card overflow-hidden shadow-sm">
-              <div className="p-5 bg-muted/30 border-b border-border flex items-center justify-between">
+            <div key={category.key} className="rounded-3xl border border-border/80 bg-card overflow-hidden shadow-sm">
+              <div className="p-5 bg-muted/20 border-b border-border/60 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-2xl bg-brand-primary/10 flex items-center justify-center text-brand-primary">
                     <CategoryIcon className="h-5 w-5" />
@@ -312,7 +322,7 @@ export default function QuestionBankPage() {
                 </Badge>
               </div>
 
-              <div className="p-4 space-y-4">
+              <div className="p-4 space-y-3">
                 {courseMap.size === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-6">
                     No {category.title.toLowerCase()} created yet.
@@ -321,7 +331,7 @@ export default function QuestionBankPage() {
                   Array.from(courseMap.entries()).map(([courseId, courseQuestions]) => {
                     const courseObj = courses.find((c) => c.id === courseId);
                     return (
-                      <details key={courseId} className="group rounded-2xl border border-border bg-background/50 overflow-hidden" open>
+                      <details key={courseId} className="group rounded-2xl border border-border/50 bg-accent/10 overflow-hidden">
                         <summary className="p-4 flex items-center justify-between cursor-pointer font-bold text-sm text-foreground hover:bg-accent/30 transition-colors select-none">
                           <div className="flex items-center gap-2">
                             <BookOpen className="h-4 w-4 text-brand-primary" />
@@ -330,27 +340,27 @@ export default function QuestionBankPage() {
                             </span>
                           </div>
                           <div className="flex items-center gap-3">
-                            <Badge variant="outline" className="text-[11px] font-semibold">
-                              {courseQuestions.length} Questions
+                            <Badge variant="outline" className="text-[11px] font-semibold border-brand-primary/20 text-brand-primary">
+                              {courseQuestions.length} {category.title}
                             </Badge>
                             <ChevronDown className="h-4 w-4 text-muted-foreground group-open:rotate-180 transition-transform" />
                           </div>
                         </summary>
 
-                        <div className="p-4 border-t border-border/60 space-y-3">
+                        <div className="p-4 border-t border-border/40 space-y-3 bg-background/50">
                           {courseQuestions.map((q) => (
-                            <div key={q.id} className="rounded-xl border border-border bg-card p-4 space-y-3">
+                            <div key={q.id} className="rounded-xl bg-card p-4 space-y-2.5 shadow-2xs hover:shadow-xs transition-shadow">
                               <div className="flex items-start justify-between gap-4">
                                 <div className="space-y-1">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <Badge className={`${typeBadgeColors[q.type]} text-[10px] font-bold`}>
-                                      {q.type}
+                                      {q.type === "MCQ" ? "MCQ" : "Question"}
                                     </Badge>
                                     <Badge variant="secondary" className="text-[10px]">
-                                      {q.marks} Marks
+                                      {q.marks} {q.marks === 1 ? "Mark" : "Marks"}
                                     </Badge>
                                   </div>
-                                  <p className="text-sm font-bold text-foreground mt-1">{q.text}</p>
+                                  <p className="text-sm font-semibold text-foreground mt-1">{q.text}</p>
                                 </div>
                                 <div className="flex items-center gap-1 shrink-0">
                                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditModal(q)}>
@@ -363,14 +373,14 @@ export default function QuestionBankPage() {
                               </div>
 
                               {q.type === "MCQ" && q.options && q.options.length > 0 && (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                                   {q.options.map((opt, oIdx) => (
                                     <div
                                       key={oIdx}
-                                      className={`p-2 rounded-lg text-xs font-medium border ${
+                                      className={`p-2 rounded-lg text-xs font-medium ${
                                         oIdx === q.correctOption
-                                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold"
-                                          : "border-border/60 bg-muted/20 text-muted-foreground"
+                                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold"
+                                          : "bg-muted/40 text-muted-foreground"
                                       }`}
                                     >
                                       <span className="opacity-70 mr-1.5">{String.fromCharCode(65 + oIdx)}.</span> {opt}
@@ -408,11 +418,11 @@ export default function QuestionBankPage() {
           )}
 
           <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-1.5 flex-1">
                 <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Course</Label>
                 <Select value={formCourseId} onValueChange={setFormCourseId}>
-                  <SelectTrigger className="h-11 rounded-xl">
+                  <SelectTrigger className="h-11 rounded-xl w-full">
                     <SelectValue placeholder="Select course" />
                   </SelectTrigger>
                   <SelectContent>
@@ -425,21 +435,19 @@ export default function QuestionBankPage() {
                 </Select>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 flex-1">
                 <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Question Type</Label>
-                <Select value={formType} onValueChange={(v) => {
-                  const t = v as "MCQ" | "Short" | "Long";
+                <Select value={formType === "MCQ" ? "MCQ" : "Short"} onValueChange={(v) => {
+                  const t = v as "MCQ" | "Short";
                   setFormType(t);
                   if (t === "Short" && formMarks === 1) setFormMarks(2);
-                  if (t === "Long" && formMarks <= 2) setFormMarks(5);
                 }}>
-                  <SelectTrigger className="h-11 rounded-xl">
+                  <SelectTrigger className="h-11 rounded-xl w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="MCQ">MCQ (Multiple Choice)</SelectItem>
-                    <SelectItem value="Short">Short Question</SelectItem>
-                    <SelectItem value="Long">Long Question</SelectItem>
+                    <SelectItem value="MCQ">MCQ</SelectItem>
+                    <SelectItem value="Short">Question</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

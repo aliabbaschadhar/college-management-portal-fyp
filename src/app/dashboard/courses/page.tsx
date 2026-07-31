@@ -186,7 +186,6 @@ export default function ManageCoursesPage() {
   // Drill-down states
   const [selectedDept, setSelectedDept] = useState<string | null>("Computer Science");
   const [selectedSem, setSelectedSem] = useState<number | null>(1);
-  const [selectedShift, setSelectedShift] = useState<string>("All");
 
   const handleRefresh = useCallback(() => {
     setLoading(true);
@@ -452,15 +451,7 @@ export default function ManageCoursesPage() {
   const filteredCourses = courses.filter((c) => {
     const matchesDept = !selectedDept || selectedDept === "all" || c.department === selectedDept;
     const matchesSem = !selectedSem || c.semester === Number(selectedSem);
-    let matchesShift = true;
-    if (selectedShift !== "All") {
-      if (selectedShift === "Morning") {
-        matchesShift = c.shift === "Morning";
-      } else if (selectedShift === "Evening") {
-        matchesShift = c.shift === "Evening";
-      }
-    }
-    return matchesDept && matchesSem && matchesShift;
+    return matchesDept && matchesSem;
   });
 
   if (loading) {
@@ -682,20 +673,6 @@ export default function ManageCoursesPage() {
                     </SelectContent>
                   </Select>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase">Shift:</Label>
-                  <Select value={selectedShift} onValueChange={setSelectedShift}>
-                    <SelectTrigger className="w-[120px] h-10 bg-card rounded-xl">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="All">All Shifts</SelectItem>
-                      <SelectItem value="Morning">Morning</SelectItem>
-                      <SelectItem value="Evening">Evening</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
             </div>
 
@@ -868,6 +845,7 @@ export default function ManageCoursesPage() {
                 <SelectContent>
                   <SelectItem value="Morning">Morning Shift</SelectItem>
                   <SelectItem value="Evening">Evening Shift</SelectItem>
+                  <SelectItem value="Both">Both Shifts (Morning &amp; Evening)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

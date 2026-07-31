@@ -54,15 +54,9 @@ export function FullPageLoader({
             className="flex flex-col items-center gap-5 p-4"
           >
             <div className="relative flex items-center justify-center">
-              {/* Outer Pulsing Ring */}
               <motion.div
-                animate={{ rotate: 360, scale: [1, 1.05, 1] }}
-                transition={{ rotate: { duration: 6, repeat: Infinity, ease: "linear" }, scale: { duration: 2, repeat: Infinity, ease: "easeInOut" } }}
-                className="absolute -inset-4 rounded-full border-2 border-dashed border-brand-primary/40"
-              />
-              <motion.div
-                animate={{ scale: [1, 1.08, 1], filter: ["drop-shadow(0 0 10px rgba(59,130,246,0.4))", "drop-shadow(0 0 25px rgba(59,130,246,0.7))", "drop-shadow(0 0 10px rgba(59,130,246,0.4))"] }}
-                transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+                animate={{ opacity: [0.4, 1, 0.4], scale: [0.98, 1.04, 0.98] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
                 className={cn("relative shrink-0 overflow-hidden", logoSizes[size])}
               >
                 <Image

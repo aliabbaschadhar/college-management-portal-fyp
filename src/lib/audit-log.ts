@@ -71,18 +71,34 @@ export async function logAuditAction(params: AuditLogParams): Promise<void> {
   }
 }
 
+import { clerkClient } from "@clerk/nextjs/server";
+
 /**
  * Retrieve the admin's display name from their Clerk ID.
- * Falls back to "Unknown Admin" if not found.
+ * Falls back to Clerk user API or email prefix if DB name is missing.
  */
 export async function getAdminName(clerkId: string): Promise<string> {
+  if (!clerkId) return "System Admin";
   try {
     const user = await prisma.user.findUnique({
       where: { clerkId },
-      select: { name: true },
+      select: { name: true, email: true },
     });
-    return user?.name ?? "Unknown Admin";
+    if (user?.name && user.name.trim()) return user.name;
+
+    try {
+      const client = await clerkClient();
+      const clerkUser = await client.users.getUser(clerkId);
+      const fullName = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ");
+      if (fullName && fullName.trim()) return fullName;
+      const primaryEmail = clerkUser.emailAddresses?.[0]?.emailAddress;
+      if (primaryEmail) return primaryEmail.split("@")[0];
+    } catch (clerkErr) {
+      console.error("[AuditLog] Clerk user fetch fallback error:", clerkErr);
+    }
+
+    return user?.email ? user.email.split("@")[0] : "System Admin";
   } catch {
-    return "Unknown Admin";
+    return "System Admin";
   }
 }

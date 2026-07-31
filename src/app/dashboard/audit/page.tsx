@@ -188,7 +188,7 @@ export default function AuditLogPage() {
                       </span>
                     </div>
                     <p className="text-sm font-medium text-foreground leading-snug">
-                      {log.description.replace(new RegExp(`^(by\\s+)?${log.adminName}\\s+`, "i"), "")}
+                      {log.description}
                     </p>
                   </div>
 
