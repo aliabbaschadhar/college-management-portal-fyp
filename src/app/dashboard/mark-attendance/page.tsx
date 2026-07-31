@@ -438,6 +438,7 @@ export default function MarkAttendancePage() {
                         <th className="text-left py-3 px-4 font-semibold text-foreground">Roll No</th>
                         <th className="text-left py-3 px-4 font-semibold text-foreground w-24">Shift</th>
                         <th className="text-center py-3 px-4 font-semibold text-foreground w-64">Status</th>
+                        <th className="text-center py-3 px-4 font-semibold text-foreground w-28">History</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -446,15 +447,7 @@ export default function MarkAttendancePage() {
                           <td className="py-3 px-4 text-muted-foreground font-medium">{i + 1}</td>
                           <td className="py-3 px-4 font-semibold text-foreground">
                             <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleStudentClick(item.student)}
-                                className="font-bold text-foreground hover:text-brand-primary hover:underline cursor-pointer text-left flex items-center gap-1.5 group"
-                                title="Click to view 90-day attendance history"
-                              >
-                                <span>{item.student.user.name ?? "—"}</span>
-                                <Eye className="h-3.5 w-3.5 text-muted-foreground group-hover:text-brand-primary opacity-70 group-hover:opacity-100 transition-all" />
-                              </button>
+                              <span className="font-bold text-foreground">{item.student.user.name ?? "—"}</span>
                               {item.student.blocked && (
                                 <Badge variant="destructive" className="text-[10px] py-0 px-1.5 uppercase font-bold tracking-wider animate-pulse">
                                   Struck Off
@@ -492,6 +485,17 @@ export default function MarkAttendancePage() {
                                 </button>
                               ))}
                             </div>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleStudentClick(item.student)}
+                              className="h-8 text-xs gap-1 border-brand-primary/30 text-brand-primary hover:bg-brand-primary hover:text-white rounded-lg"
+                              title="View 90-day attendance history"
+                            >
+                              <Eye className="h-3.5 w-3.5" /> History
+                            </Button>
                           </td>
                         </tr>
                       ))}

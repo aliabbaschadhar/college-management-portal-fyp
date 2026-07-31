@@ -93,9 +93,9 @@ export default function ManageQuizzesPage() {
 
   const filteredByTabQuizzes = useMemo(() => {
     if (activeSubTab === "assignments") {
-      return quizzes.filter((q) => q._count.questions === 0 || q.title.toLowerCase().includes("assignment"));
+      return quizzes.filter((q) => q.title.toLowerCase().includes("assignment") || q._count.questions === 0);
     }
-    return quizzes.filter((q) => q._count.questions > 0 || !q.title.toLowerCase().includes("assignment"));
+    return quizzes.filter((q) => !q.title.toLowerCase().includes("assignment") && q._count.questions > 0);
   }, [quizzes, activeSubTab]);
   const quizIdCounter = useRef(0);
 
@@ -160,9 +160,12 @@ export default function ManageQuizzesPage() {
   const handleCreate = async () => {
     if (!formTitle || !formCourse || formQuestions.length === 0 || !formDueDate) return;
     setCreating(true);
+    const finalTitle = activeSubTab === "assignments" && !formTitle.toLowerCase().includes("assignment")
+      ? `[Assignment] ${formTitle}`
+      : formTitle;
     try {
       await api.post("/api/quizzes", {
-        title: formTitle,
+        title: finalTitle,
         courseId: formCourse,
         duration: formDuration,
         totalMarks: formMarks,
@@ -384,7 +387,7 @@ export default function ManageQuizzesPage() {
                   }}
                   disabled={quiz.status === "Draft"}
                   title={quiz.status === "Draft" ? "Submissions are disabled until published" : "View student submissions"}
-                  className="gap-1 text-amber-600 border-amber-500/30 hover:bg-amber-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="gap-1 bg-amber-600 hover:bg-amber-600/80 text-white font-semibold rounded-xl shadow-xs transition-opacity disabled:opacity-40 disabled:cursor-not-allowed border-none"
                 >
                   <CheckCircle className="h-3.5 w-3.5" /> Submissions
                 </Button>

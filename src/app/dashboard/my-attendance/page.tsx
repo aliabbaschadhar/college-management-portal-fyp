@@ -157,17 +157,9 @@ export default function MyAttendancePage() {
       render: (row) => {
         const foundCourse = courses.find((c) => c.id === row.courseId);
         return (
-          <button
-            onClick={() => {
-              if (foundCourse) setSelectedCourseModal(foundCourse);
-            }}
-            className="flex items-center gap-2 group text-left hover:underline cursor-pointer"
-          >
-            <span className="font-bold text-foreground group-hover:text-brand-primary flex items-center gap-1.5">
-              <span>{foundCourse?.courseName || row.course?.courseName || "Course"} - {foundCourse?.courseCode || row.course?.courseCode || ""}</span>
-              <Eye className="h-3.5 w-3.5 text-brand-primary opacity-80 shrink-0" />
-            </span>
-          </button>
+          <span className="font-bold text-foreground">
+            {foundCourse?.courseName || row.course?.courseName || "Course"} — {foundCourse?.courseCode || row.course?.courseCode || ""}
+          </span>
         );
       },
     },
@@ -176,7 +168,7 @@ export default function MyAttendancePage() {
       header: "Date",
       sortable: true,
       render: (row) => (
-        <span className="text-muted-foreground">
+        <span className="text-muted-foreground font-mono text-xs">
           {new Date(row.date).toLocaleDateString(undefined, {
             month: "short",
             day: "numeric",
@@ -194,6 +186,26 @@ export default function MyAttendancePage() {
           {row.status}
         </Badge>
       ),
+    },
+    {
+      key: "id",
+      header: "Actions",
+      render: (row) => {
+        const foundCourse = courses.find((c) => c.id === row.courseId);
+        return (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              if (foundCourse) setSelectedCourseModal(foundCourse);
+            }}
+            className="h-8 text-xs gap-1 border-brand-primary/30 text-brand-primary hover:bg-brand-primary hover:text-white rounded-lg"
+            title="View 90-day attendance history for this course"
+          >
+            <Eye className="h-3.5 w-3.5" /> History
+          </Button>
+        );
+      },
     },
   ];
 

@@ -411,7 +411,6 @@ export default function FacultyGradesPage() {
                                 }
                                 onFocus={() => setFocusedInput({ id: g.id, field: "midMarks" })}
                                 onBlur={() => setFocusedInput(null)}
-                                disabled={g.locked}
                                 className="text-center h-8 w-16 mx-auto bg-card border-2"
                               />
                             </td>
@@ -426,7 +425,6 @@ export default function FacultyGradesPage() {
                                 }
                                 onFocus={() => setFocusedInput({ id: g.id, field: "finalMarks" })}
                                 onBlur={() => setFocusedInput(null)}
-                                disabled={g.locked}
                                 className="text-center h-8 w-16 mx-auto bg-card border-2"
                               />
                             </td>
@@ -448,38 +446,11 @@ export default function FacultyGradesPage() {
                                 }
                                 onFocus={() => setFocusedInput({ id: g.id, field: "cgpa" })}
                                 onBlur={() => setFocusedInput(null)}
-                                disabled={g.locked}
                                 className="text-center h-8 w-20 mx-auto bg-card border-2"
                               />
                             </td>
                             <td className="py-3 px-3 text-center">
-                              <div className="flex items-center justify-center gap-1">
-                                <button
-                                  onClick={async () => {
-                                    try {
-                                      await api.patch(`/api/grades/${g.id}`, {
-                                        locked: !g.locked,
-                                      });
-                                      setGrades((prev) =>
-                                        prev.map((x) =>
-                                          x.id === g.id
-                                            ? { ...x, locked: !x.locked }
-                                            : x,
-                                        ),
-                                      );
-                                    } catch {
-                                      /* ignore */
-                                    }
-                                  }}
-                                  className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-accent transition-colors"
-                                  title={g.locked ? "Unlock grade" : "Lock grade"}
-                                >
-                                  {g.locked ? (
-                                    <Lock className="h-3.5 w-3.5 text-emerald-600" />
-                                  ) : (
-                                    <Unlock className="h-3.5 w-3.5 text-amber-600" />
-                                  )}
-                                </button>
+                              <div className="flex items-center justify-center">
                                 <button
                                   onClick={async () => {
                                     try {

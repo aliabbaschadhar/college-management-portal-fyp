@@ -333,7 +333,7 @@ export function UserManagementClient() {
                   <th className="text-center py-3 px-3 font-semibold text-foreground hidden lg:table-cell">
                     Joined Date
                   </th>
-                  <th className="text-center py-3 px-3 font-semibold text-foreground hidden xl:table-cell">
+                  <th className="text-center py-3 px-3 font-semibold text-foreground hidden md:table-cell">
                     Audit
                   </th>
                   <th className="text-center py-3 px-4 font-semibold text-foreground">
@@ -412,7 +412,7 @@ export function UserManagementClient() {
                         </td>
 
                         {/* Audit */}
-                        <td className="text-center py-3 px-3 hidden xl:table-cell">
+                        <td className="text-center py-3 px-3 hidden md:table-cell">
                           <AuditBadgeInline entity="User" entityId={user.id} />
                         </td>
 

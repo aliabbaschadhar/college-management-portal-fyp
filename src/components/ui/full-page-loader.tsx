@@ -14,10 +14,10 @@ interface FullPageLoaderProps {
 }
 
 const logoSizes = {
-  sm: "h-12 w-12",
-  md: "h-16 w-16",
-  lg: "h-20 w-20",
-  xl: "h-24 w-24",
+  sm: "h-14 w-14",
+  md: "h-20 w-20",
+  lg: "h-28 w-28",
+  xl: "h-36 w-36",
 }
 
 export function FullPageLoader({

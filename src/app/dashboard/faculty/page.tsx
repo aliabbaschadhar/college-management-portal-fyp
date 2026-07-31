@@ -166,8 +166,6 @@ export default function ManageFacultyPage() {
             <p className="font-medium text-foreground">
               {row.user.name ?? "—"}
             </p>
-            <p className="text-xs text-muted-foreground">{row.user.email}</p>
-            <AuditBadgeInline entity="Faculty" entityId={row.id} />
           </div>
         </div>
       ),
@@ -412,6 +410,7 @@ export default function ManageFacultyPage() {
                 <div>
                   <h3 className="text-lg font-bold text-foreground">{viewingFaculty.user.name}</h3>
                   <p className="text-sm text-muted-foreground">{viewingFaculty.user.email}</p>
+                  <AuditBadgeInline entity="Faculty" entityId={viewingFaculty.id} />
                 </div>
               </div>
 

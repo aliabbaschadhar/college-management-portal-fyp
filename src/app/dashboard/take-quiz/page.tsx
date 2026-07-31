@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { FileText, Clock, ArrowRight, Trophy, AlertCircle, RefreshCw } from "lucide-react";
+import { FileText, Clock, ArrowRight, Trophy, AlertCircle, RefreshCw, Loader2 } from "lucide-react";
 import { api } from "@/lib/axios";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion, AnimatePresence } from "framer-motion";
@@ -61,7 +61,8 @@ export default function TakeQuizPage() {
   const [score, setScore] = useState(0);
   const [isBlocked, setIsBlocked] = useState(false);
   const [blockedCourseIds, setBlockedCourseIds] = useState<string[]>([]);
-  const [completedAttempts, setCompletedAttempts] = useState<Record<string, { score: number; totalMarks: number }>>({});
+  const [completedAttempts, setCompletedAttempts] = useState<Record<string, { score: number; totalMarks: number }>>({});  const [startingQuizId, setStartingQuizId] = useState<string | null>(null);
+  const [submittingQuiz, setSubmittingQuiz] = useState(false);
 
   useEffect(() => {
     try {
@@ -119,6 +120,7 @@ export default function TakeQuizPage() {
   };
 
   const startQuiz = useCallback(async (quiz: QuizWithDetails) => {
+    setStartingQuizId(quiz.id);
     try {
       const res = await api.get<QuizWithDetails>(`/api/quizzes/${quiz.id}`);
       const fullQuiz = res.data;
@@ -130,6 +132,8 @@ export default function TakeQuizPage() {
       setView("attempt");
     } catch {
       // silent fail
+    } finally {
+      setStartingQuizId(null);
     }
   }, []);
 
@@ -162,7 +166,8 @@ export default function TakeQuizPage() {
   };
 
   const handleSubmit = async () => {
-    if (!activeQuiz) return;
+    if (!activeQuiz || submittingQuiz) return;
+    setSubmittingQuiz(true);
     try {
       const res = await api.post<{ score: number }>(`/api/quizzes/${activeQuiz.id}/submit`, {
         answers: answers.map((a) => (a === null ? -1 : a)),
@@ -181,6 +186,8 @@ export default function TakeQuizPage() {
       setView("result");
     } catch (err) {
       console.error("Failed to submit quiz:", err);
+    } finally {
+      setSubmittingQuiz(false);
     }
   };
 
@@ -205,10 +212,10 @@ export default function TakeQuizPage() {
   // ─── LIST VIEW ───────────────────────────────────────────
   if (view === "list") {
     const onlineQuizzes = quizzes.filter(
-      (q) => q.status === "Published" && !q.questions?.some((quest) => quest.type === "Short" || quest.type === "Long")
+      (q) => q.status === "Published" && !q.title.toLowerCase().includes("assignment") && !q.questions?.some((quest) => quest.type === "Short" || quest.type === "Long")
     );
     const hardformAssignments = quizzes.filter(
-      (q) => q.status === "Published" && q.questions?.some((quest) => quest.type === "Short" || quest.type === "Long")
+      (q) => q.status === "Published" && (q.title.toLowerCase().includes("assignment") || q.questions?.some((quest) => quest.type === "Short" || quest.type === "Long"))
     );
 
     return (
@@ -441,8 +448,16 @@ export default function TakeQuizPage() {
                           >
                             {daysLeft <= 0 ? "Due Today" : `${daysLeft}d left`}
                           </Badge>
-                          <Button size="sm" onClick={() => startQuiz(quiz)} disabled={isQuizBlocked} className="gap-1">
-                            Start <ArrowRight className="h-3.5 w-3.5" />
+                          <Button size="sm" onClick={() => startQuiz(quiz)} disabled={isQuizBlocked || startingQuizId === quiz.id} className="gap-1 min-w-[80px]">
+                            {startingQuizId === quiz.id ? (
+                              <>
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Starting…
+                              </>
+                            ) : (
+                              <>
+                                Start <ArrowRight className="h-3.5 w-3.5" />
+                              </>
+                            )}
                           </Button>
                         </>
                       )}
@@ -533,8 +548,14 @@ export default function TakeQuizPage() {
                   Next <ArrowRight className="h-4 w-4 ml-1" />
                 </Button>
               ) : (
-                <Button onClick={handleSubmit} className="bg-emerald-600 hover:bg-emerald-700">
-                  Submit Quiz
+                <Button onClick={handleSubmit} disabled={submittingQuiz} className="bg-emerald-600 hover:bg-emerald-700 text-white min-w-[120px]">
+                  {submittingQuiz ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> Submitting…
+                    </>
+                  ) : (
+                    "Submit Quiz"
+                  )}
                 </Button>
               )}
             </div>

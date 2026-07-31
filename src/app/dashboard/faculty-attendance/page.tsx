@@ -516,23 +516,12 @@ export default function FacultyAttendancePage() {
                         transition={{ delay: idx * 0.03, duration: 0.25 }}
                         className="border-b border-border/50 hover:bg-accent/20 transition-colors"
                       >
-                        {/* Name + email (Clickable for 3-Month History) */}
+                        {/* Name + email */}
                         <td className="py-3 px-4">
-                          <button
-                            type="button"
-                            onClick={() => open3MonthHistory(fac)}
-                            className="text-left group cursor-pointer"
-                            title="Click to view 3-month attendance history"
-                          >
-                            <p className="font-semibold text-foreground group-hover:text-brand-primary transition-colors flex items-center gap-1.5">
-                              <span>{fac.name}</span>
-                              <Eye className="h-3.5 w-3.5 text-brand-primary shrink-0 opacity-80" />
-                              <Badge variant="outline" className="text-[9px] py-0 px-1 font-normal opacity-0 group-hover:opacity-100 transition-opacity border-brand-primary/40 text-brand-primary">
-                                3-Mo Log
-                              </Badge>
-                            </p>
+                          <div>
+                            <p className="font-semibold text-foreground">{fac.name}</p>
                             <p className="text-xs text-muted-foreground">{fac.email}</p>
-                          </button>
+                          </div>
                         </td>
 
                         {/* Dept */}
@@ -570,18 +559,29 @@ export default function FacultyAttendancePage() {
 
                         {/* Action */}
                         <td className="py-3 px-4 text-center">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 rounded-lg gap-1 text-xs"
-                            onClick={() => {
-                              setOverrideFaculty(fac);
-                              setOverrideStatus(fac.status);
-                              setOverrideNotes(fac.notes ?? "");
-                            }}
-                          >
-                            <Edit3 className="h-3.5 w-3.5" /> Edit Status
-                          </Button>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 rounded-lg gap-1 text-xs border-brand-primary/30 text-brand-primary hover:bg-brand-primary hover:text-white transition-all"
+                              onClick={() => open3MonthHistory(fac)}
+                              title="View 3-month attendance history"
+                            >
+                              <Eye className="h-3.5 w-3.5" /> 3-Mo Log
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 rounded-lg gap-1 text-xs"
+                              onClick={() => {
+                                setOverrideFaculty(fac);
+                                setOverrideStatus(fac.status);
+                                setOverrideNotes(fac.notes ?? "");
+                              }}
+                            >
+                              <Edit3 className="h-3.5 w-3.5" /> Edit Status
+                            </Button>
+                          </div>
                         </td>
                       </motion.tr>
                     ))

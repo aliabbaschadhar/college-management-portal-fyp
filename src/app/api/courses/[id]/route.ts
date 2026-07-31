@@ -107,11 +107,19 @@ export async function PATCH(
     if (userId) {
       try {
         const adminName = await getAdminName(userId);
+        let auditDesc = `Updated course ${course.courseCode} — ${course.courseName}`;
+        if (body.assignedFaculty !== undefined) {
+          if (course.faculty?.user?.name) {
+            auditDesc = `Faculty "${course.faculty.user.name}" assigned to course ${course.courseCode}`;
+          } else {
+            auditDesc = `Faculty assigned to course ${course.courseCode}`;
+          }
+        }
         await logAuditAction({
           action: "UPDATED",
           entity: "Course",
           entityId: id,
-          description: `Updated course ${course.courseCode} — ${course.courseName}`,
+          description: auditDesc,
           adminClerkId: userId,
           adminName,
         });

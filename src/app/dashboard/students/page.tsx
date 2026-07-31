@@ -441,8 +441,6 @@ export default function ManageStudentsPage() {
                 </Badge>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">{row.user.email}</p>
-            <AuditBadgeInline entity="Student" entityId={row.id} />
           </div>
         </div>
       ),

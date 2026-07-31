@@ -320,14 +320,20 @@ export default function ManageAttendancePage() {
     );
   }, [students, selectedDept, selectedSemester, selectedShift]);
 
-  // Compute stats for each student in the selected class/shift
+  // Compute current day (today's) stats for each student in the selected class/shift
+  const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
   const studentStats = useMemo(() => {
     return classStudents.map((student) => {
-      const studentRecords = attendance.filter((a) => a.studentId === student.id);
-      const total = studentRecords.length;
-      const present = studentRecords.filter((a) => a.status === "Present").length;
-      const absent = studentRecords.filter((a) => a.status === "Absent").length;
-      const late = studentRecords.filter((a) => a.status === "Late").length;
+      const todayRecords = attendance.filter((a) => {
+        if (a.studentId !== student.id) return false;
+        const logDateStr = new Date(a.date).toISOString().split("T")[0];
+        return logDateStr === todayStr;
+      });
+      const recordsToUse = todayRecords.length > 0 ? todayRecords : attendance.filter((a) => a.studentId === student.id);
+      const total = recordsToUse.length;
+      const present = recordsToUse.filter((a) => a.status === "Present").length;
+      const absent = recordsToUse.filter((a) => a.status === "Absent").length;
+      const late = recordsToUse.filter((a) => a.status === "Late").length;
       const rate = total > 0 ? Math.round(((present + late) / total) * 100) : 0;
 
       return {
@@ -341,7 +347,7 @@ export default function ManageAttendancePage() {
         },
       };
     });
-  }, [classStudents, attendance]);
+  }, [classStudents, attendance, todayStr]);
 
   // Compute class-wide overall stats
   const classStats = useMemo(() => {
@@ -435,17 +441,9 @@ export default function ManageAttendancePage() {
         return (
           <div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  setSelectedStudent(row);
-                  setLogDialogOpen(true);
-                }}
-                className="font-bold text-foreground hover:text-brand-primary hover:underline transition-colors text-left cursor-pointer flex items-center gap-1.5"
-                title="Click to view attendance history"
-              >
-                <span>{row.user?.name ?? "—"}</span>
-                <Eye className="h-3.5 w-3.5 text-brand-primary shrink-0 opacity-80" />
-              </button>
+              <span className="font-bold text-foreground">
+                {row.user?.name ?? "—"}
+              </span>
               {pct < 75 && !row.blocked && (
                 <Badge variant="destructive" className="bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 text-[10px] py-0 px-1.5 uppercase font-bold tracking-wider">
                   Shortage Alert ({pct}%)

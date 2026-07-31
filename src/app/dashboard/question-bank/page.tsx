@@ -366,8 +366,8 @@ export default function QuestionBankPage() {
                                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditModal(q)}>
                                     <Pencil className="h-3.5 w-3.5" />
                                   </Button>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:text-rose-600" onClick={() => handleDelete(q.id)} disabled={deletingId === q.id}>
-                                    <Trash2 className="h-3.5 w-3.5" />
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:text-rose-600 disabled:opacity-50" onClick={() => handleDelete(q.id)} disabled={deletingId === q.id}>
+                                    {deletingId === q.id ? <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-500" /> : <Trash2 className="h-3.5 w-3.5" />}
                                   </Button>
                                 </div>
                               </div>
