@@ -21,6 +21,21 @@ export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose, onNa
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
+  useEffect(() => {
+    const saved = localStorage.getItem("sidebar_collapsed");
+    if (saved !== null) {
+      setCollapsed(saved === "true");
+    }
+  }, []);
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("sidebar_collapsed", String(next));
+      return next;
+    });
+  };
+
   // Close mobile sidebar on route change
   useEffect(() => {
     onMobileClose();
@@ -125,7 +140,7 @@ export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose, onNa
           {/* Collapse toggle (desktop) */}
           <div className="hidden lg:flex">
             <button
-              onClick={() => setCollapsed(!collapsed)}
+              onClick={toggleCollapsed}
               className="flex w-full items-center justify-center gap-2 rounded-none border-2 border-transparent px-3 py-2 text-sm font-bold text-muted-foreground hover:bg-accent hover:text-foreground hover:border-border hover:shadow-[2px_2px_0px_0px_var(--border)] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all cursor-pointer"
             >
               {collapsed ? (

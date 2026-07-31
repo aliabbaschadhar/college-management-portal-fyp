@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BookOpen, Plus, Pencil, Trash2, CheckCircle, Loader2, HelpCircle, FileSpreadsheet, Upload } from "lucide-react";
+import { BookOpen, Plus, Pencil, Trash2, CheckCircle, Loader2, HelpCircle, FileSpreadsheet, Upload, FileText, ChevronDown } from "lucide-react";
 import { api } from "@/lib/axios";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion, AnimatePresence } from "framer-motion";
@@ -158,19 +158,13 @@ export default function QuestionBankPage() {
             correctOption: isNaN(correctIdx) ? 0 : correctIdx,
           });
         } else {
-          const sampleAnswer = parts[3] || parts[8] || "";
-          parsedItems.push({
-            courseId: csvCourseId,
-            type: qType,
-            text: qText,
-            marks,
-            sampleAnswer,
-          });
+          // Bulk CSV import is restricted to MCQs only per system policy
+          setCsvError(`Row ${idx + 1} (${qType}) ignored: CSV Bulk Import is for MCQ questions only.`);
         }
       }
 
       if (parsedItems.length === 0) {
-        setCsvError("No valid question rows found in CSV data. Check format instructions.");
+        setCsvError("No valid MCQ question rows found in CSV data. CSV Bulk Import is strictly for MCQs.");
         setImportingCsv(false);
         return;
       }
@@ -276,32 +270,6 @@ export default function QuestionBankPage() {
         breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Question Bank" }]}
         action={
           <div className="flex flex-wrap items-center gap-3">
-            <Select value={selectedCourseId} onValueChange={setSelectedCourseId}>
-              <SelectTrigger className="w-[190px] rounded-xl bg-card">
-                <SelectValue placeholder="All Courses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Courses</SelectItem>
-                {courses.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.courseCode} - {c.courseName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={selectedTypeFilter} onValueChange={setSelectedTypeFilter}>
-              <SelectTrigger className="w-[160px] rounded-xl bg-card">
-                <SelectValue placeholder="All Types" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="MCQ">MCQs</SelectItem>
-                <SelectItem value="Short">Short Questions</SelectItem>
-                <SelectItem value="Long">Long Questions</SelectItem>
-              </SelectContent>
-            </Select>
-
             <Button variant="outline" onClick={openCsvModal} className="gap-2 rounded-xl border-2">
               <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Bulk CSV
             </Button>
@@ -313,92 +281,115 @@ export default function QuestionBankPage() {
         }
       />
 
-      {/* Questions List */}
-      <div className="space-y-4">
-        <AnimatePresence>
-          {filteredQuestions.map((q, idx) => (
-            <motion.div
-              key={q.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ delay: idx * 0.03 }}
-              className="rounded-2xl border border-border bg-card p-5 hover:shadow-md transition-all space-y-3"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {(() => {
-                      const matchedCourse = q.course ?? courses.find((c) => c.id === q.courseId);
-                      return (
-                        <Badge variant="outline" className="font-sans text-xs bg-muted/40 font-medium">
-                          {matchedCourse ? `${matchedCourse.courseCode} - ${matchedCourse.courseName}` : "Course"}
-                        </Badge>
-                      );
-                    })()}
-                    <Badge variant="secondary" className={typeBadgeColors[q.type]}>
-                      {q.type}
-                    </Badge>
-                    <Badge variant="outline" className="text-xs font-semibold text-brand-primary border-brand-primary/20">
-                      {q.marks} {q.marks === 1 ? "Mark" : "Marks"}
-                    </Badge>
-                  </div>
-                  <p className="text-base font-bold text-foreground leading-snug">{q.text}</p>
-                </div>
+      {/* Main Data Section: 2 Primary Categories (MCQs & Questions) with Course Expansion */}
+      <div className="space-y-6">
+        {[
+          { key: "MCQ", title: "MCQs", icon: HelpCircle, items: questions.filter((q) => q.type === "MCQ") },
+          { key: "Questions", title: "Questions", icon: FileText, items: questions.filter((q) => q.type !== "MCQ") },
+        ].map((category) => {
+          const CategoryIcon = category.icon;
+          const courseMap = new Map<string, QuestionItem[]>();
+          category.items.forEach((q) => {
+            const list = courseMap.get(q.courseId) || [];
+            list.push(q);
+            courseMap.set(q.courseId, list);
+          });
 
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button variant="ghost" size="sm" onClick={() => openEditModal(q)} className="h-8 w-8 p-0 rounded-lg" disabled={deletingId !== null}>
-                    <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => handleDelete(q.id)} className="h-8 w-8 p-0 hover:text-rose-500 rounded-lg" disabled={deletingId === q.id}>
-                    {deletingId === q.id ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
+          return (
+            <div key={category.key} className="rounded-3xl border border-border bg-card overflow-hidden shadow-sm">
+              <div className="p-5 bg-muted/30 border-b border-border flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-2xl bg-brand-primary/10 flex items-center justify-center text-brand-primary">
+                    <CategoryIcon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-foreground">{category.title}</h2>
+                    <p className="text-xs text-muted-foreground">{category.items.length} Total items</p>
+                  </div>
                 </div>
+                <Badge variant="secondary" className="font-bold text-xs">
+                  {courseMap.size} Courses
+                </Badge>
               </div>
 
-              {/* MCQ Options Display */}
-              {q.type === "MCQ" && q.options && q.options.length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                  {q.options.map((opt, i) => (
-                    <div
-                      key={i}
-                      className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs border ${
-                        i === q.correctOption
-                          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-medium"
-                          : "bg-muted/30 border-border text-muted-foreground"
-                      }`}
-                    >
-                      <span className="font-bold">{String.fromCharCode(65 + i)}.</span>
-                      <span>{opt}</span>
-                      {i === q.correctOption && <CheckCircle className="h-3.5 w-3.5 ml-auto shrink-0" />}
-                    </div>
-                  ))}
-                </div>
-              )}
+              <div className="p-4 space-y-4">
+                {courseMap.size === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-6">
+                    No {category.title.toLowerCase()} created yet.
+                  </p>
+                ) : (
+                  Array.from(courseMap.entries()).map(([courseId, courseQuestions]) => {
+                    const courseObj = courses.find((c) => c.id === courseId);
+                    return (
+                      <details key={courseId} className="group rounded-2xl border border-border bg-background/50 overflow-hidden" open>
+                        <summary className="p-4 flex items-center justify-between cursor-pointer font-bold text-sm text-foreground hover:bg-accent/30 transition-colors select-none">
+                          <div className="flex items-center gap-2">
+                            <BookOpen className="h-4 w-4 text-brand-primary" />
+                            <span>
+                              {courseObj ? `${courseObj.courseCode} — ${courseObj.courseName}` : "Course Questions"}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <Badge variant="outline" className="text-[11px] font-semibold">
+                              {courseQuestions.length} Questions
+                            </Badge>
+                            <ChevronDown className="h-4 w-4 text-muted-foreground group-open:rotate-180 transition-transform" />
+                          </div>
+                        </summary>
 
-              {/* Short/Long Question Sample Answer */}
-              {q.type !== "MCQ" && q.sampleAnswer && (
-                <div className="p-3 rounded-xl bg-muted/30 border border-border text-xs text-muted-foreground">
-                  <span className="font-semibold text-foreground">Answer Key / Rubric: </span>
-                  {q.sampleAnswer}
-                </div>
-              )}
-            </motion.div>
-          ))}
-        </AnimatePresence>
+                        <div className="p-4 border-t border-border/60 space-y-3">
+                          {courseQuestions.map((q) => (
+                            <div key={q.id} className="rounded-xl border border-border bg-card p-4 space-y-3">
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <Badge className={`${typeBadgeColors[q.type]} text-[10px] font-bold`}>
+                                      {q.type}
+                                    </Badge>
+                                    <Badge variant="secondary" className="text-[10px]">
+                                      {q.marks} Marks
+                                    </Badge>
+                                  </div>
+                                  <p className="text-sm font-bold text-foreground mt-1">{q.text}</p>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditModal(q)}>
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:text-rose-600" onClick={() => handleDelete(q.id)} disabled={deletingId === q.id}>
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+
+                              {q.type === "MCQ" && q.options && q.options.length > 0 && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+                                  {q.options.map((opt, oIdx) => (
+                                    <div
+                                      key={oIdx}
+                                      className={`p-2 rounded-lg text-xs font-medium border ${
+                                        oIdx === q.correctOption
+                                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold"
+                                          : "border-border/60 bg-muted/20 text-muted-foreground"
+                                      }`}
+                                    >
+                                      <span className="opacity-70 mr-1.5">{String.fromCharCode(65 + oIdx)}.</span> {opt}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
-
-      {filteredQuestions.length === 0 && (
-        <div className="text-center py-16 text-muted-foreground bg-card border border-border rounded-2xl">
-          <BookOpen className="h-12 w-12 mx-auto mb-3 opacity-30" />
-          <p className="text-lg font-medium text-foreground">No questions found</p>
-          <p className="text-sm mt-1">Select a course and click &quot;Add Question&quot; to build your question bank.</p>
-        </div>
-      )}
 
       {/* Add/Edit Modal */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
@@ -575,10 +566,10 @@ export default function QuestionBankPage() {
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-muted/40 border border-border text-[11px] text-muted-foreground space-y-1">
-              <p className="font-bold text-foreground">💡 CSV Format Guide:</p>
+            <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 text-[11px] text-muted-foreground space-y-1">
+              <p className="font-bold text-purple-600 dark:text-purple-400">💡 CSV Bulk Import Guide (MCQ Only):</p>
               <p>• <strong>MCQ Row:</strong> <code>MCQ, Question Text, Marks, Option A, Option B, Option C, Option D, CorrectIndex (0-3)</code></p>
-              <p>• <strong>Short/Long Row:</strong> <code>Short, Question Text, Marks, Sample Answer Wording</code></p>
+              <p className="text-[10px] text-muted-foreground italic">Note: Bulk CSV import is dedicated strictly to online MCQ quizzes.</p>
             </div>
           </div>
 

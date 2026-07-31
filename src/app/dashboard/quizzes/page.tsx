@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
+import { useStoredState } from "@/hooks/useStoredState";
 import { FileText, Plus, Clock, Users, Eye, CheckCircle, Play, Square, Loader2, Trash2 } from "lucide-react";
 import { api } from "@/lib/axios";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
@@ -73,6 +74,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function ManageQuizzesPage() {
+  const [activeSubTab, setActiveSubTab] = useStoredState<"quizzes" | "assignments">("faculty_quizzes_subtab", "quizzes");
   const [quizzes, setQuizzes] = useState<ApiQuiz[]>([]);
   const [courses, setCourses] = useState<ApiCourse[]>([]);
   const [questions, setQuestions] = useState<ApiQuestion[]>([]);
@@ -88,6 +90,13 @@ export default function ManageQuizzesPage() {
   const [enrolledStudents, setEnrolledStudents] = useState<{ id: string; rollNo: string; name: string; submitted: boolean }[]>([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
   const [togglingStudentSubmission, setTogglingStudentSubmission] = useState<string | null>(null);
+
+  const filteredByTabQuizzes = useMemo(() => {
+    if (activeSubTab === "assignments") {
+      return quizzes.filter((q) => q._count.questions === 0 || q.title.toLowerCase().includes("assignment"));
+    }
+    return quizzes.filter((q) => q._count.questions > 0 || !q.title.toLowerCase().includes("assignment"));
+  }, [quizzes, activeSubTab]);
   const quizIdCounter = useRef(0);
 
   // Form state
@@ -231,7 +240,7 @@ export default function ManageQuizzesPage() {
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-6">
       <PageHeader
-        title="Manage Quizzes"
+        title="Quizzes & Assignments"
         subtitle="Create, publish, and review quiz results"
         breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Quizzes" }]}
         action={
@@ -241,9 +250,42 @@ export default function ManageQuizzesPage() {
         }
       />
 
-      {/* Quiz List */}
+      {/* Sub-Tabs: Quizzes vs Assignments */}
+      <div className="flex items-center gap-2 border-b border-border pb-3">
+        <button
+          onClick={() => setActiveSubTab("quizzes")}
+          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+            activeSubTab === "quizzes"
+              ? "bg-brand-primary text-white shadow-sm"
+              : "bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+          }`}
+        >
+          Quizzes (Online MCQs)
+        </button>
+        <button
+          onClick={() => setActiveSubTab("assignments")}
+          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+            activeSubTab === "assignments"
+              ? "bg-brand-primary text-white shadow-sm"
+              : "bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+          }`}
+        >
+          Assignments (Hardform Submissions)
+        </button>
+      </div>
+
+      {/* Quiz / Assignment List */}
       <div className="space-y-4">
-        {quizzes.map((quiz) => (
+        {filteredByTabQuizzes.length === 0 ? (
+          <div className="text-center py-16 text-muted-foreground bg-card border border-border rounded-2xl">
+            <FileText className="h-10 w-10 mx-auto mb-2 opacity-30" />
+            <p className="text-sm font-bold text-foreground">No {activeSubTab === "quizzes" ? "quizzes" : "assignments"} found</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Click &quot;Create New&quot; above to add a new {activeSubTab === "quizzes" ? "quiz" : "assignment"}.
+            </p>
+          </div>
+        ) : (
+          filteredByTabQuizzes.map((quiz) => (
           <motion.div
             key={quiz.id}
             initial={{ opacity: 0, y: 10 }}
@@ -327,7 +369,9 @@ export default function ManageQuizzesPage() {
                       setLoadingSubmissions(false);
                     }
                   }}
-                  className="gap-1 text-amber-600 border-amber-500/30 hover:bg-amber-500/10"
+                  disabled={quiz.status === "Draft"}
+                  title={quiz.status === "Draft" ? "Submissions are disabled until published" : "View student submissions"}
+                  className="gap-1 text-amber-600 border-amber-500/30 hover:bg-amber-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <CheckCircle className="h-3.5 w-3.5" /> Submissions
                 </Button>
@@ -398,7 +442,8 @@ export default function ManageQuizzesPage() {
               )}
             </AnimatePresence>
           </motion.div>
-        ))}
+        ))
+      )}
       </div>
 
       {quizzes.length === 0 && (
@@ -596,7 +641,8 @@ export default function ManageQuizzesPage() {
                         setTogglingStudentSubmission(st.id);
                         try {
                           if (st.submitted) {
-                            // Reset submission
+                            // Reset submission in DB
+                            await api.delete(`/api/quizzes/${submissionModalQuiz.id}/submit?studentId=${st.id}`);
                             setEnrolledStudents((prev) =>
                               prev.map((s) => (s.id === st.id ? { ...s, submitted: false } : s))
                             );

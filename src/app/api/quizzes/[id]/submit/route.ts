@@ -11,79 +11,96 @@ export async function POST(
 
   try {
     const { id: quizId } = await params;
-    const body = (await request.json()) as { answers: number[] };
+    const body = (await request.json()) as { answers?: number[]; studentId?: string; score?: number };
 
-    if (!body || !Array.isArray(body.answers)) {
-      return NextResponse.json({ error: "Answers array is required" }, { status: 400 });
-    }
-
-    // Load user role and student profile ID
+    // Load user role
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: { id: true, role: true, student: { select: { id: true } } },
     });
 
-    if (!user || user.role !== "STUDENT" || !user.student?.id) {
-      return NextResponse.json({ error: "Forbidden: Student profile not found" }, { status: 403 });
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Fetch the quiz with all its questions (including correct options)
     const quiz = await prisma.quiz.findUnique({
       where: { id: quizId },
-      include: {
-        questions: {
-          orderBy: { id: "asc" },
-        },
-      },
+      include: { questions: { orderBy: { id: "asc" } } },
     });
 
     if (!quiz) {
       return NextResponse.json({ error: "Quiz not found" }, { status: 404 });
     }
 
-    // Verify enrollment
-    const enrollment = await prisma.enrollment.findFirst({
-      where: {
-        studentId: user.student.id,
-        courseId: quiz.courseId,
-      },
-    });
+    let targetStudentId = user.student?.id;
 
-    if (!enrollment) {
-      return NextResponse.json({ error: "Forbidden: Not enrolled in this course" }, { status: 403 });
+    // Faculty marking hardform submission for a student
+    if (user.role === "FACULTY" || user.role === "ADMIN") {
+      if (!body.studentId) {
+        return NextResponse.json({ error: "studentId is required for faculty submit" }, { status: 400 });
+      }
+      targetStudentId = body.studentId;
     }
 
-    // Grade the quiz
-    const questions = quiz.questions;
-    let correct = 0;
-    questions.forEach((q, i) => {
-      const studentAnswer = body.answers[i];
-      if (studentAnswer !== undefined && studentAnswer === q.correctOption) {
-        correct++;
-      }
-    });
+    if (!targetStudentId) {
+      return NextResponse.json({ error: "Forbidden: Student profile not found" }, { status: 403 });
+    }
 
-    const marksPerQuestion = questions.length > 0 ? quiz.totalMarks / questions.length : 0;
-    const score = Math.round(correct * marksPerQuestion);
+    let score = body.score ?? 0;
+    if (Array.isArray(body.answers) && quiz.questions.length > 0) {
+      let correct = 0;
+      quiz.questions.forEach((q, i) => {
+        if (body.answers![i] !== undefined && body.answers![i] === q.correctOption) {
+          correct++;
+        }
+      });
+      const marksPerQuestion = quiz.totalMarks / quiz.questions.length;
+      score = Math.round(correct * marksPerQuestion);
+    }
 
-    // Save the attempt
     const attempt = await prisma.quizAttempt.create({
       data: {
         quizId,
-        studentId: user.student.id,
+        studentId: targetStudentId,
         score,
         totalMarks: quiz.totalMarks,
-        answers: body.answers,
+        answers: body.answers ?? [],
       },
     });
 
-    return NextResponse.json({
-      attemptId: attempt.id,
-      score,
-      totalMarks: quiz.totalMarks,
-    }, { status: 201 });
+    return NextResponse.json(attempt, { status: 201 });
   } catch (error) {
     console.error("POST /api/quizzes/[id]/submit error:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  try {
+    const { id: quizId } = await params;
+    const { searchParams } = request.nextUrl;
+    const studentId = searchParams.get("studentId");
+
+    if (!studentId) {
+      return NextResponse.json({ error: "studentId parameter is required" }, { status: 400 });
+    }
+
+    await prisma.quizAttempt.deleteMany({
+      where: {
+        quizId,
+        studentId,
+      },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("DELETE /api/quizzes/[id]/submit error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

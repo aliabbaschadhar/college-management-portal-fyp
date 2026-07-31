@@ -503,36 +503,46 @@ export default function TimetablePage() {
 
         if (!entry) return "<td>-</td>";
 
-        return `<td><strong>${entry.course.courseCode}</strong><br/>${entry.course.courseName}<br/>${entry.room}<br/>${entry.course.faculty?.user.name ?? "Unassigned"}</td>`;
+        const code = entry.course?.courseCode ?? "—";
+        const name = entry.course?.courseName ?? "";
+        const room = entry.room ? `Room: ${entry.room}` : "";
+        const teacher = entry.course?.faculty?.user?.name ? `Teacher: ${entry.course.faculty.user.name}` : "Teacher: Unassigned";
+
+        return `<td><strong>${code}</strong><br/>${name}<br/><span style="color:#6b7280;">${room}</span><br/><span style="color:#4b5563;">${teacher}</span></td>`;
       }).join("");
 
-      return `<tr><th>${to12HourTime(slot.start)} - ${to12HourTime(slot.end)}</th>${daySlots}</tr>`;
+      return `<tr><th style="white-space:nowrap;">${to12HourTime(slot.start)} - ${to12HourTime(slot.end)}</th>${daySlots}</tr>`;
     }).join("");
 
     const html = `<!doctype html>
 <html>
   <head>
-    <title>Timetable ${filterDept} Sem ${filterSemester} (${filterShift})</title>
+    <title>Timetable - ${filterDept} Semester ${filterSemester} (${filterShift})</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
-      h1 { margin: 0; font-size: 24px; }
-      p { margin: 6px 0; color: #4b5563; }
-      table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-      th, td { border: 1px solid #d1d5db; padding: 8px; font-size: 12px; vertical-align: top; }
-      th { background: #f3f4f6; }
-      td { min-width: 130px; }
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 24px; color: #111827; }
+      .header { border-bottom: 2px solid #3b82f6; padding-bottom: 12px; margin-bottom: 16px; }
+      h1 { margin: 0; font-size: 22px; color: #1e3a8a; }
+      .meta { display: flex; gap: 16px; margin-top: 6px; font-size: 13px; color: #4b5563; font-weight: 600; }
+      table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+      th, td { border: 1px solid #cbd5e1; padding: 8px 10px; font-size: 11px; vertical-align: top; text-align: left; }
+      th { background: #f1f5f9; color: #0f172a; font-weight: 700; }
+      tr:nth-child(even) td { background: #f8fafc; }
     </style>
   </head>
   <body>
-    <h1>Department Timetable</h1>
-    <p>Department: ${filterDept}</p>
-    <p>Semester: ${filterSemester}</p>
-    <p>Shift: ${filterShift}</p>
-    <p>Generated: ${generatedAt}</p>
+    <div class="header">
+      <h1>College Management Portal — Timetable Schedule</h1>
+      <div class="meta">
+        <span>Department: ${filterDept}</span>
+        <span>Semester: ${filterSemester}</span>
+        <span>Shift: ${filterShift}</span>
+        <span>Generated: ${generatedAt}</span>
+      </div>
+    </div>
     <table>
       <thead>
         <tr>
-          <th>Time</th>
+          <th style="width: 110px;">Time Slot</th>
           ${DAYS.map((day) => `<th>${day}</th>`).join("")}
         </tr>
       </thead>
@@ -546,8 +556,11 @@ export default function TimetablePage() {
     printWindow.document.open();
     printWindow.document.write(html);
     printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 300);
   };
 
   const getClassForSlot = (day: string, slot: { start: string; end: string }) => {
@@ -598,19 +611,28 @@ export default function TimetablePage() {
         action={
           <div className="flex flex-wrap items-center gap-2">
             {selectedTimetableIds.length > 0 && (
-              <Button
-                variant="destructive"
-                className="h-9 gap-2 font-bold animate-pulse"
-                onClick={handleBulkDeleteSlots}
-                disabled={deletingTimetableId === "bulk"}
-              >
-                {deletingTimetableId === "bulk" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4" />
-                )}
-                Delete Selected ({selectedTimetableIds.length})
-              </Button>
+              <>
+                <Button
+                  variant="destructive"
+                  className="h-9 gap-2 font-bold"
+                  onClick={handleBulkDeleteSlots}
+                  disabled={deletingTimetableId === "bulk"}
+                >
+                  {deletingTimetableId === "bulk" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                  Delete Selected ({selectedTimetableIds.length})
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-9 font-semibold text-muted-foreground hover:text-foreground"
+                  onClick={() => setSelectedTimetableIds([])}
+                >
+                  Cancel Selection
+                </Button>
+              </>
             )}
             <Button
               variant="outline"

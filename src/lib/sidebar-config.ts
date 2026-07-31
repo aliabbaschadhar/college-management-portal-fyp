@@ -51,7 +51,7 @@ const facultyNav: NavItem[] = [
   { title: "Mark Attendance", href: "/dashboard/mark-attendance", icon: ClipboardCheck },
   { title: "Manage Grades", href: "/dashboard/grades", icon: BarChart3 },
   { title: "Question Bank", href: "/dashboard/question-bank", icon: FileQuestion },
-  { title: "Manage Quizzes", href: "/dashboard/quizzes", icon: PenTool },
+  { title: "Quizzes & Assignments", href: "/dashboard/quizzes", icon: PenTool },
   { title: "Feedback", href: "/dashboard/feedback", icon: MessageCircle },
   { title: "Profile", href: "/dashboard/settings", icon: User },
 ];

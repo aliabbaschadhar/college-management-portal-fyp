@@ -5,7 +5,7 @@ import { useUser } from "@clerk/nextjs";
 import { api } from "@/lib/axios";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, Calendar, CreditCard, AlertCircle, CheckCircle2, Trash2, Loader2 } from "lucide-react";
+import { Bell, Calendar, CreditCard, AlertCircle, CheckCircle2, Trash2, Loader2, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ListSkeleton } from "@/components/ui";
@@ -42,25 +42,30 @@ export default function NotificationsPage() {
   const [loadingReadId, setLoadingReadId] = useState<string | null>(null);
   const [markingAllRead, setMarkingAllRead] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Fetch announcements and fees
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const annRes = await api.get<Announcement[]>("/api/announcements");
-        setAnnouncements(Array.isArray(annRes.data) ? annRes.data : []);
+  const fetchData = async (isRefresh = false) => {
+    try {
+      if (!isRefresh) setLoading(true);
+      else setRefreshing(true);
 
-        if (isStudent) {
-          const feesRes = await api.get<Fee[]>("/api/fees?status=Unpaid");
-          setUnpaidFees(Array.isArray(feesRes.data) ? feesRes.data : []);
-        }
-      } catch (err) {
-        console.error("Error fetching notifications:", err);
-      } finally {
-        setLoading(false);
+      const annRes = await api.get<Announcement[]>("/api/announcements");
+      setAnnouncements(Array.isArray(annRes.data) ? annRes.data : []);
+
+      if (isStudent) {
+        const feesRes = await api.get<Fee[]>("/api/fees?status=Unpaid");
+        setUnpaidFees(Array.isArray(feesRes.data) ? feesRes.data : []);
       }
-    };
+    } catch (err) {
+      console.error("Error fetching notifications:", err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
   }, [isStudent]);
 
@@ -163,22 +168,34 @@ export default function NotificationsPage() {
             { label: "Notifications" },
           ]}
         />
-        {visibleAnnouncements.length > 0 && (
+        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
           <Button
             variant="outline"
             size="sm"
-            onClick={handleMarkAllRead}
-            disabled={markingAllRead}
-            className="border-2 border-border shadow-[2px_2px_0px_0px_var(--border)] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_var(--border)] active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_var(--border)] transition-all shrink-0 cursor-pointer self-start sm:self-auto gap-2"
+            onClick={() => fetchData(true)}
+            disabled={refreshing}
+            className="border-2 border-border shadow-[2px_2px_0px_0px_var(--border)] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_var(--border)] active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_var(--border)] transition-all cursor-pointer gap-2"
           >
-            {markingAllRead ? (
-              <Loader2 className="h-4 w-4 animate-spin text-brand-primary" />
-            ) : (
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-            )}
-            Mark All as Read
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
           </Button>
-        )}
+          {visibleAnnouncements.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleMarkAllRead}
+              disabled={markingAllRead}
+              className="border-2 border-border shadow-[2px_2px_0px_0px_var(--border)] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_var(--border)] active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_var(--border)] transition-all cursor-pointer gap-2"
+            >
+              {markingAllRead ? (
+                <Loader2 className="h-4 w-4 animate-spin text-brand-primary" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              )}
+              Mark All as Read
+            </Button>
+          )}
+        </div>
       </div>
 
       {!hasNotifications ? (

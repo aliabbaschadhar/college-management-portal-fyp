@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from "recharts";
 
+import { useUser } from "@clerk/nextjs";
+
 interface FeedbackItem {
   id: string;
   type: "Faculty" | "Course";
@@ -35,6 +37,10 @@ const STAR_COLORS = [
 ];
 
 export default function FacultyFeedbackPage() {
+  const { user } = useUser();
+  const role = (user?.publicMetadata?.role as string || "").toLowerCase();
+  const isAdmin = role === "admin";
+
   const [feedback, setFeedback] = useState<FeedbackItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -108,8 +114,8 @@ export default function FacultyFeedbackPage() {
       className="space-y-6"
     >
       <PageHeader
-        title="My Feedback"
-        subtitle="Student feedback and ratings for your courses"
+        title={isAdmin ? "Overall Feedback" : "My Feedback"}
+        subtitle={isAdmin ? "Student feedback and ratings across all campus courses and faculty" : "Student feedback and ratings for your courses"}
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Feedback" },

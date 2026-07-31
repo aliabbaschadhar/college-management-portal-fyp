@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { ClipboardCheck, CheckCircle, Users, RefreshCw } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { ClipboardCheck, CheckCircle, Users, RefreshCw, AlertTriangle, Eye, Calendar, Loader2 } from "lucide-react";
 import { api } from "@/lib/axios";
+import { useStoredState } from "@/hooks/useStoredState";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { useUser } from "@clerk/nextjs";
 import { motion } from "framer-motion";
@@ -15,6 +16,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { TableSkeleton } from "@/components/ui";
 import { Label } from "@/components/ui/label";
@@ -42,25 +50,44 @@ interface StudentAttendance {
   status: AttendanceStatus;
 }
 
+interface StudentHistoryLog {
+  id: string;
+  date: string;
+  status: AttendanceStatus;
+  course: { courseCode: string; courseName?: string };
+}
+
 const statusStyles: Record<AttendanceStatus, { bg: string; active: string }> = {
   Present: { bg: "bg-muted hover:bg-emerald-500/10", active: "bg-emerald-500 text-white" },
   Absent: { bg: "bg-muted hover:bg-rose-500/10", active: "bg-rose-500 text-white" },
   Late: { bg: "bg-muted hover:bg-amber-500/10", active: "bg-amber-500 text-white" },
 };
 
+const statusColors: Record<AttendanceStatus, string> = {
+  Present: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+  Absent: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
+  Late: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+};
+
 export default function MarkAttendancePage() {
   useUser();
   const [courses, setCourses] = useState<CourseOption[]>([]);
-  const [selectedDept, setSelectedDept] = useState("");
-  const [selectedSemester, setSelectedSemester] = useState("");
-  const [selectedCourse, setSelectedCourse] = useState("");
-  const [selectedShift, setSelectedShift] = useState("morning");
+  const [selectedDept, setSelectedDept] = useStoredState("mark_att_dept", "");
+  const [selectedSemester, setSelectedSemester] = useStoredState("mark_att_sem", "");
+  const [selectedCourse, setSelectedCourse] = useStoredState("mark_att_course", "");
+  const [selectedShift, setSelectedShift] = useStoredState("mark_att_shift", "morning");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [attendanceData, setAttendanceData] = useState<StudentAttendance[]>([]);
+  const [timetableDays, setTimetableDays] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Student 90-day history modal
+  const [historyStudent, setHistoryStudent] = useState<StudentOption | null>(null);
+  const [historyLogs, setHistoryLogs] = useState<StudentHistoryLog[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   // Fetch initial assigned courses list and set defaults
   const fetchCourses = useCallback(async () => {
@@ -114,10 +141,11 @@ export default function MarkAttendancePage() {
     (c) => c.department === selectedDept && c.semester === Number(selectedSemester)
   );
 
-  // Load students & attendance when selectedCourse or selectedDate changes
+  // Load students, attendance, & timetable schedule when selectedCourse or selectedDate changes
   useEffect(() => {
     if (!selectedCourse) {
       setAttendanceData([]);
+      setTimetableDays([]);
       return;
     }
     setLoadingStudents(true);
@@ -127,12 +155,16 @@ export default function MarkAttendancePage() {
       api.get<{ enrollments?: { student: StudentOption }[] }>(`/api/courses/${selectedCourse}`),
       api.get<{ studentId: string; status: AttendanceStatus }[]>(
         `/api/attendance?courseId=${selectedCourse}&date=${selectedDate}`
-      ).catch(() => ({ data: [] }))
+      ).catch(() => ({ data: [] })),
+      api.get<{ day: string }[]>(`/api/timetable?courseId=${selectedCourse}`).catch(() => ({ data: [] })),
     ])
-      .then(([courseRes, attendanceRes]) => {
+      .then(([courseRes, attendanceRes, timetableRes]) => {
         const enrollments = courseRes.data.enrollments || [];
         const students = enrollments.map((e) => e.student).filter(Boolean);
         const prevRecords = attendanceRes.data || [];
+        const ttEntries = Array.isArray(timetableRes.data) ? timetableRes.data : [];
+
+        setTimetableDays(Array.from(new Set(ttEntries.map((t) => t.day))));
 
         // Map studentId to existing status
         const statusMap = new Map(prevRecords.map((r) => [r.studentId, r.status]));
@@ -147,11 +179,44 @@ export default function MarkAttendancePage() {
       .catch((err) => {
         console.error("Failed to load attendance/students:", err);
         setAttendanceData([]);
+        setTimetableDays([]);
       })
       .finally(() => {
         setLoadingStudents(false);
       });
   }, [selectedCourse, selectedDate]);
+
+  // Determine day of week for selected date and verify if class is scheduled
+  const selectedDayName = useMemo(() => {
+    if (!selectedDate) return "";
+    const dateObj = new Date(`${selectedDate}T00:00:00`);
+    return dateObj.toLocaleDateString("en-US", { weekday: "long" });
+  }, [selectedDate]);
+
+  const hasScheduledClass = useMemo(() => {
+    if (timetableDays.length === 0) return true; // If no timetable defined yet, allow marking
+    return timetableDays.some((d) => d.toLowerCase() === selectedDayName.toLowerCase());
+  }, [timetableDays, selectedDayName]);
+
+  const handleStudentClick = async (student: StudentOption) => {
+    setHistoryStudent(student);
+    setLoadingHistory(true);
+    try {
+      const res = await api.get<StudentHistoryLog[]>(`/api/attendance?studentId=${student.id}&courseId=${selectedCourse}`);
+      const ninetyDaysAgo = new Date();
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+      const logs = (Array.isArray(res.data) ? res.data : [])
+        .filter((l) => new Date(l.date) >= ninetyDaysAgo)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      setHistoryLogs(logs);
+    } catch {
+      setHistoryLogs([]);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   const toggleStatus = (studentId: string, status: AttendanceStatus) => {
     setAttendanceData((prev) =>
@@ -318,6 +383,21 @@ export default function MarkAttendancePage() {
         </div>
       </div>
 
+      {/* Timetable Alignment Warning */}
+      {!hasScheduledClass && selectedCourse && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 flex items-center gap-3">
+          <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+          <div>
+            <p className="text-sm font-bold text-amber-700 dark:text-amber-400">
+              No Class Scheduled Today ({selectedDayName})
+            </p>
+            <p className="text-xs text-amber-600 dark:text-amber-400/80 mt-0.5">
+              According to the created timetable, this course does not have a class scheduled on {selectedDayName}s.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Attendance List */}
       {loadingStudents ? (
         <TableSkeleton rows={6} />
@@ -339,10 +419,10 @@ export default function MarkAttendancePage() {
                   </Badge>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => markAll("Present")} className="text-emerald-600 border-2">
+                  <Button variant="outline" size="sm" onClick={() => markAll("Present")} disabled={!hasScheduledClass} className="text-emerald-600 border-2">
                     Mark All Present
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => markAll("Absent")} className="text-rose-600 border-2">
+                  <Button variant="outline" size="sm" onClick={() => markAll("Absent")} disabled={!hasScheduledClass} className="text-rose-600 border-2">
                     Mark All Absent
                   </Button>
                 </div>
@@ -366,7 +446,15 @@ export default function MarkAttendancePage() {
                           <td className="py-3 px-4 text-muted-foreground font-medium">{i + 1}</td>
                           <td className="py-3 px-4 font-semibold text-foreground">
                             <div className="flex items-center gap-2">
-                              <span>{item.student.user.name ?? "—"}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleStudentClick(item.student)}
+                                className="font-bold text-foreground hover:text-brand-primary hover:underline cursor-pointer text-left flex items-center gap-1.5 group"
+                                title="Click to view 90-day attendance history"
+                              >
+                                <span>{item.student.user.name ?? "—"}</span>
+                                <Eye className="h-3.5 w-3.5 text-muted-foreground group-hover:text-brand-primary opacity-70 group-hover:opacity-100 transition-all" />
+                              </button>
                               {item.student.blocked && (
                                 <Badge variant="destructive" className="text-[10px] py-0 px-1.5 uppercase font-bold tracking-wider animate-pulse">
                                   Struck Off
@@ -392,12 +480,13 @@ export default function MarkAttendancePage() {
                               {(["Present", "Absent", "Late"] as AttendanceStatus[]).map((status) => (
                                 <button
                                   key={status}
+                                  disabled={!hasScheduledClass}
                                   onClick={() => toggleStatus(item.student.id, status)}
                                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                                     item.status === status
                                       ? statusStyles[status].active
                                       : statusStyles[status].bg
-                                  }`}
+                                  } ${!hasScheduledClass ? "opacity-40 cursor-not-allowed" : ""}`}
                                 >
                                   {status}
                                 </button>
@@ -419,7 +508,7 @@ export default function MarkAttendancePage() {
                     <span className="text-sm font-semibold">Attendance saved successfully!</span>
                   </div>
                 ) : (
-                  <Button onClick={handleSubmit} disabled={submitting} className="gap-2 border-2">
+                  <Button onClick={handleSubmit} disabled={submitting || !hasScheduledClass} className="gap-2 border-2">
                     <ClipboardCheck className="h-4 w-4" />
                     {submitting ? "Saving..." : "Save Attendance"}
                   </Button>
@@ -436,6 +525,61 @@ export default function MarkAttendancePage() {
           )}
         </>
       )}
+
+      {/* Student 90-Day History Modal */}
+      <Dialog open={!!historyStudent} onOpenChange={(open) => { if (!open) setHistoryStudent(null); }}>
+        <DialogContent className="sm:max-w-[550px] border-none shadow-2xl overflow-hidden rounded-3xl">
+          <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-r from-brand-primary via-brand-secondary to-brand-primary" />
+          <DialogHeader className="pt-6">
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Calendar className="h-6 w-6 text-brand-primary" />
+              90-Day Attendance History
+            </DialogTitle>
+            <DialogDescription className="mt-1">
+              Reviewing past 90-day attendance record for <strong>{historyStudent?.user?.name}</strong> ({historyStudent?.rollNo}).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 max-h-[55vh] overflow-y-auto pr-1">
+            {loadingHistory ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-brand-primary" />
+              </div>
+            ) : historyLogs.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                No attendance records found for this student in the last 90 days.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {historyLogs.map((log) => (
+                  <div
+                    key={log.id}
+                    className="p-3.5 bg-accent/30 border border-border rounded-2xl flex items-center justify-between gap-4"
+                  >
+                    <div>
+                      <p className="font-bold text-sm text-foreground">
+                        {log.course?.courseCode} {log.course?.courseName ? `— ${log.course.courseName}` : ""}
+                      </p>
+                      <p className="text-xs text-muted-foreground font-mono flex items-center gap-1.5 mt-0.5">
+                        <Calendar className="h-3 w-3" />
+                        {new Date(log.date).toLocaleDateString(undefined, {
+                          weekday: "short",
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </p>
+                    </div>
+                    <Badge className={`${statusColors[log.status]} font-bold`}>
+                      {log.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 }

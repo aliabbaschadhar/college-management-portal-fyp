@@ -15,9 +15,9 @@ export const metadata: Metadata = {
   description:
     'A centralized web-based platform to streamline administrative and academic tasks for students, faculty, and administrators.',
   icons: {
-    icon: '/logo.svg',
-    shortcut: '/logo.svg',
-    apple: '/logo.svg',
+    icon: '/collegelogo.png',
+    shortcut: '/collegelogo.png',
+    apple: '/collegelogo.png',
   },
 }
 

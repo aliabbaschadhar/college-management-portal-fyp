@@ -311,29 +311,39 @@ export default function FacultyAttendancePage() {
                 {!todayRecord?.checkInTime ? (
                   <Button
                     onClick={() => handleFacultySelfCheck("CHECK_IN")}
-                    disabled={checkingIn}
-                    className="h-12 px-8 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg shadow-emerald-600/20 gap-2"
+                    disabled={checkingIn || refreshing}
+                    className="h-12 px-8 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg shadow-emerald-600/20 gap-2 disabled:opacity-50 disabled:pointer-events-none"
                   >
                     {checkingIn ? (
-                      <div className="h-4 w-4 animate-spin border-2 border-white/40 border-t-white rounded-full" />
+                      <>
+                        <div className="h-4 w-4 animate-spin border-2 border-white/40 border-t-white rounded-full shrink-0" />
+                        <span>Checking in...</span>
+                      </>
                     ) : (
-                      <UserCheck className="h-5 w-5" />
+                      <>
+                        <UserCheck className="h-5 w-5" />
+                        <span>Check In Now</span>
+                      </>
                     )}
-                    Check In Now
                   </Button>
                 ) : !todayRecord?.checkOutTime ? (
                   <Button
                     onClick={() => handleFacultySelfCheck("CHECK_OUT")}
-                    disabled={checkingIn}
+                    disabled={checkingIn || refreshing}
                     variant="outline"
-                    className="h-12 px-8 rounded-2xl border-2 border-brand-primary text-brand-primary hover:bg-brand-primary/10 font-bold gap-2"
+                    className="h-12 px-8 rounded-2xl border-2 border-brand-primary text-brand-primary hover:bg-brand-primary/10 font-bold gap-2 disabled:opacity-50 disabled:pointer-events-none"
                   >
                     {checkingIn ? (
-                      <div className="h-4 w-4 animate-spin border-2 border-brand-primary/40 border-t-brand-primary rounded-full" />
+                      <>
+                        <div className="h-4 w-4 animate-spin border-2 border-brand-primary/40 border-t-brand-primary rounded-full shrink-0" />
+                        <span>Checking out...</span>
+                      </>
                     ) : (
-                      <Clock className="h-5 w-5" />
+                      <>
+                        <Clock className="h-5 w-5" />
+                        <span>Check Out</span>
+                      </>
                     )}
-                    Check Out
                   </Button>
                 ) : (
                   <Badge variant="outline" className="px-4 py-2 text-xs font-semibold rounded-xl bg-muted text-muted-foreground">

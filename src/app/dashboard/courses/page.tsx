@@ -174,6 +174,7 @@ export default function ManageCoursesPage() {
   const [selectedFaculty, setSelectedFaculty] = useState<string>("");
   const [selectedAssignShift, setSelectedAssignShift] = useState<string>("Morning");
   const [assigning, setAssigning] = useState(false);
+  const [unassigningCourseId, setUnassigningCourseId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Detail Dialog states
@@ -316,6 +317,7 @@ export default function ManageCoursesPage() {
     if (!targetId) return;
     try {
       setAssigning(true);
+      setUnassigningCourseId(targetId);
       const { data: updated } = await api.patch<CourseWithDetails>(
         `/api/courses/${targetId}`,
         { assignedFaculty: null },
@@ -330,6 +332,7 @@ export default function ManageCoursesPage() {
       console.error("Failed to unassign faculty:", err);
     } finally {
       setAssigning(false);
+      setUnassigningCourseId(null);
     }
   };
 
@@ -412,10 +415,15 @@ export default function ManageCoursesPage() {
           {row.assignedFaculty && (
             <button
               onClick={() => handleUnassign(row.id)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-rose-500/10 transition-colors"
+              disabled={unassigningCourseId === row.id}
+              className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-rose-500/10 transition-colors disabled:opacity-50"
               title="Unassign Faculty"
             >
-              <UserMinus className="h-4 w-4 text-rose-500" />
+              {unassigningCourseId === row.id ? (
+                <Loader2 className="h-4 w-4 animate-spin text-rose-500" />
+              ) : (
+                <UserMinus className="h-4 w-4 text-rose-500" />
+              )}
             </button>
           )}
           <button

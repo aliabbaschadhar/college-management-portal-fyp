@@ -32,8 +32,24 @@ interface QuizWithDetails {
 
 type QuizView = "list" | "attempt" | "result";
 
+interface MyQuizAttempt {
+  id: string;
+  score: number;
+  totalMarks: number;
+  submittedAt: string;
+  quiz: {
+    title: string;
+    duration: number;
+    totalMarks: number;
+    course: { courseCode: string; courseName: string };
+    _count: { questions: number };
+  };
+}
+
 export default function TakeQuizPage() {
   const [quizzes, setQuizzes] = useState<QuizWithDetails[]>([]);
+  const [myAttempts, setMyAttempts] = useState<MyQuizAttempt[]>([]);
+  const [activeTab, setActiveTab] = useState<"available" | "history">("available");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [view, setView] = useState<QuizView>("list");
@@ -45,11 +61,27 @@ export default function TakeQuizPage() {
   const [score, setScore] = useState(0);
   const [isBlocked, setIsBlocked] = useState(false);
   const [blockedCourseIds, setBlockedCourseIds] = useState<string[]>([]);
+  const [completedAttempts, setCompletedAttempts] = useState<Record<string, { score: number; totalMarks: number }>>({});
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("completed_quiz_attempts");
+      if (saved) {
+        setCompletedAttempts(JSON.parse(saved));
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const fetchQuizzesData = useCallback(async () => {
     try {
-      const res = await api.get<QuizWithDetails[]>("/api/quizzes?status=Published");
-      setQuizzes(res.data);
+      const [qRes, attRes] = await Promise.all([
+        api.get<QuizWithDetails[]>("/api/quizzes?status=Published"),
+        api.get<MyQuizAttempt[]>("/api/quizzes/my-attempts").catch(() => ({ data: [] })),
+      ]);
+      setQuizzes(qRes.data);
+      setMyAttempts(Array.isArray(attRes.data) ? attRes.data : []);
     } catch {
       /* ignore */
     } finally {
@@ -135,7 +167,17 @@ export default function TakeQuizPage() {
       const res = await api.post<{ score: number }>(`/api/quizzes/${activeQuiz.id}/submit`, {
         answers: answers.map((a) => (a === null ? -1 : a)),
       });
-      setScore(res.data.score);
+      const achievedScore = res.data.score;
+      setScore(achievedScore);
+      setCompletedAttempts((prev) => {
+        const next = { ...prev, [activeQuiz.id]: { score: achievedScore, totalMarks: activeQuiz.totalMarks } };
+        try {
+          localStorage.setItem("completed_quiz_attempts", JSON.stringify(next));
+        } catch {
+          /* ignore */
+        }
+        return next;
+      });
       setView("result");
     } catch (err) {
       console.error("Failed to submit quiz:", err);
@@ -182,6 +224,30 @@ export default function TakeQuizPage() {
           }
         />
 
+        {/* Navigation Sub-Tabs */}
+        <div className="flex items-center gap-2 border-b border-border pb-3">
+          <button
+            onClick={() => setActiveTab("available")}
+            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+              activeTab === "available"
+                ? "bg-brand-primary text-white shadow-sm"
+                : "bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            Available Quizzes & Assignments ({quizzes.filter((q) => q.status === "Published").length})
+          </button>
+          <button
+            onClick={() => setActiveTab("history")}
+            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+              activeTab === "history"
+                ? "bg-brand-primary text-white shadow-sm"
+                : "bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            Attempted History & Scores ({myAttempts.length})
+          </button>
+        </div>
+
         {isBlocked && (
           <div className="rounded-xl border border-rose-500/50 bg-rose-500/10 p-4 text-xs font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-2">
             <AlertCircle className="h-4 w-4 shrink-0" />
@@ -189,7 +255,54 @@ export default function TakeQuizPage() {
           </div>
         )}
 
-        <div className="space-y-4">
+        {activeTab === "history" ? (
+          <div className="space-y-4">
+            {myAttempts.length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground bg-card border border-border rounded-2xl">
+                <Trophy className="h-10 w-10 mx-auto mb-2 opacity-30 text-amber-500" />
+                <p className="text-sm font-bold text-foreground">No attempt history found</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Quizzes and hardform assignments you attempt will record your scores here.
+                </p>
+              </div>
+            ) : (
+              myAttempts.map((att) => {
+                const percentage = att.totalMarks > 0 ? Math.round((att.score / att.totalMarks) * 100) : 0;
+                return (
+                  <motion.div
+                    key={att.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-2xl border border-border bg-card p-5 flex items-center justify-between gap-4 hover:shadow-md transition-shadow"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline" className="text-[11px] font-bold border-brand-primary/30 text-brand-primary">
+                          {att.quiz.course?.courseCode}
+                        </Badge>
+                        <h4 className="text-sm font-bold text-foreground">{att.quiz.title}</h4>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Submitted: {new Date(att.submittedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-4 shrink-0">
+                      <div className="text-right">
+                        <p className="text-lg font-extrabold text-foreground">{att.score} / {att.totalMarks}</p>
+                        <p className="text-[11px] font-bold text-muted-foreground">{percentage}% Score</p>
+                      </div>
+                      <Badge className={percentage >= 50 ? "bg-emerald-500 text-white font-bold" : "bg-rose-500 text-white font-bold"}>
+                        {percentage >= 50 ? "Passed" : "Needs Improvement"}
+                      </Badge>
+                    </div>
+                  </motion.div>
+                );
+              })
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
           {quizzes.filter((q) => q.status === "Published").map((quiz) => {
             const daysLeft = Math.ceil(
               (new Date(quiz.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
@@ -233,24 +346,36 @@ export default function TakeQuizPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <Badge
-                    variant="secondary"
-                    className={
-                      daysLeft <= 2
-                        ? "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
-                        : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                    }
-                  >
-                    {daysLeft}d left
-                  </Badge>
-                  {hasShortOrLong ? (
-                    <Badge variant="secondary" className="text-xs px-3 py-1.5 font-medium bg-muted text-muted-foreground">
-                      Hard Copy Submission to Teacher
+                  {completedAttempts[quiz.id] ? (
+                    <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs px-3 py-1.5 font-bold">
+                      Completed Score: {completedAttempts[quiz.id].score}/{quiz.totalMarks}
+                    </Badge>
+                  ) : new Date(quiz.dueDate).getTime() < Date.now() ? (
+                    <Badge variant="secondary" className="bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-xs px-3 py-1.5 font-bold">
+                      Deadline Expired
                     </Badge>
                   ) : (
-                    <Button size="sm" onClick={() => startQuiz(quiz)} disabled={isQuizBlocked} className="gap-1">
-                      Start <ArrowRight className="h-3.5 w-3.5" />
-                    </Button>
+                    <>
+                      <Badge
+                        variant="secondary"
+                        className={
+                          daysLeft <= 2
+                            ? "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+                            : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                        }
+                      >
+                        {daysLeft <= 0 ? "Due Today" : `${daysLeft}d left`}
+                      </Badge>
+                      {hasShortOrLong ? (
+                        <Badge variant="secondary" className="text-xs px-3 py-1.5 font-medium bg-muted text-muted-foreground">
+                          Hard Copy Submission to Teacher
+                        </Badge>
+                      ) : (
+                        <Button size="sm" onClick={() => startQuiz(quiz)} disabled={isQuizBlocked} className="gap-1">
+                          Start <ArrowRight className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </>
                   )}
                 </div>
               </motion.div>
@@ -264,6 +389,7 @@ export default function TakeQuizPage() {
             </div>
           )}
         </div>
+      )}
       </motion.div>
     );
   }

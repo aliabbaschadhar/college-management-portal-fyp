@@ -161,6 +161,26 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Automatically fetch and enroll all students belonging to this semester and department
+    const matchingStudents = await prisma.student.findMany({
+      where: {
+        department: course.department,
+        semester: course.semester,
+      },
+      select: { id: true },
+    });
+
+    if (matchingStudents.length > 0) {
+      await prisma.enrollment.createMany({
+        data: matchingStudents.map((st) => ({
+          studentId: st.id,
+          courseId: course.id,
+          semester: course.semester,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
     return NextResponse.json(course, { status: 201 });
   } catch (error) {
     if (

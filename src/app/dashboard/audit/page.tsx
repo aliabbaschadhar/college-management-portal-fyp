@@ -53,23 +53,21 @@ export default function AuditLogPage() {
   const loadLogs = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (filterEntity !== "all") params.set("entity", filterEntity);
-      const url = `/api/audit-log?${params.toString()}`;
-      const res = await api.get<AuditLogEntry[]>(url);
+      const res = await api.get<AuditLogEntry[]>("/api/audit-log");
       setLogs(Array.isArray(res.data) ? res.data : []);
     } catch {
       setLogs([]);
     } finally {
       setLoading(false);
     }
-  }, [filterEntity]);
+  }, []);
 
   useEffect(() => {
     loadLogs();
   }, [loadLogs]);
 
   const filteredLogs = logs.filter((log) => {
+    if (filterEntity !== "all" && log.entity !== filterEntity) return false;
     if (filterAction !== "all" && log.action !== filterAction) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -82,8 +80,10 @@ export default function AuditLogPage() {
     return true;
   });
 
-  const entities = Array.from(new Set(logs.map((l) => l.entity)));
-  const actions = Array.from(new Set(logs.map((l) => l.action)));
+  const ALL_POSSIBLE_ENTITIES = ["Admission", "Fee", "Course", "Student", "Faculty", "Timetable", "Attendance", "Announcement", "Feedback", "Quiz"];
+  const entities = Array.from(new Set([...ALL_POSSIBLE_ENTITIES, ...logs.map((l) => l.entity)])).sort();
+  const ALL_POSSIBLE_ACTIONS = ["CREATED", "UPDATED", "DELETED", "APPROVED", "REJECTED", "STATUS_CHANGED"];
+  const actions = Array.from(new Set([...ALL_POSSIBLE_ACTIONS, ...logs.map((l) => l.action)])).sort();
 
   if (loading) {
     return (
@@ -180,9 +180,6 @@ export default function AuditLogPage() {
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <Badge variant="secondary" className={`text-[10px] font-bold uppercase tracking-wider ${actionColors[log.action] ?? "bg-gray-100 text-gray-700"}`}>
-                        {log.action}
-                      </Badge>
                       <Badge variant="outline" className="text-[10px] font-semibold px-2 py-0.5 border-brand-primary/30 text-brand-primary">
                         {log.entity}
                       </Badge>
@@ -190,9 +187,8 @@ export default function AuditLogPage() {
                         by <span className="font-bold text-foreground">{log.adminName || "System / Admin"}</span>
                       </span>
                     </div>
-                    <p className="text-sm font-medium text-foreground leading-snug">{log.description}</p>
-                    <p className="text-[10px] text-muted-foreground/70 font-mono mt-1">
-                      Entity Reference ID: {log.entityId}
+                    <p className="text-sm font-medium text-foreground leading-snug">
+                      {log.description.replace(new RegExp(`^(by\\s+)?${log.adminName}\\s+`, "i"), "")}
                     </p>
                   </div>
 

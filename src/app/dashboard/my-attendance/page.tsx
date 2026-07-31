@@ -164,9 +164,9 @@ export default function MyAttendancePage() {
             className="flex items-center gap-2 group text-left hover:underline cursor-pointer"
           >
             <span className="font-bold text-foreground group-hover:text-brand-primary">
-              {row.course?.courseCode || row.courseId}
+              {foundCourse?.courseName || row.course?.courseName || "Course"} {row.course?.courseCode || foundCourse?.courseCode || ""}
             </span>
-            <Eye className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 text-brand-primary transition-opacity" />
+            <Eye className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 text-brand-primary transition-opacity shrink-0" />
           </button>
         );
       },

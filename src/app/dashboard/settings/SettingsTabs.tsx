@@ -83,6 +83,7 @@ function ProfileSection({
   const [name, setName] = useState(user.name ?? "");
   const [phoneVal, setPhoneVal] = useState(phone);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -90,25 +91,56 @@ function ProfileSection({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 1024 * 1024) {
-      return;
-    }
-
+    setAvatarError(null);
     setAvatarUploading(true);
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64String = reader.result as string;
-      try {
-        await api.patch("/api/me", { avatar: base64String });
-        setAvatar(base64String);
-        window.dispatchEvent(new Event("profile-avatar-updated"));
-      } catch (err) {
-        console.error("Failed to upload avatar:", err);
-      } finally {
-        setAvatarUploading(false);
-      }
+
+    const compressImage = (fileToCompress: File): Promise<string> => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.src = URL.createObjectURL(fileToCompress);
+        img.onload = () => {
+          const maxDim = 400;
+          let width = img.width;
+          let height = img.height;
+          if (width > height) {
+            if (width > maxDim) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            reject(new Error("Failed to create canvas context"));
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+          resolve(dataUrl);
+        };
+        img.onerror = (err) => reject(err);
+      });
     };
-    reader.readAsDataURL(file);
+
+    try {
+      const base64String = await compressImage(file);
+      await api.patch("/api/me", { avatar: base64String });
+      setAvatar(base64String);
+      window.dispatchEvent(new Event("profile-avatar-updated"));
+    } catch (err) {
+      console.error("Failed to upload avatar:", err);
+      setAvatarError("Failed to upload profile picture. Please try another image.");
+    } finally {
+      setAvatarUploading(false);
+    }
   };
 
   const handleSave = async () => {
@@ -135,9 +167,15 @@ function ProfileSection({
         </p>
       </div>
 
+      {avatarError && (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs font-bold text-rose-600 dark:text-rose-400">
+          {avatarError}
+        </div>
+      )}
+
       {/* Avatar + identity */}
       <div className="flex items-center gap-4 p-5 rounded-2xl bg-muted/20 border border-border">
-        <div className="relative shrink-0 cursor-pointer group" onClick={() => document.getElementById("settings-avatar-input")?.click()}>
+        <div className="relative shrink-0 cursor-pointer group" onClick={() => !avatarUploading && document.getElementById("settings-avatar-input")?.click()}>
           <input
             type="file"
             id="settings-avatar-input"
@@ -147,8 +185,9 @@ function ProfileSection({
             disabled={avatarUploading}
           />
           {avatarUploading ? (
-            <div className="h-20 w-20 rounded-full border border-border bg-muted flex items-center justify-center">
-              <div className="h-5 w-5 animate-spin border-2 border-brand-primary border-t-transparent rounded-full" />
+            <div className="h-20 w-20 rounded-full border-2 border-brand-primary/40 bg-muted flex flex-col items-center justify-center gap-1 shadow-md">
+              <div className="h-6 w-6 animate-spin border-2 border-brand-primary border-t-transparent rounded-full" />
+              <span className="text-[9px] font-bold text-brand-primary">Uploading...</span>
             </div>
           ) : avatar ? (
             /* eslint-disable-next-line @next/next/no-img-element */

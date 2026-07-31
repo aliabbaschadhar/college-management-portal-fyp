@@ -110,10 +110,8 @@ const attendanceChartConfig = {
 } satisfies ChartConfig;
 
 const gradeChartConfig = {
-  quiz: { label: "Quiz", color: "var(--color-brand-primary)" },
-  assignment: { label: "Assignment", color: "var(--color-brand-secondary)" },
-  mid: { label: "Mid", color: "var(--color-data-3)" },
-  final: { label: "Final", color: "var(--color-data-4)" },
+  mid: { label: "Midterm", color: "var(--color-data-3)" },
+  sessional: { label: "Sessional", color: "var(--color-data-4)" },
 } satisfies ChartConfig;
 
 export function StudentDashboardHome() {
@@ -330,7 +328,7 @@ export function StudentDashboardHome() {
         className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4"
       >
         <StatsCard
-          title="Current GPA"
+          title="Previous CGPA"
           value={currentGpa === null || currentGpa === undefined ? "—" : currentGpa.toFixed(2)}
           trend={gpaTrend}
           trendDirection={gpaTrendDir}
@@ -436,14 +434,8 @@ export function StudentDashboardHome() {
               />
               <YAxis tickLine={false} axisLine={false} />
               <ChartTooltip content={<ChartTooltipContent />} />
-              <Bar dataKey="quiz" fill="var(--color-quiz)" radius={4} />
-              <Bar
-                dataKey="assignment"
-                fill="var(--color-assignment)"
-                radius={4}
-              />
               <Bar dataKey="mid" fill="var(--color-mid)" radius={4} />
-              <Bar dataKey="final" fill="var(--color-final)" radius={4} />
+              <Bar dataKey="sessional" fill="var(--color-final)" radius={4} />
             </BarChart>
           </ChartContainer>
         </div>

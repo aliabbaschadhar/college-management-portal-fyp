@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useStoredState } from "@/hooks/useStoredState";
 import { api } from "@/lib/axios";
 import { ClipboardCheck, Filter, Eye, Loader2, Calendar, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
@@ -106,14 +107,15 @@ export default function ManageAttendancePage() {
   const [courses, setCourses] = useState<CourseType[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Drill-down states
-  const [selectedDept, setSelectedDept] = useState<string | null>(null);
-  const [selectedSemester, setSelectedSemester] = useState<number | null>(null);
-  const [selectedShift, setSelectedShift] = useState<string>("Morning");
+  // Drill-down states with sessionStorage persistence
+  const [selectedDept, setSelectedDept] = useStoredState<string | null>("admin_att_dept", null);
+  const [selectedSemester, setSelectedSemester] = useStoredState<number | null>("admin_att_sem", null);
+  const [selectedShift, setSelectedShift] = useStoredState<string>("admin_att_shift", "Morning");
 
   // Detailed Log dialog
   const [logDialogOpen, setLogDialogOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<StudentStatsItem | null>(null);
+  const [selectedLogCourseId, setSelectedLogCourseId] = useState<string>("all");
   const [updatingLogId, setUpdatingLogId] = useState<string | null>(null);
 
   const role = useMemo(() => {
@@ -372,18 +374,34 @@ export default function ManageAttendancePage() {
 
   const [filterDate, setFilterDate] = useState<string>("");
 
-  // Fetch detailed logs of selected student
+  // Unique courses for selected student
+  const studentCourses = useMemo(() => {
+    if (!selectedStudent) return [];
+    const studentLogCourseIds = new Set(
+      attendance.filter((a) => a.studentId === selectedStudent.id).map((a) => a.courseId)
+    );
+    return courses.filter((c) => studentLogCourseIds.has(c.id));
+  }, [selectedStudent, attendance, courses]);
+
+  // Fetch 90-day detailed logs of selected student with course filter
   const selectedStudentLogs = useMemo(() => {
     if (!selectedStudent) return [];
-    return attendance.filter((a) => {
-      if (a.studentId !== selectedStudent.id) return false;
-      if (filterDate) {
-        const logDateStr = new Date(a.date).toISOString().split("T")[0];
-        if (logDateStr !== filterDate) return false;
-      }
-      return true;
-    });
-  }, [selectedStudent, attendance, filterDate]);
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+    return attendance
+      .filter((a) => {
+        if (a.studentId !== selectedStudent.id) return false;
+        if (new Date(a.date) < ninetyDaysAgo) return false;
+        if (selectedLogCourseId !== "all" && a.courseId !== selectedLogCourseId) return false;
+        if (filterDate) {
+          const logDateStr = new Date(a.date).toISOString().split("T")[0];
+          if (logDateStr !== filterDate) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [selectedStudent, attendance, selectedLogCourseId, filterDate]);
 
   const columns: Column<StudentStatsItem>[] = [
     {
@@ -533,7 +551,7 @@ export default function ManageAttendancePage() {
               onClick={() => handleStruckOffClick(row)}
               className={`h-8 text-xs gap-1 rounded-lg ${
                 row.stats.rate < 75
-                  ? "bg-rose-600 hover:bg-rose-700 animate-pulse border-none text-white font-bold"
+                  ? "bg-rose-600 hover:bg-rose-700 border-none text-white font-bold"
                   : ""
               }`}
             >
@@ -845,21 +863,35 @@ export default function ManageAttendancePage() {
               <div>
                 <DialogTitle className="text-xl font-bold flex items-center gap-2">
                   <ClipboardCheck className="h-6 w-6 text-brand-primary" />
-                  Attendance History Log
+                  90-Day Student Attendance History
                 </DialogTitle>
                 <DialogDescription className="mt-1">
-                  Reviewing marked attendance for <strong>{selectedStudent?.user?.name}</strong> ({selectedStudent?.rollNo})
+                  Reviewing 90-day attendance record for <strong>{selectedStudent?.user?.name}</strong> ({selectedStudent?.rollNo}){selectedStudentLogs[0]?.course?.courseCode ? ` in course ${selectedStudentLogs[0].course.courseCode}` : ""}.
                 </DialogDescription>
               </div>
 
-              {/* 4-Month Calendar Filter */}
-              <div className="flex items-center gap-2 shrink-0">
+              {/* Course & Date Filters */}
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                <Select value={selectedLogCourseId} onValueChange={setSelectedLogCourseId}>
+                  <SelectTrigger className="h-9 w-40 text-xs rounded-xl bg-card">
+                    <SelectValue placeholder="All Courses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Courses</SelectItem>
+                    {studentCourses.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.courseCode} — {c.courseName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
                 <Input
                   type="date"
                   value={filterDate}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFilterDate(e.target.value)}
-                  className="h-9 w-36 text-xs rounded-xl font-mono"
-                  title="Filter by date (past 4 months)"
+                  className="h-9 w-32 text-xs rounded-xl font-mono"
+                  title="Filter by date"
                 />
                 {filterDate && (
                   <Button
