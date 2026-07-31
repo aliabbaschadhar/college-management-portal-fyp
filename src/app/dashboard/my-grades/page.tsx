@@ -195,12 +195,9 @@ export default function MyGradesPage() {
                   >
                     <td className="py-3 px-4">
                       <div>
-                        <span className="font-medium text-foreground">
-                          {g.course?.courseName}
+                        <span className="font-semibold text-foreground">
+                          {g.course?.courseCode} - {g.course?.courseName}
                         </span>
-                        <p className="text-xs text-muted-foreground font-mono">
-                          {g.course?.courseCode}
-                        </p>
                       </div>
                     </td>
                     <td className="text-center py-3 px-3 text-muted-foreground">

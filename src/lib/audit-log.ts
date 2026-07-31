@@ -21,6 +21,10 @@ const HIGH_IMPACT_ENTITIES = new Set([
   "Course",
   "Faculty",
   "Student",
+  "Enrollment",
+  "Quiz",
+  "Question",
+  "Attendance",
 ]);
 
 /**

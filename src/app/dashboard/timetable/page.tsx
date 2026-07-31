@@ -126,6 +126,27 @@ export default function TimetablePage() {
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
   const [deletingTimetableId, setDeletingTimetableId] = useState<string | null>(null);
+  const [selectedTimetableIds, setSelectedTimetableIds] = useState<string[]>([]);
+
+  const handleToggleSelectSlot = (id: string) => {
+    setSelectedTimetableIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkDeleteSlots = async () => {
+    if (selectedTimetableIds.length === 0) return;
+    setDeletingTimetableId("bulk");
+    try {
+      await Promise.all(selectedTimetableIds.map((id) => api.delete(`/api/timetable/${id}`)));
+      setTimetable((prev) => prev.filter((t) => !selectedTimetableIds.includes(t.id)));
+      setSelectedTimetableIds([]);
+    } catch (err) {
+      console.error("Bulk delete failed:", err);
+    } finally {
+      setDeletingTimetableId(null);
+    }
+  };
 
   const slots = useMemo(() => {
     const list = [];
@@ -575,7 +596,22 @@ export default function TimetablePage() {
           { label: "Timetable" },
         ]}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {selectedTimetableIds.length > 0 && (
+              <Button
+                variant="destructive"
+                className="h-9 gap-2 font-bold animate-pulse"
+                onClick={handleBulkDeleteSlots}
+                disabled={deletingTimetableId === "bulk"}
+              >
+                {deletingTimetableId === "bulk" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+                Delete Selected ({selectedTimetableIds.length})
+              </Button>
+            )}
             <Button
               variant="outline"
               className="h-9 gap-2"
@@ -781,7 +817,14 @@ export default function TimetablePage() {
                                     </Badge>
                                   </div>
 
-                                  <div className="flex items-center gap-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedTimetableIds.includes(cls.id)}
+                                      onChange={() => handleToggleSelectSlot(cls.id)}
+                                      className="h-4 w-4 rounded accent-brand-primary cursor-pointer"
+                                      title="Select slot for bulk deletion"
+                                    />
                                     <button
                                       onClick={() => openEditDialog(cls)}
                                       className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-brand-primary/20"

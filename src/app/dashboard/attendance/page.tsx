@@ -154,10 +154,15 @@ export default function ManageAttendancePage() {
     if (!struckOffStudent || !struckOffReason.trim()) return;
     setSubmittingStruckOff(true);
     try {
-      // 1. Block student
-      await api.patch(`/api/students/${struckOffStudent.id}`, { blocked: true });
+      // Find course enrollment for selected course if available
+      const targetEnrollment = struckOffStudent.enrollments?.[0];
+      if (targetEnrollment) {
+        await api.patch(`/api/enrollments/${targetEnrollment.id}`, { blocked: true, readmitRequested: false });
+      } else {
+        await api.patch(`/api/students/${struckOffStudent.id}`, { blocked: true, readmitRequested: false });
+      }
       
-      // 2. Post announcement warning notice targeting their class
+      // Post announcement warning notice targeting their class
       await api.post("/api/announcements", {
         title: "Warning Notice: Student Struck Off",
         content: `Student ${struckOffStudent.user?.name || "Unknown"} (${struckOffStudent.rollNo}) has been struck off from attendance logs by instructor. Reason: ${struckOffReason}`,
@@ -167,12 +172,18 @@ export default function ManageAttendancePage() {
         targetSemester: struckOffStudent.semester,
       });
 
-      // 3. Update local state
+      // Update local state
       setStudents((prev) =>
-        prev.map((s) => (s.id === struckOffStudent.id ? { ...s, blocked: true } : s))
+        prev.map((s) => {
+          if (s.id !== struckOffStudent.id) return s;
+          const updatedEnrollments = s.enrollments?.map((e) =>
+            targetEnrollment && e.id === targetEnrollment.id ? { ...e, blocked: true, readmitRequested: false } : e
+          );
+          return { ...s, blocked: true, readmitRequested: false, enrollments: updatedEnrollments };
+        })
       );
       if (selectedStudent && selectedStudent.id === struckOffStudent.id) {
-        setSelectedStudent((prev) => (prev ? { ...prev, blocked: true } : null));
+        setSelectedStudent((prev) => (prev ? { ...prev, blocked: true, readmitRequested: false } : null));
       }
       setStruckOffDialogOpen(false);
       setStruckOffStudent(null);
@@ -225,8 +236,19 @@ export default function ManageAttendancePage() {
     const nextState = !student.blocked;
     try {
       await api.patch(`/api/students/${student.id}`, { blocked: nextState, readmitRequested: false });
+      if (student.enrollments) {
+        await Promise.all(
+          student.enrollments.map((e) =>
+            api.patch(`/api/enrollments/${e.id}`, { blocked: nextState, readmitRequested: false })
+          )
+        );
+      }
       setStudents((prev) =>
-        prev.map((s) => (s.id === student.id ? { ...s, blocked: nextState, readmitRequested: false } : s))
+        prev.map((s) => {
+          if (s.id !== student.id) return s;
+          const updatedEnrollments = s.enrollments?.map((e) => ({ ...e, blocked: nextState, readmitRequested: false }));
+          return { ...s, blocked: nextState, readmitRequested: false, enrollments: updatedEnrollments };
+        })
       );
       if (selectedStudent && selectedStudent.id === student.id) {
         setSelectedStudent((prev) => (prev ? { ...prev, blocked: nextState, readmitRequested: false } : null));
@@ -238,9 +260,19 @@ export default function ManageAttendancePage() {
 
   const handleRequestReadmission = async (student: StudentStatsItem) => {
     try {
+      const targetEnrollment = student.enrollments?.[0];
+      if (targetEnrollment) {
+        await api.patch(`/api/enrollments/${targetEnrollment.id}`, { readmitRequested: true });
+      }
       await api.patch(`/api/students/${student.id}`, { readmitRequested: true });
       setStudents((prev) =>
-        prev.map((s) => (s.id === student.id ? { ...s, readmitRequested: true } : s))
+        prev.map((s) => {
+          if (s.id !== student.id) return s;
+          const updatedEnrollments = s.enrollments?.map((e) =>
+            targetEnrollment && e.id === targetEnrollment.id ? { ...e, readmitRequested: true } : e
+          );
+          return { ...s, readmitRequested: true, enrollments: updatedEnrollments };
+        })
       );
       if (selectedStudent && selectedStudent.id === student.id) {
         setSelectedStudent((prev) => (prev ? { ...prev, readmitRequested: true } : null));

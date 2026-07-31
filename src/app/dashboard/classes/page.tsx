@@ -104,11 +104,16 @@ export default function ClassesPage() {
           subtitle="Manage your assigned courses and enrolled students"
           breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "My Classes" }]}
           action={
-            <Button variant="outline" size="sm" disabled className="gap-2">
+            <Button variant="outline" size="sm" disabled className="gap-2 rounded-xl">
               <RefreshCw className="h-4 w-4 animate-spin" /> Refresh
             </Button>
           }
         />
+        <div className="flex flex-wrap items-center gap-4 bg-card p-4 rounded-2xl border border-border animate-pulse">
+          <div className="h-10 w-[180px] bg-muted rounded-xl border" />
+          <div className="h-10 w-[130px] bg-muted rounded-xl border" />
+          <div className="h-10 w-[130px] bg-muted rounded-xl border" />
+        </div>
         <ListSkeleton count={5} />
       </div>
     );

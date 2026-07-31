@@ -179,24 +179,30 @@ export default function AuditLogPage() {
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-foreground leading-snug">{log.description}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <Badge variant="secondary" className={`text-[10px] font-bold uppercase tracking-wider ${actionColors[log.action] ?? "bg-gray-100 text-gray-700"}`}>
+                        {log.action}
+                      </Badge>
+                      <Badge variant="outline" className="text-[10px] font-semibold px-2 py-0.5 border-brand-primary/30 text-brand-primary">
                         {log.entity}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
-                        by <span className="font-medium text-foreground">{log.adminName}</span>
+                        by <span className="font-bold text-foreground">{log.adminName || "System / Admin"}</span>
                       </span>
                     </div>
+                    <p className="text-sm font-medium text-foreground leading-snug">{log.description}</p>
+                    <p className="text-[10px] text-muted-foreground/70 font-mono mt-1">
+                      Entity Reference ID: {log.entityId}
+                    </p>
                   </div>
 
                   {/* Timestamp */}
                   <div className="text-right shrink-0">
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(log.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    <p className="text-xs font-semibold text-foreground">
+                      {new Date(log.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                     </p>
-                    <p className="text-[10px] text-muted-foreground/60">
-                      {new Date(log.createdAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
+                    <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                      {new Date(log.createdAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                     </p>
                   </div>
                 </motion.div>

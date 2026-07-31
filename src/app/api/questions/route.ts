@@ -68,65 +68,60 @@ export async function POST(request: NextRequest) {
 
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const body = (await request.json()) as {
-      courseId: string;
-      type?: "MCQ" | "Short" | "Long";
-      text: string;
-      options?: string[];
-      correctOption?: number | null;
-      sampleAnswer?: string;
-      marks?: number;
-      quizId?: string;
-    };
+    const rawBody = await request.json();
+    const isArray = Array.isArray(rawBody);
+    const items = isArray ? rawBody : [rawBody];
 
-    if (!body.courseId || !body.text) {
-      return NextResponse.json({ error: "courseId and text are required" }, { status: 400 });
+    if (items.length === 0) {
+      return NextResponse.json({ error: "Empty request payload" }, { status: 400 });
     }
 
-    const course = await prisma.course.findUnique({
-      where: { id: body.courseId },
-      select: { assignedFaculty: true },
-    });
+    const createdQuestions = [];
+    for (const body of items) {
+      if (!body.courseId || !body.text) continue;
 
-    if (!course) {
-      return NextResponse.json({ error: "Course not found" }, { status: 404 });
+      const course = await prisma.course.findUnique({
+        where: { id: body.courseId },
+        select: { assignedFaculty: true },
+      });
+
+      if (!course) continue;
+
+      const isAdmin = user.role === "ADMIN";
+      const isFacultyAssignedToCourse =
+        user.faculty && (course.assignedFaculty === null || course.assignedFaculty === user.faculty.id);
+
+      if (!isAdmin && !isFacultyAssignedToCourse) continue;
+
+      const q = await prisma.question.create({
+        data: {
+          courseId: body.courseId,
+          type: body.type ?? "MCQ",
+          text: body.text,
+          options: body.options ?? [],
+          correctOption: body.correctOption ?? null,
+          sampleAnswer: body.sampleAnswer ?? null,
+          marks: body.marks ?? 1,
+          quizId: body.quizId ?? null,
+        },
+        select: {
+          id: true,
+          courseId: true,
+          type: true,
+          text: true,
+          options: true,
+          correctOption: true,
+          sampleAnswer: true,
+          marks: true,
+          quizId: true,
+          course: { select: { courseCode: true, courseName: true } },
+          createdAt: true,
+        },
+      });
+      createdQuestions.push(q);
     }
 
-    const isAdmin = user.role === "ADMIN";
-    const isFacultyAssignedToCourse =
-      user.faculty && (course.assignedFaculty === null || course.assignedFaculty === user.faculty.id);
-
-    if (!isAdmin && !isFacultyAssignedToCourse) {
-      return NextResponse.json({ error: "Forbidden: You are not assigned to this course" }, { status: 403 });
-    }
-
-    const question = await prisma.question.create({
-      data: {
-        courseId: body.courseId,
-        type: body.type ?? "MCQ",
-        text: body.text,
-        options: body.options ?? [],
-        correctOption: body.correctOption ?? null,
-        sampleAnswer: body.sampleAnswer ?? null,
-        marks: body.marks ?? 1,
-        quizId: body.quizId ?? null,
-      },
-      select: {
-        id: true,
-        courseId: true,
-        type: true,
-        text: true,
-        options: true,
-        correctOption: true,
-        sampleAnswer: true,
-        marks: true,
-        quizId: true,
-        course: { select: { courseCode: true, courseName: true } },
-        createdAt: true,
-      },
-    });
-
-    return NextResponse.json(question, { status: 201 });
+    return NextResponse.json(isArray ? createdQuestions : createdQuestions[0], { status: 201 });
   } catch (error) {
     console.error("POST /api/questions error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

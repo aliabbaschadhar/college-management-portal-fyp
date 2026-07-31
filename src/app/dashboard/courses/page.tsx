@@ -8,6 +8,7 @@ import {
   Pencil,
   Trash2,
   UserPlus,
+  UserMinus,
   Laptop,
   Calculator,
   Atom,
@@ -310,6 +311,28 @@ export default function ManageCoursesPage() {
     }
   };
 
+  const handleUnassign = async (courseId?: string) => {
+    const targetId = courseId || assigningCourse?.id;
+    if (!targetId) return;
+    try {
+      setAssigning(true);
+      const { data: updated } = await api.patch<CourseWithDetails>(
+        `/api/courses/${targetId}`,
+        { assignedFaculty: null },
+      );
+      setCourses((prev) =>
+        prev.map((c) => (c.id === updated.id ? updated : c)),
+      );
+      setAssignDialogOpen(false);
+      setSelectedFaculty("");
+      router.refresh();
+    } catch (err) {
+      console.error("Failed to unassign faculty:", err);
+    } finally {
+      setAssigning(false);
+    }
+  };
+
   const columns: Column<CourseWithDetails>[] = [
     {
       key: "courseCode",
@@ -386,6 +409,15 @@ export default function ManageCoursesPage() {
           >
             <UserPlus className="h-4 w-4 text-brand-secondary" />
           </button>
+          {row.assignedFaculty && (
+            <button
+              onClick={() => handleUnassign(row.id)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-rose-500/10 transition-colors"
+              title="Unassign Faculty"
+            >
+              <UserMinus className="h-4 w-4 text-rose-500" />
+            </button>
+          )}
           <button
             onClick={() => openEdit(row)}
             className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"
@@ -832,7 +864,17 @@ export default function ManageCoursesPage() {
               </Select>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2">
+            {assigningCourse?.assignedFaculty && (
+              <Button
+                variant="destructive"
+                onClick={() => handleUnassign()}
+                disabled={assigning}
+                className="mr-auto"
+              >
+                Unassign Faculty
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => setAssignDialogOpen(false)}

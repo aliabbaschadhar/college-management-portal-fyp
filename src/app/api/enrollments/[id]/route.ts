@@ -46,16 +46,43 @@ export async function PATCH(
 
     const body = await parseJsonBody<EnrollmentUpdateBody>(request);
 
+    const updateData: { blocked?: boolean; readmitRequested?: boolean } = {};
+    if (body.blocked !== undefined) {
+      updateData.blocked = body.blocked;
+      if (body.blocked === false) {
+        updateData.readmitRequested = false;
+      }
+    }
+    if (body.readmitRequested !== undefined) {
+      updateData.readmitRequested = body.readmitRequested;
+    }
+
     const updated = await prisma.enrollment.update({
       where: { id },
-      data: {
-        ...(body.blocked !== undefined ? { blocked: body.blocked } : {}),
-        ...(body.readmitRequested !== undefined ? { readmitRequested: body.readmitRequested } : {}),
-      },
+      data: updateData,
       include: {
         course: { select: { courseCode: true, courseName: true } },
         student: { include: { user: { select: { name: true } } } },
       },
+    });
+
+    const studentName = updated.student.user.name || "Student";
+    const courseCode = updated.course.courseCode;
+    const actionDesc = updated.blocked
+      ? `Struck Off ${studentName} from course ${courseCode}`
+      : updated.readmitRequested
+      ? `Requested Re-Admission for ${studentName} in course ${courseCode}`
+      : `Re-activated enrollment for ${studentName} in course ${courseCode}`;
+
+    const { getAdminName, logAuditAction } = await import("@/lib/audit-log");
+    const adminName = await getAdminName(userId);
+    await logAuditAction({
+      action: "UPDATED",
+      entity: "Enrollment",
+      entityId: updated.id,
+      description: actionDesc,
+      adminClerkId: userId,
+      adminName,
     });
 
     return NextResponse.json(updated);

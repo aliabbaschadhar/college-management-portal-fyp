@@ -11,6 +11,7 @@ import { ListSkeleton } from "@/components/ui";
 
 interface QuizQuestion {
   id: string;
+  type?: string;
   text: string;
   options: string[];
   correctOption: number;
@@ -194,6 +195,7 @@ export default function TakeQuizPage() {
               (new Date(quiz.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
             );
             const isQuizBlocked = isBlocked || blockedCourseIds.includes(quiz.courseId);
+            const hasShortOrLong = quiz.questions?.some((q: QuizQuestion) => q.type === "Short" || q.type === "Long");
 
             return (
               <motion.div
@@ -202,15 +204,24 @@ export default function TakeQuizPage() {
                 animate={{ opacity: 1, y: 0 }}
                 className="rounded-xl border border-border bg-card p-5 flex items-center gap-4 hover:shadow-md transition-shadow"
               >
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-purple-500/10">
-                  <FileText className="h-6 w-6 text-purple-500" />
+                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${hasShortOrLong ? "bg-amber-500/10" : "bg-purple-500/10"}`}>
+                  <FileText className={`h-6 w-6 ${hasShortOrLong ? "text-amber-500" : "text-purple-500"}`} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="text-sm font-semibold text-foreground">{quiz.title}</h3>
+                    {hasShortOrLong ? (
+                      <Badge variant="outline" className="text-[10px] uppercase font-bold py-0 px-2 bg-amber-500/10 text-amber-600 border-amber-500/30">
+                        Hardform Assignment
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px] uppercase font-bold py-0 px-2 bg-purple-500/10 text-purple-600 border-purple-500/30">
+                        Online MCQ Quiz
+                      </Badge>
+                    )}
                     {isQuizBlocked && (
                       <Badge variant="destructive" className="text-[10px] uppercase font-bold py-0 px-1.5">
-                        Restricted: Struck Off (&lt;70%)
+                        Restricted: Struck Off
                       </Badge>
                     )}
                   </div>
@@ -232,9 +243,15 @@ export default function TakeQuizPage() {
                   >
                     {daysLeft}d left
                   </Badge>
-                  <Button size="sm" onClick={() => startQuiz(quiz)} disabled={isQuizBlocked} className="gap-1">
-                    Start <ArrowRight className="h-3.5 w-3.5" />
-                  </Button>
+                  {hasShortOrLong ? (
+                    <Badge variant="secondary" className="text-xs px-3 py-1.5 font-medium bg-muted text-muted-foreground">
+                      Hard Copy Submission to Teacher
+                    </Badge>
+                  ) : (
+                    <Button size="sm" onClick={() => startQuiz(quiz)} disabled={isQuizBlocked} className="gap-1">
+                      Start <ArrowRight className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                 </div>
               </motion.div>
             );

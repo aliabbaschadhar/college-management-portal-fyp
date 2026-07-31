@@ -99,10 +99,24 @@ export default function MyAttendancePage() {
     setRefreshing(false);
   };
 
-  const filtered =
-    filterCourse === "all"
-      ? allAttendance
-      : allAttendance.filter((a) => a.courseId === filterCourse);
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  const filtered = useMemo(() => {
+    if (filterCourse === "all") {
+      // Show present day attendance (or fallback to latest day if no logs today)
+      const todayLogs = allAttendance.filter((a) => new Date(a.date).toISOString().split("T")[0] === todayStr);
+      if (todayLogs.length > 0) return todayLogs;
+      // Fallback: Latest day records
+      const latestDateStr = allAttendance[0] ? new Date(allAttendance[0].date).toISOString().split("T")[0] : null;
+      return latestDateStr ? allAttendance.filter((a) => new Date(a.date).toISOString().split("T")[0] === latestDateStr) : [];
+    } else {
+      // Specific course selected: Show 5 days attendance
+      return allAttendance
+        .filter((a) => a.courseId === filterCourse)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 5);
+    }
+  }, [allAttendance, filterCourse, todayStr]);
 
   const presentCount = filtered.filter((a) => a.status === "Present").length;
   const absentCount = filtered.filter((a) => a.status === "Absent").length;

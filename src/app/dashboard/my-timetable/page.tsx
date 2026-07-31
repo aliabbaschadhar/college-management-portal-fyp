@@ -2,11 +2,18 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { api } from "@/lib/axios";
-import { Clock, RefreshCw } from "lucide-react";
+import { Clock, RefreshCw, Calendar } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion } from "framer-motion";
 import { TableSkeleton } from "@/components/ui";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 interface TimetableEntry {
   id: string;
@@ -84,6 +91,7 @@ export default function MyTimetablePage() {
   const [studentProfile, setStudentProfile] = useState<StudentProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedSlotModal, setSelectedSlotModal] = useState<TimetableEntry | null>(null);
 
   // Dynamic grid configuration states
   const [gridStart, setGridStart] = useState("07:45");
@@ -266,24 +274,6 @@ export default function MyTimetablePage() {
         }
       />
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-3">
-        {uniqueCourses.map((t) => {
-          const colors = courseColors[t.course.courseCode];
-          return (
-            <div
-              key={t.courseId}
-              className={`flex items-center gap-2 rounded-lg px-3 py-1.5 ${colors?.bg} border ${colors?.border}`}
-            >
-              <div className={`h-2.5 w-2.5 rounded-full ${colors?.bg}`} />
-              <span className={`text-xs font-medium ${colors?.text}`}>
-                {t.course.courseCode} - {t.course.courseName}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-
       {/* Timetable Grid */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="overflow-x-auto">
@@ -337,7 +327,8 @@ export default function MyTimetablePage() {
                           className={`p-1 ${isCurrent ? "ring-2 ring-brand-primary ring-inset" : ""}`}
                         >
                           <div
-                            className={`rounded-lg p-2.5 h-full ${colors?.bg} border ${colors?.border} hover:scale-[1.02] transition-transform flex flex-col justify-between`}
+                            onClick={() => setSelectedSlotModal(cls)}
+                            className={`rounded-xl p-2.5 h-full ${colors?.bg} border ${colors?.border} hover:scale-[1.03] cursor-pointer shadow-xs transition-all flex flex-col justify-between`}
                           >
                             <div>
                               <p
@@ -382,6 +373,55 @@ export default function MyTimetablePage() {
           </table>
         </div>
       </div>
+
+      {/* Timetable Slot Details Pop-up Dialog */}
+      <Dialog open={!!selectedSlotModal} onOpenChange={(open) => { if (!open) setSelectedSlotModal(null); }}>
+        <DialogContent className="max-w-md rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-brand-primary" />
+              Class Session Details
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedSlotModal && (
+            <div className="space-y-4 py-2">
+              <div className="p-4 rounded-2xl bg-brand-primary/10 border border-brand-primary/20 space-y-1">
+                <span className="text-xs font-mono font-bold text-brand-primary uppercase tracking-wider">Course Code</span>
+                <h3 className="text-xl font-black text-foreground">{selectedSlotModal.course.courseCode}</h3>
+                <p className="text-sm font-semibold text-foreground/90">{selectedSlotModal.course.courseName}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="p-3 rounded-xl bg-card border border-border">
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Faculty Instructor</span>
+                  <span className="font-bold text-foreground text-sm">{selectedSlotModal.course.faculty?.user.name || "Unassigned"}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-card border border-border">
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Classroom / Venue</span>
+                  <span className="font-bold text-foreground text-sm">{selectedSlotModal.room}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-card border border-border">
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Day & Semester</span>
+                  <span className="font-bold text-foreground text-sm">{selectedSlotModal.day} (Sem {selectedSlotModal.course.semester})</span>
+                </div>
+                <div className="p-3 rounded-xl bg-card border border-border">
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Time Duration</span>
+                  <span className="font-mono font-bold text-foreground text-sm">
+                    {format12Hour(selectedSlotModal.startTime)} – {format12Hour(selectedSlotModal.endTime)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedSlotModal(null)} className="rounded-xl">
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 }

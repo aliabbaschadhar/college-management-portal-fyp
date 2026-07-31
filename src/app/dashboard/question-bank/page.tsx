@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BookOpen, Plus, Pencil, Trash2, CheckCircle, Loader2, HelpCircle } from "lucide-react";
+import { BookOpen, Plus, Pencil, Trash2, CheckCircle, Loader2, HelpCircle, FileSpreadsheet, Upload } from "lucide-react";
 import { api } from "@/lib/axios";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion, AnimatePresence } from "framer-motion";
@@ -57,12 +57,20 @@ export default function QuestionBankPage() {
   const [courses, setCourses] = useState<CourseItem[]>([]);
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<string>("all");
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<QuestionItem | null>(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // CSV Bulk Upload state
+  const [showCsvModal, setShowCsvModal] = useState(false);
+  const [csvCourseId, setCsvCourseId] = useState("");
+  const [csvText, setCsvText] = useState("");
+  const [importingCsv, setImportingCsv] = useState(false);
+  const [csvError, setCsvError] = useState<string | null>(null);
 
   // Form states
   const [formCourseId, setFormCourseId] = useState("");
@@ -89,9 +97,11 @@ export default function QuestionBankPage() {
       });
   }, []);
 
-  const filteredQuestions = selectedCourseId === "all"
-    ? questions
-    : questions.filter((q) => q.courseId === selectedCourseId);
+  const filteredQuestions = questions.filter((q) => {
+    if (selectedCourseId !== "all" && q.courseId !== selectedCourseId) return false;
+    if (selectedTypeFilter !== "all" && q.type !== selectedTypeFilter) return false;
+    return true;
+  });
 
   const openAddModal = () => {
     setEditingQuestion(null);
@@ -104,6 +114,77 @@ export default function QuestionBankPage() {
     setFormSampleAnswer("");
     setErrorMsg(null);
     setShowModal(true);
+  };
+
+  const openCsvModal = () => {
+    setCsvCourseId(selectedCourseId !== "all" ? selectedCourseId : courses[0]?.id || "");
+    setCsvText("");
+    setCsvError(null);
+    setShowCsvModal(true);
+  };
+
+  const handleCsvImport = async () => {
+    if (!csvCourseId || !csvText.trim()) return;
+    setImportingCsv(true);
+    setCsvError(null);
+    try {
+      // Simple robust CSV parsing (lines: type,text,marks,optionA,optionB,optionC,optionD,correctOption,sampleAnswer)
+      const lines = csvText.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
+      const parsedItems = [];
+
+      for (let idx = 0; idx < lines.length; idx++) {
+        const line = lines[idx];
+        if (idx === 0 && line.toLowerCase().includes("text")) continue; // Skip header row
+        const parts = line.split(",").map((p) => p.trim().replace(/^["']|["']$/g, ""));
+        if (parts.length < 2) continue;
+
+        const rawType = parts[0]?.toUpperCase();
+        const qType: "MCQ" | "Short" | "Long" = rawType === "SHORT" ? "Short" : rawType === "LONG" ? "Long" : "MCQ";
+        const qText = parts[1];
+        const marks = Number(parts[2] || (qType === "Long" ? 5 : qType === "Short" ? 2 : 1));
+
+        if (qType === "MCQ") {
+          const optionA = parts[3] || "";
+          const optionB = parts[4] || "";
+          const optionC = parts[5] || "";
+          const optionD = parts[6] || "";
+          const correctIdx = Number(parts[7] || 0);
+          parsedItems.push({
+            courseId: csvCourseId,
+            type: "MCQ" as const,
+            text: qText,
+            marks,
+            options: [optionA, optionB, optionC, optionD],
+            correctOption: isNaN(correctIdx) ? 0 : correctIdx,
+          });
+        } else {
+          const sampleAnswer = parts[3] || parts[8] || "";
+          parsedItems.push({
+            courseId: csvCourseId,
+            type: qType,
+            text: qText,
+            marks,
+            sampleAnswer,
+          });
+        }
+      }
+
+      if (parsedItems.length === 0) {
+        setCsvError("No valid question rows found in CSV data. Check format instructions.");
+        setImportingCsv(false);
+        return;
+      }
+
+      const res = await api.post<QuestionItem[]>("/api/questions", parsedItems);
+      const createdList = Array.isArray(res.data) ? res.data : [res.data];
+      setQuestions((prev) => [...createdList, ...prev]);
+      setShowCsvModal(false);
+    } catch (err: unknown) {
+      const apiErr = err as { response?: { data?: { error?: string } } };
+      setCsvError(apiErr.response?.data?.error || "Failed to import CSV questions");
+    } finally {
+      setImportingCsv(false);
+    }
   };
 
   const openEditModal = (q: QuestionItem) => {
@@ -194,9 +275,9 @@ export default function QuestionBankPage() {
         subtitle="Create reusable question pools (MCQs, Short & Long questions) for your assigned courses"
         breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Question Bank" }]}
         action={
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Select value={selectedCourseId} onValueChange={setSelectedCourseId}>
-              <SelectTrigger className="w-[220px] rounded-xl">
+              <SelectTrigger className="w-[190px] rounded-xl bg-card">
                 <SelectValue placeholder="All Courses" />
               </SelectTrigger>
               <SelectContent>
@@ -208,6 +289,23 @@ export default function QuestionBankPage() {
                 ))}
               </SelectContent>
             </Select>
+
+            <Select value={selectedTypeFilter} onValueChange={setSelectedTypeFilter}>
+              <SelectTrigger className="w-[160px] rounded-xl bg-card">
+                <SelectValue placeholder="All Types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="MCQ">MCQs</SelectItem>
+                <SelectItem value="Short">Short Questions</SelectItem>
+                <SelectItem value="Long">Long Questions</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button variant="outline" onClick={openCsvModal} className="gap-2 rounded-xl border-2">
+              <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Bulk CSV
+            </Button>
+
             <Button onClick={openAddModal} className="gap-2 bg-brand-primary text-white rounded-xl shadow-md">
               <Plus className="h-4 w-4" /> Add Question
             </Button>
@@ -427,6 +525,74 @@ export default function QuestionBankPage() {
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
               {saving ? "Saving..." : editingQuestion ? "Update" : "Save Question"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* CSV Bulk Import Modal */}
+      <Dialog open={showCsvModal} onOpenChange={setShowCsvModal}>
+        <DialogContent className="max-w-xl rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              Bulk Question Import (CSV / Excel)
+            </DialogTitle>
+          </DialogHeader>
+
+          {csvError && (
+            <div className="rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs text-rose-600 dark:bg-rose-950/20 dark:border-rose-900/50 dark:text-rose-400 font-medium">
+              {csvError}
+            </div>
+          )}
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Target Subject / Course</Label>
+              <Select value={csvCourseId} onValueChange={setCsvCourseId}>
+                <SelectTrigger className="h-11 rounded-xl">
+                  <SelectValue placeholder="Select course" />
+                </SelectTrigger>
+                <SelectContent>
+                  {courses.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.courseCode} - {c.courseName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">CSV Data (Paste Rows below or upload)</Label>
+              <div className="relative">
+                <Textarea
+                  value={csvText}
+                  onChange={(e) => setCsvText(e.target.value)}
+                  placeholder={`type, text, marks, optionA, optionB, optionC, optionD, correctOption, sampleAnswer\nMCQ, What is 2+2?, 1, 2, 3, 4, 5, 2\nShort, Explain Newton's First Law, 3, Objects in motion stay in motion...`}
+                  className="rounded-xl font-mono text-xs min-h-[160px]"
+                />
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-muted/40 border border-border text-[11px] text-muted-foreground space-y-1">
+              <p className="font-bold text-foreground">💡 CSV Format Guide:</p>
+              <p>• <strong>MCQ Row:</strong> <code>MCQ, Question Text, Marks, Option A, Option B, Option C, Option D, CorrectIndex (0-3)</code></p>
+              <p>• <strong>Short/Long Row:</strong> <code>Short, Question Text, Marks, Sample Answer Wording</code></p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowCsvModal(false)} className="rounded-xl">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCsvImport}
+              disabled={!csvText.trim() || !csvCourseId || importingCsv}
+              className="bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl gap-2 min-w-[120px]"
+            >
+              {importingCsv ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              {importingCsv ? "Importing..." : "Import Questions"}
             </Button>
           </DialogFooter>
         </DialogContent>

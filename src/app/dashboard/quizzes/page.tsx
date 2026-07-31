@@ -84,6 +84,10 @@ export default function ManageQuizzesPage() {
   const [deletingQuizId, setDeletingQuizId] = useState<string | null>(null);
   const [attempts, setAttempts] = useState<Record<string, QuizAttempt[]>>({});
   const [loadingAttempts, setLoadingAttempts] = useState<string | null>(null);
+  const [submissionModalQuiz, setSubmissionModalQuiz] = useState<ApiQuiz | null>(null);
+  const [enrolledStudents, setEnrolledStudents] = useState<{ id: string; rollNo: string; name: string; submitted: boolean }[]>([]);
+  const [loadingSubmissions, setLoadingSubmissions] = useState(false);
+  const [togglingStudentSubmission, setTogglingStudentSubmission] = useState<string | null>(null);
   const quizIdCounter = useRef(0);
 
   // Form state
@@ -93,7 +97,7 @@ export default function ManageQuizzesPage() {
   const [formMarks, setFormMarks] = useState(20);
   const [formQuestions, setFormQuestions] = useState<string[]>([]);
   const [formDueDate, setFormDueDate] = useState("");
-  const [activeQuestionTab, setActiveQuestionTab] = useState<"all" | "MCQ" | "Short" | "Long">("all");
+  const [activeQuestionTab, setActiveQuestionTab] = useState<"MCQ" | "Short" | "Long">("MCQ");
 
   const fetchQuizzes = async () => {
     try {
@@ -298,6 +302,38 @@ export default function ManageQuizzesPage() {
                 <Button
                   size="sm"
                   variant="outline"
+                  onClick={async () => {
+                    setSubmissionModalQuiz(quiz);
+                    setLoadingSubmissions(true);
+                    try {
+                      const [courseRes, attRes] = await Promise.all([
+                        api.get<{ enrollments?: { student: { id: string; rollNo: string; user: { name: string | null } } }[] }>(`/api/courses/${quiz.courseId}`),
+                        api.get<QuizAttempt[]>(`/api/quizzes/${quiz.id}/attempts`).catch(() => ({ data: [] })),
+                      ]);
+                      const studentsList = (courseRes.data.enrollments || []).map((e) => e.student).filter(Boolean);
+                      const submittedStudentIds = new Set((attRes.data || []).map((a) => a.student.rollNo));
+                      setEnrolledStudents(
+                        studentsList.map((s) => ({
+                          id: s.id,
+                          rollNo: s.rollNo,
+                          name: s.user?.name || "Student",
+                          submitted: submittedStudentIds.has(s.rollNo),
+                        }))
+                      );
+                    } catch (err) {
+                      console.error("Failed to load submission status:", err);
+                      setEnrolledStudents([]);
+                    } finally {
+                      setLoadingSubmissions(false);
+                    }
+                  }}
+                  className="gap-1 text-amber-600 border-amber-500/30 hover:bg-amber-500/10"
+                >
+                  <CheckCircle className="h-3.5 w-3.5" /> Submissions
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
                   onClick={() => handleDeleteQuiz(quiz.id)}
                   className="gap-1 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
                   disabled={deletingQuizId === quiz.id}
@@ -425,24 +461,22 @@ export default function ManageQuizzesPage() {
                   <p className="text-xs text-muted-foreground">No unassigned questions available. Add questions in the Question Bank first.</p>
                 ) : (
                   <div className="space-y-3">
-                    {/* Classification Tabs */}
+                    {/* Classification Tabs (MCQ, Short, Long) */}
                     <div className="flex flex-wrap gap-1.5 border-b border-border pb-2">
-                      {(["all", "MCQ", "Short", "Long"] as const).map((tab) => {
-                        const tabQuestions = tab === "all"
-                          ? courseQuestions
-                          : courseQuestions.filter((q) => (q.type || "MCQ") === tab);
+                      {(["MCQ", "Short", "Long"] as const).map((tab) => {
+                        const tabQuestions = courseQuestions.filter((q) => (q.type || "MCQ") === tab);
                         const selectedCount = tabQuestions.filter((q) => formQuestions.includes(q.id)).length;
-                        const isCurrent = (activeQuestionTab || "all") === tab;
-                        const label = tab === "all" ? "All Questions" : tab === "MCQ" ? "MCQs" : tab === "Short" ? "Short Questions" : "Long Questions";
+                        const isCurrent = activeQuestionTab === tab;
+                        const label = tab === "MCQ" ? "MCQs" : tab === "Short" ? "Short Questions" : "Long Questions";
 
                         return (
                           <button
                             key={tab}
                             type="button"
                             onClick={() => setActiveQuestionTab(tab)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                               isCurrent
-                                ? "bg-brand-primary text-white shadow-xs"
+                                ? "bg-brand-primary text-white shadow-md scale-105"
                                 : "bg-accent/40 text-muted-foreground hover:bg-accent hover:text-foreground"
                             }`}
                           >
@@ -460,11 +494,7 @@ export default function ManageQuizzesPage() {
                     {/* Classified Questions List */}
                     <div className="space-y-2 max-h-[220px] overflow-y-auto rounded-xl border border-border p-2">
                       {courseQuestions
-                        .filter((q) => {
-                          const tab = activeQuestionTab || "all";
-                          if (tab === "all") return true;
-                          return (q.type || "MCQ") === tab;
-                        })
+                        .filter((q) => (q.type || "MCQ") === activeQuestionTab)
                         .map((q) => {
                           const isSelected = formQuestions.includes(q.id);
                           const qType = q.type || "MCQ";
@@ -507,11 +537,7 @@ export default function ManageQuizzesPage() {
                             </button>
                           );
                         })}
-                      {courseQuestions.filter((q) => {
-                        const tab = activeQuestionTab || "all";
-                        if (tab === "all") return true;
-                        return (q.type || "MCQ") === tab;
-                      }).length === 0 && (
+                      {courseQuestions.filter((q) => (q.type || "MCQ") === activeQuestionTab).length === 0 && (
                         <p className="text-xs text-muted-foreground text-center py-4">No questions found in this category.</p>
                       )}
                     </div>
@@ -525,6 +551,95 @@ export default function ManageQuizzesPage() {
             <Button onClick={handleCreate} disabled={!formTitle || !formCourse || formQuestions.length === 0 || !formDueDate || creating}>
               {creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {creating ? "Creating..." : "Create Quiz"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Hardform Assignment Submissions Dialog */}
+      <Dialog open={!!submissionModalQuiz} onOpenChange={(open) => { if (!open) setSubmissionModalQuiz(null); }}>
+        <DialogContent className="max-w-md rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-amber-500" />
+              Hardform Assignment Submissions
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              {submissionModalQuiz?.title} ({submissionModalQuiz?.course?.courseCode})
+            </p>
+          </DialogHeader>
+
+          <div className="py-2 space-y-3 max-h-[60vh] overflow-y-auto">
+            {loadingSubmissions ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-brand-primary" />
+              </div>
+            ) : enrolledStudents.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">No enrolled students found in this course.</p>
+            ) : (
+              <div className="space-y-2">
+                {enrolledStudents.map((st) => (
+                  <div
+                    key={st.id}
+                    className="flex items-center justify-between p-3 rounded-2xl bg-card border border-border hover:bg-accent/20 transition-colors"
+                  >
+                    <div>
+                      <p className="font-bold text-xs text-foreground">{st.name}</p>
+                      <p className="font-mono text-[10px] text-muted-foreground">{st.rollNo}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={st.submitted ? "default" : "outline"}
+                      disabled={togglingStudentSubmission === st.id}
+                      onClick={async () => {
+                        if (!submissionModalQuiz) return;
+                        setTogglingStudentSubmission(st.id);
+                        try {
+                          if (st.submitted) {
+                            // Reset submission
+                            setEnrolledStudents((prev) =>
+                              prev.map((s) => (s.id === st.id ? { ...s, submitted: false } : s))
+                            );
+                          } else {
+                            // Mark submitted
+                            await api.post(`/api/quizzes/${submissionModalQuiz.id}/submit`, {
+                              studentId: st.id,
+                              score: submissionModalQuiz.totalMarks,
+                              answers: [],
+                            });
+                            setEnrolledStudents((prev) =>
+                              prev.map((s) => (s.id === st.id ? { ...s, submitted: true } : s))
+                            );
+                          }
+                        } catch (err) {
+                          console.error("Failed to toggle submission:", err);
+                        } finally {
+                          setTogglingStudentSubmission(null);
+                        }
+                      }}
+                      className={`h-8 text-xs rounded-xl font-bold ${
+                        st.submitted
+                          ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                          : "border-amber-500/40 text-amber-600 hover:bg-amber-500/10"
+                      }`}
+                    >
+                      {togglingStudentSubmission === st.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : st.submitted ? (
+                        "Submitted ✓"
+                      ) : (
+                        "Mark Submitted"
+                      )}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSubmissionModalQuiz(null)} className="rounded-xl">
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
