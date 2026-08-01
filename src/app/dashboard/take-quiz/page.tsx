@@ -79,7 +79,7 @@ function CountdownTimer({ targetDate }: { targetDate: string }) {
 export default function TakeQuizPage() {
   const [quizzes, setQuizzes] = useState<QuizWithDetails[]>([]);
   const [myAttempts, setMyAttempts] = useState<MyQuizAttempt[]>([]);
-  const [activeTab, setActiveTab] = useState<"quizzes" | "assignments" | "history">("quizzes");
+  const [activeTab, setActiveTab] = useState<"quizzes" | "assignments">("quizzes");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [view, setView] = useState<QuizView>("list");
@@ -304,16 +304,6 @@ export default function TakeQuizPage() {
           >
             Assignments - Hardform Submissions ({hardformAssignments.length})
           </button>
-          <button
-            onClick={() => setActiveTab("history")}
-            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-              activeTab === "history"
-                ? "bg-brand-primary text-white shadow-sm"
-                : "bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            Attempted History &amp; Scores ({myAttempts.length})
-          </button>
         </div>
 
         {isBlocked && (
@@ -323,26 +313,265 @@ export default function TakeQuizPage() {
           </div>
         )}
 
-        {activeTab === "history" ? (
-          <div className="space-y-4">
-            {myAttempts.length === 0 ? (
-              <div className="text-center py-16 text-muted-foreground bg-card border border-border rounded-2xl">
-                <Trophy className="h-10 w-10 mx-auto mb-2 opacity-30 text-amber-500" />
-                <p className="text-sm font-bold text-foreground">No attempt history found</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Quizzes and hardform assignments you attempt will record your scores here.
-                </p>
-              </div>
-            ) : (
-              myAttempts.map((att) => {
-                const isAssignment = att.quiz.title.toLowerCase().includes("assignment") || att.quiz._count?.questions === 0;
-                const percentage = att.totalMarks > 0 ? Math.round((att.score / att.totalMarks) * 100) : 0;
-                return (
+        {activeTab === "quizzes" ? (
+          /* Online MCQs Quizzes Tab */
+          <div className="space-y-8">
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <FileText className="h-4 w-4 text-brand-primary" /> Active Online Quizzes
+              </h3>
+              {onlineQuizzes.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground bg-card border border-border rounded-2xl">
+                  <FileText className="h-8 w-8 mx-auto mb-2 opacity-30 text-purple-500" />
+                  <p className="text-sm font-bold text-foreground">No online MCQ quizzes available</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Active online quizzes will appear here for you to attempt.
+                  </p>
+                </div>
+              ) : (
+                onlineQuizzes.map((quiz) => {
+                  const daysLeft = Math.ceil((new Date(quiz.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                  const isQuizBlocked = isBlocked || blockedCourseIds.includes(quiz.courseId);
+
+                  return (
+                    <motion.div
+                      key={quiz.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="rounded-xl border border-border bg-card p-5 flex items-center gap-4 hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-purple-500/10">
+                        <FileText className="h-6 w-6 text-purple-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-sm font-semibold text-foreground">{quiz.title}</h3>
+                          <Badge variant="outline" className="text-[10px] uppercase font-bold py-0 px-2 bg-purple-500/10 text-purple-600 border-purple-500/30">
+                            Online MCQ Quiz
+                          </Badge>
+                          {isQuizBlocked && (
+                            <Badge variant="destructive" className="text-[10px] uppercase font-bold py-0 px-1.5">
+                              Restricted: Struck Off
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {quiz.course?.courseCode} • {quiz.questions?.length || 0} questions • {quiz.duration} mins • {quiz.totalMarks} marks
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Due: {new Date(quiz.dueDate).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        {completedAttempts[quiz.id] ? (
+                          <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs px-3 py-1.5 font-bold">
+                            Completed Score: {completedAttempts[quiz.id].score}/{quiz.totalMarks}
+                          </Badge>
+                        ) : new Date(quiz.dueDate).getTime() < Date.now() ? (
+                          <Badge variant="secondary" className="bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-xs px-3 py-1.5 font-bold">
+                            Deadline Expired
+                          </Badge>
+                        ) : (
+                          <>
+                            <Badge
+                              variant="secondary"
+                              className={
+                                daysLeft <= 2
+                                  ? "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+                                  : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                              }
+                            >
+                              {daysLeft <= 0 ? "Due Today" : `${daysLeft}d left`}
+                            </Badge>
+                            <Button size="sm" onClick={() => startQuiz(quiz)} disabled={isQuizBlocked || startingQuizId === quiz.id} className="gap-1 min-w-[80px]">
+                              {startingQuizId === quiz.id ? (
+                                <>
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Starting…
+                                </>
+                              ) : (
+                                <>
+                                  Start <ArrowRight className="h-3.5 w-3.5" />
+                                </>
+                              )}
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Quiz Attempt History Section */}
+            <div className="space-y-4 pt-4 border-t border-border">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Trophy className="h-4 w-4 text-amber-500" /> Quiz Attempt History &amp; Scores
+              </h3>
+
+              {(() => {
+                const quizAttempts = myAttempts.filter((att) => !att.quiz.title.toLowerCase().includes("assignment") && att.quiz._count?.questions !== 0);
+
+                if (quizAttempts.length === 0) {
+                  return (
+                    <div className="text-center py-8 text-muted-foreground bg-card border border-border rounded-2xl">
+                      <p className="text-xs font-semibold text-muted-foreground">No quiz attempt history yet</p>
+                    </div>
+                  );
+                }
+
+                return quizAttempts.map((att) => {
+                  const percentage = att.totalMarks > 0 ? Math.round((att.score / att.totalMarks) * 100) : 0;
+
+                  return (
+                    <motion.div
+                      key={att.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="rounded-2xl border border-border bg-card p-4 flex items-center justify-between gap-4 hover:shadow-md transition-shadow"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant="outline" className="text-[11px] font-bold border-brand-primary/30 text-brand-primary">
+                            {att.quiz.course?.courseCode}
+                          </Badge>
+                          <h4 className="text-sm font-bold text-foreground">{att.quiz.title}</h4>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Submitted: {new Date(att.submittedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className="text-right">
+                          <p className="text-base font-extrabold text-foreground">{att.score} / {att.totalMarks}</p>
+                          <p className="text-[10px] font-bold text-muted-foreground">{percentage}% Score</p>
+                        </div>
+                        <Badge className={percentage >= 50 ? "bg-emerald-500 text-white font-bold" : "bg-rose-500 text-white font-bold"}>
+                          {percentage >= 50 ? "Passed" : "Needs Improvement"}
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={deletingAttemptId === att.id}
+                          onClick={() => handleDeleteAttempt(att.id)}
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 rounded-lg transition-colors"
+                          title="Delete from history"
+                        >
+                          {deletingAttemptId === att.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      </div>
+                    </motion.div>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        ) : (
+          /* Hardform Assignments Tab */
+          <div className="space-y-8">
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Clock className="h-4 w-4 text-amber-500" /> Active Assignments
+              </h3>
+
+              {hardformAssignments.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground bg-card border border-border rounded-2xl">
+                  <FileText className="h-8 w-8 mx-auto mb-2 opacity-30 text-amber-500" />
+                  <p className="text-sm font-bold text-foreground">No hardform assignments published</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Assignments will be displayed here with submission deadlines.
+                  </p>
+                </div>
+              ) : (
+                hardformAssignments.map((quiz) => {
+                  const daysLeft = Math.ceil((new Date(quiz.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                  const isSubmitted = myAttempts.some(
+                    (a) => a.quiz.title === quiz.title || (a.quiz.course?.courseCode === quiz.course?.courseCode && a.quiz.title === quiz.title)
+                  );
+
+                  return (
+                    <motion.div
+                      key={quiz.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`rounded-xl border p-5 flex items-center justify-between gap-4 transition-all ${
+                        isSubmitted
+                          ? "border-border/40 bg-muted/20 opacity-80"
+                          : "border-amber-500/40 bg-amber-500/10 dark:bg-amber-950/20 shadow-sm"
+                      }`}
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-bold text-foreground">{quiz.title}</h3>
+                          {isSubmitted && (
+                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] py-0 px-2 font-bold">
+                              Marked / Done ✓
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {quiz.course?.courseCode} — {quiz.course?.courseName}
+                        </p>
+                        <p className="text-xs text-amber-700 dark:text-amber-300 font-bold flex items-center gap-1 mt-1">
+                          <Clock className="h-3.5 w-3.5" />
+                          Deadline: {new Date(quiz.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })} till 11:59 PM
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3 shrink-0">
+                        {isSubmitted ? (
+                          <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-extrabold px-3 py-1.5 text-xs rounded-xl border border-emerald-500/30">
+                            Submitted ✓
+                          </Badge>
+                        ) : (
+                          <>
+                            <Badge
+                              className={
+                                daysLeft <= 2
+                                  ? "bg-rose-600 text-white font-extrabold px-3 py-1.5 text-xs shadow-sm"
+                                  : "bg-amber-600 text-white font-extrabold px-3 py-1.5 text-xs shadow-sm"
+                              }
+                            >
+                              {daysLeft <= 0 ? "Due Today" : `${daysLeft} days remaining`}
+                            </Badge>
+                            <CountdownTimer targetDate={quiz.dueDate} />
+                          </>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Assignment Submission History Section */}
+            <div className="space-y-4 pt-4 border-t border-border">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-emerald-500" /> Assignment Submission History
+              </h3>
+
+              {(() => {
+                const assignmentAttempts = myAttempts.filter((att) => att.quiz.title.toLowerCase().includes("assignment") || att.quiz._count?.questions === 0);
+
+                if (assignmentAttempts.length === 0) {
+                  return (
+                    <div className="text-center py-8 text-muted-foreground bg-card border border-border rounded-2xl">
+                      <p className="text-xs font-semibold text-muted-foreground">No assignment submission history yet</p>
+                    </div>
+                  );
+                }
+
+                return assignmentAttempts.map((att) => (
                   <motion.div
                     key={att.id}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="rounded-2xl border border-border bg-card p-5 flex items-center justify-between gap-4 hover:shadow-md transition-shadow"
+                    className="rounded-2xl border border-border bg-card p-4 flex items-center justify-between gap-4 hover:shadow-md transition-shadow"
                   >
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -357,29 +586,16 @@ export default function TakeQuizPage() {
                     </div>
 
                     <div className="flex items-center gap-3 shrink-0">
-                      {isAssignment ? (
-                        <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-bold px-3 py-1 text-xs">
-                          Submitted ✓
-                        </Badge>
-                      ) : (
-                        <>
-                          <div className="text-right">
-                            <p className="text-lg font-extrabold text-foreground">{att.score} / {att.totalMarks}</p>
-                            <p className="text-[11px] font-bold text-muted-foreground">{percentage}% Score</p>
-                          </div>
-                          <Badge className={percentage >= 50 ? "bg-emerald-500 text-white font-bold" : "bg-rose-500 text-white font-bold"}>
-                            {percentage >= 50 ? "Passed" : "Needs Improvement"}
-                          </Badge>
-                        </>
-                      )}
-
+                      <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-bold px-3 py-1 text-xs">
+                        Submitted ✓
+                      </Badge>
                       <Button
                         size="sm"
                         variant="ghost"
                         disabled={deletingAttemptId === att.id}
                         onClick={() => handleDeleteAttempt(att.id)}
                         className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 rounded-lg transition-colors"
-                        title="Delete from my history"
+                        title="Delete from history"
                       >
                         {deletingAttemptId === att.id ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -389,166 +605,9 @@ export default function TakeQuizPage() {
                       </Button>
                     </div>
                   </motion.div>
-                );
-              })
-            )}
-          </div>
-        ) : activeTab === "assignments" ? (
-          /* Hardform Assignments Tab */
-          <div className="space-y-4">
-            {hardformAssignments.length === 0 ? (
-              <div className="text-center py-16 text-muted-foreground bg-card border border-border rounded-2xl">
-                <FileText className="h-10 w-10 mx-auto mb-2 opacity-30 text-amber-500" />
-                <p className="text-sm font-bold text-foreground">No hardform assignments published</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Assignments will be displayed here with submission deadlines.
-                </p>
-              </div>
-            ) : (
-              hardformAssignments.map((quiz) => {
-                const daysLeft = Math.ceil((new Date(quiz.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                const isSubmitted = myAttempts.some(
-                  (a) => a.quiz.title === quiz.title || (a.quiz.course?.courseCode === quiz.course?.courseCode && a.quiz.title === quiz.title)
-                );
-
-                return (
-                  <motion.div
-                    key={quiz.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`rounded-xl border p-5 flex items-center justify-between gap-4 transition-all ${
-                      isSubmitted
-                        ? "border-border/40 bg-muted/20 opacity-80"
-                        : "border-amber-500/40 bg-amber-500/10 dark:bg-amber-950/20 shadow-sm"
-                    }`}
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-bold text-foreground">{quiz.title}</h3>
-                        {isSubmitted && (
-                          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] py-0 px-2 font-bold">
-                            Marked / Done ✓
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {quiz.course?.courseCode} — {quiz.course?.courseName}
-                      </p>
-                      <p className="text-xs text-amber-700 dark:text-amber-300 font-bold flex items-center gap-1 mt-1">
-                        <Clock className="h-3.5 w-3.5" />
-                        Deadline: {new Date(quiz.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })} till 11:59 PM
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-3 shrink-0">
-                      {isSubmitted ? (
-                        <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-extrabold px-3 py-1.5 text-xs rounded-xl border border-emerald-500/30">
-                          Submitted ✓
-                        </Badge>
-                      ) : (
-                        <>
-                          <Badge
-                            className={
-                              daysLeft <= 2
-                                ? "bg-rose-600 text-white font-extrabold px-3 py-1.5 text-xs shadow-sm"
-                                : "bg-amber-600 text-white font-extrabold px-3 py-1.5 text-xs shadow-sm"
-                            }
-                          >
-                            {daysLeft <= 0 ? "Due Today" : `${daysLeft} days remaining`}
-                          </Badge>
-                          <CountdownTimer targetDate={quiz.dueDate} />
-                        </>
-                      )}
-                    </div>
-                  </motion.div>
-                );
-              })
-            )}
-          </div>
-        ) : (
-          /* Online MCQs Quizzes Tab */
-          <div className="space-y-4">
-            {onlineQuizzes.length === 0 ? (
-              <div className="text-center py-16 text-muted-foreground bg-card border border-border rounded-2xl">
-                <FileText className="h-10 w-10 mx-auto mb-2 opacity-30 text-purple-500" />
-                <p className="text-sm font-bold text-foreground">No online MCQ quizzes available</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Active online quizzes will appear here for you to attempt.
-                </p>
-              </div>
-            ) : (
-              onlineQuizzes.map((quiz) => {
-                const daysLeft = Math.ceil((new Date(quiz.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                const isQuizBlocked = isBlocked || blockedCourseIds.includes(quiz.courseId);
-
-                return (
-                  <motion.div
-                    key={quiz.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="rounded-xl border border-border bg-card p-5 flex items-center gap-4 hover:shadow-md transition-shadow"
-                  >
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-purple-500/10">
-                      <FileText className="h-6 w-6 text-purple-500" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-sm font-semibold text-foreground">{quiz.title}</h3>
-                        <Badge variant="outline" className="text-[10px] uppercase font-bold py-0 px-2 bg-purple-500/10 text-purple-600 border-purple-500/30">
-                          Online MCQ Quiz
-                        </Badge>
-                        {isQuizBlocked && (
-                          <Badge variant="destructive" className="text-[10px] uppercase font-bold py-0 px-1.5">
-                            Restricted: Struck Off
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {quiz.course?.courseCode} • {quiz.questions?.length || 0} questions • {quiz.duration} mins • {quiz.totalMarks} marks
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Due: {new Date(quiz.dueDate).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      {completedAttempts[quiz.id] ? (
-                        <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs px-3 py-1.5 font-bold">
-                          Completed Score: {completedAttempts[quiz.id].score}/{quiz.totalMarks}
-                        </Badge>
-                      ) : new Date(quiz.dueDate).getTime() < Date.now() ? (
-                        <Badge variant="secondary" className="bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-xs px-3 py-1.5 font-bold">
-                          Deadline Expired
-                        </Badge>
-                      ) : (
-                        <>
-                          <Badge
-                            variant="secondary"
-                            className={
-                              daysLeft <= 2
-                                ? "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
-                                : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                            }
-                          >
-                            {daysLeft <= 0 ? "Due Today" : `${daysLeft}d left`}
-                          </Badge>
-                          <Button size="sm" onClick={() => startQuiz(quiz)} disabled={isQuizBlocked || startingQuizId === quiz.id} className="gap-1 min-w-[80px]">
-                            {startingQuizId === quiz.id ? (
-                              <>
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Starting…
-                              </>
-                            ) : (
-                              <>
-                                Start <ArrowRight className="h-3.5 w-3.5" />
-                              </>
-                            )}
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </motion.div>
-                );
-              })
-            )}
+                ));
+              })()}
+            </div>
           </div>
         )}
       </motion.div>

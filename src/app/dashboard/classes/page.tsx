@@ -55,7 +55,7 @@ export default function ClassesPage() {
   // Single-Row Top Filter Bar States
   const [selectedDept, setSelectedDept] = useState("ALL");
   const [selectedSemester, setSelectedSemester] = useState("ALL");
-  const [selectedShift, setSelectedShift] = useState("ALL");
+  const [selectedShift, setSelectedShift] = useState("Morning");
   const [expanded, setExpanded] = useState<string | null>(null);
 
   // Student Detail Modal States
@@ -174,7 +174,6 @@ export default function ClassesPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL">All Shifts</SelectItem>
               <SelectItem value="Morning">Morning</SelectItem>
               <SelectItem value="Evening">Evening</SelectItem>
             </SelectContent>

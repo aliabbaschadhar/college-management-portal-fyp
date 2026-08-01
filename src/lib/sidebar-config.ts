@@ -63,7 +63,7 @@ const studentNav: NavItem[] = [
   { title: "Grades", href: "/dashboard/my-grades", icon: BarChart3 },
   { title: "Dues", href: "/dashboard/my-dues", icon: CreditCard },
   { title: "Timetable", href: "/dashboard/my-timetable", icon: Calendar },
-  { title: "Quizzes", href: "/dashboard/take-quiz", icon: PenTool },
+  { title: "Quizzes & Assignments", href: "/dashboard/take-quiz", icon: PenTool },
   { title: "Feedback", href: "/dashboard/submit-feedback", icon: MessageSquare },
   { title: "Profile", href: "/dashboard/settings", icon: User },
 ];

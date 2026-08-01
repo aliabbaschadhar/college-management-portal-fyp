@@ -135,31 +135,110 @@ export default function MarkAttendancePage() {
       const list = Array.isArray(res.data) ? res.data : [];
       setCourses(list);
       if (list.length > 0) {
-        const firstDept = list[0].department;
-        const deptSemesters = Array.from(
-          new Set(list.filter((c) => c.department === firstDept).map((c) => c.semester))
-        ).sort((a, b) => a - b);
-        const firstSem = deptSemesters[0];
-        const matchingCourse = list.find(
-          (c) => c.department === firstDept && c.semester === firstSem
-        );
+        setSelectedDept((prevDept) => {
+          const currentDept = prevDept && list.some((c) => c.department === prevDept) ? prevDept : list[0].department;
 
-        setSelectedDept(firstDept);
-        if (firstSem !== undefined) setSelectedSemester(firstSem.toString());
-        if (matchingCourse) setSelectedCourse(matchingCourse.id);
+          setSelectedSemester((prevSem) => {
+            const deptSemesters = Array.from(
+              new Set(list.filter((c) => c.department === currentDept).map((c) => c.semester))
+            ).sort((a, b) => a - b);
+            const currentSem =
+              prevSem && deptSemesters.includes(Number(prevSem))
+                ? prevSem
+                : deptSemesters[0] !== undefined
+                ? deptSemesters[0].toString()
+                : "";
+
+            setSelectedCourse((prevCourse) => {
+              const matchingCourses = list.filter(
+                (c) => c.department === currentDept && c.semester === Number(currentSem)
+              );
+              const currentCourse =
+                prevCourse && matchingCourses.some((c) => c.id === prevCourse)
+                  ? prevCourse
+                  : matchingCourses[0]?.id || "";
+              return currentCourse;
+            });
+
+            return currentSem;
+          });
+
+          return currentDept;
+        });
       }
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [setSelectedDept, setSelectedSemester, setSelectedCourse]);
 
   useEffect(() => {
     fetchCourses();
   }, [fetchCourses]);
 
+  // Load students, attendance, & timetable schedule when selectedCourse or selectedDate changes
+  const fetchCourseDetails = useCallback(async (courseId: string, dateStr: string) => {
+    if (!courseId) {
+      setAttendanceData([]);
+      setTimetableDays([]);
+      return;
+    }
+    setLoadingStudents(true);
+    setSubmitted(false);
+
+    try {
+      const [courseRes, attendanceRes, timetableRes] = await Promise.all([
+        api.get<{ enrollments?: { blocked?: boolean; readmitRequested?: boolean; student: StudentOption }[] }>(`/api/courses/${courseId}`),
+        api.get<{ studentId: string; status: AttendanceStatus }[]>(
+          `/api/attendance?courseId=${courseId}&date=${dateStr}`
+        ).catch(() => ({ data: [] })),
+        api.get<{ day: string }[]>(`/api/timetable?courseId=${courseId}`).catch(() => ({ data: [] })),
+      ]);
+
+      const enrollments = courseRes.data.enrollments || [];
+      const students = enrollments
+        .map((e) => {
+          if (!e.student) return null;
+          const isBlocked = e.student.blocked && e.blocked !== false;
+          const isReadmitReq = !isBlocked ? false : (e.student.readmitRequested || e.readmitRequested || false);
+          return {
+            ...e.student,
+            blocked: isBlocked,
+            readmitRequested: isReadmitReq,
+          };
+        })
+        .filter(Boolean) as StudentOption[];
+
+      const prevRecords = attendanceRes.data || [];
+      const ttEntries = Array.isArray(timetableRes.data) ? timetableRes.data : [];
+
+      setTimetableDays(Array.from(new Set(ttEntries.map((t) => t.day))));
+      const statusMap = new Map(prevRecords.map((r) => [r.studentId, r.status]));
+
+      setAttendanceData(
+        students.map((s) => ({
+          student: s,
+          status: statusMap.get(s.id) || "Present",
+        }))
+      );
+    } catch (err) {
+      console.error("Failed to load attendance/students:", err);
+      setAttendanceData([]);
+      setTimetableDays([]);
+    } finally {
+      setLoadingStudents(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCourseDetails(selectedCourse, selectedDate);
+  }, [selectedCourse, selectedDate, fetchCourseDetails]);
+
   const handleRefresh = async () => {
     setRefreshing(true);
     await fetchCourses();
+    if (selectedCourse) {
+      await fetchCourseDetails(selectedCourse, selectedDate);
+    }
     setRefreshing(false);
   };
 
@@ -179,51 +258,6 @@ export default function MarkAttendancePage() {
   const filteredCourses = courses.filter(
     (c) => c.department === selectedDept && c.semester === Number(selectedSemester)
   );
-
-  // Load students, attendance, & timetable schedule when selectedCourse or selectedDate changes
-  useEffect(() => {
-    if (!selectedCourse) {
-      setAttendanceData([]);
-      setTimetableDays([]);
-      return;
-    }
-    setLoadingStudents(true);
-    setSubmitted(false);
-
-    Promise.all([
-      api.get<{ enrollments?: { student: StudentOption }[] }>(`/api/courses/${selectedCourse}`),
-      api.get<{ studentId: string; status: AttendanceStatus }[]>(
-        `/api/attendance?courseId=${selectedCourse}&date=${selectedDate}`
-      ).catch(() => ({ data: [] })),
-      api.get<{ day: string }[]>(`/api/timetable?courseId=${selectedCourse}`).catch(() => ({ data: [] })),
-    ])
-      .then(([courseRes, attendanceRes, timetableRes]) => {
-        const enrollments = courseRes.data.enrollments || [];
-        const students = enrollments.map((e) => e.student).filter(Boolean);
-        const prevRecords = attendanceRes.data || [];
-        const ttEntries = Array.isArray(timetableRes.data) ? timetableRes.data : [];
-
-        setTimetableDays(Array.from(new Set(ttEntries.map((t) => t.day))));
-
-        // Map studentId to existing status
-        const statusMap = new Map(prevRecords.map((r) => [r.studentId, r.status]));
-
-        setAttendanceData(
-          students.map((s) => ({
-            student: s,
-            status: statusMap.get(s.id) || "Present",
-          }))
-        );
-      })
-      .catch((err) => {
-        console.error("Failed to load attendance/students:", err);
-        setAttendanceData([]);
-        setTimetableDays([]);
-      })
-      .finally(() => {
-        setLoadingStudents(false);
-      });
-  }, [selectedCourse, selectedDate]);
 
   // Determine day of week for selected date and verify if class is scheduled
   const selectedDayName = useMemo(() => {

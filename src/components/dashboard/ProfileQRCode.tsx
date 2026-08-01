@@ -3,21 +3,26 @@
 import { QRCodeSVG } from "qrcode.react";
 import { motion } from "framer-motion";
 import { QrCode, Download, ExternalLink } from "lucide-react";
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useSyncExternalStore } from "react";
 
 interface ProfileQRCodeProps {
   userId: string;
   userName: string;
 }
 
+const emptySubscribe = () => () => {};
+
 export function ProfileQRCode({ userId, userName }: ProfileQRCodeProps) {
   const qrRef = useRef<HTMLDivElement>(null);
+  const profileUrl = `/verify/${userId}`;
 
-  // Safe to use window here because this is a Client Component
-  const profileUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/verify/${userId}`
-      : `/verify/${userId}`;
+  const origin = useSyncExternalStore(
+    emptySubscribe,
+    () => (typeof window !== "undefined" ? window.location.origin : ""),
+    () => ""
+  );
+
+  const fullUrl = origin ? `${origin}${profileUrl}` : profileUrl;
 
   const handleDownload = useCallback(() => {
     if (!qrRef.current) return;
@@ -75,11 +80,7 @@ export function ProfileQRCode({ userId, userName }: ProfileQRCodeProps) {
         className="flex justify-center p-5 bg-white rounded-xl border border-brand-light shadow-inner mb-4"
       >
         <QRCodeSVG
-          value={
-            typeof window !== "undefined"
-              ? `${window.location.origin}/verify/${userId}`
-              : `/verify/${userId}`
-          }
+          value={fullUrl}
           size={180}
           bgColor="#FFFFFF"
           fgColor="#131022"

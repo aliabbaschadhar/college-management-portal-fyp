@@ -1,27 +1,54 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useSyncExternalStore, useCallback } from "react";
+
+function subscribe(callback: () => void) {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener("storage", callback);
+  return () => window.removeEventListener("storage", callback);
+}
 
 export function useStoredState<T>(key: string, defaultValue: T): [T, (value: T | ((val: T) => T)) => void] {
-  const [state, setState] = useState<T>(() => {
-    if (typeof window === "undefined") return defaultValue;
-    try {
-      const item = window.sessionStorage.getItem(`cmp_filter_${key}`);
-      return item !== null ? (JSON.parse(item) as T) : defaultValue;
-    } catch {
-      return defaultValue;
-    }
-  });
+  const fullKey = `cmp_filter_${key}`;
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
+  const getSnapshot = useCallback(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      return window.sessionStorage.getItem(fullKey);
+    } catch {
+      return null;
+    }
+  }, [fullKey]);
+
+  const getServerSnapshot = useCallback(() => null, []);
+
+  const rawValue = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+
+  let value: T = defaultValue;
+  if (rawValue !== null) {
+    try {
+      value = JSON.parse(rawValue) as T;
+    } catch {
+      value = defaultValue;
+    }
+  }
+
+  const setStoredState = useCallback(
+    (newValue: T | ((val: T) => T)) => {
       try {
-        window.sessionStorage.setItem(`cmp_filter_${key}`, JSON.stringify(state));
+        if (typeof window !== "undefined") {
+          const currentItem = window.sessionStorage.getItem(fullKey);
+          const currentVal = currentItem !== null ? (JSON.parse(currentItem) as T) : defaultValue;
+          const nextValue = typeof newValue === "function" ? (newValue as (val: T) => T)(currentVal) : newValue;
+          window.sessionStorage.setItem(fullKey, JSON.stringify(nextValue));
+          window.dispatchEvent(new Event("storage"));
+        }
       } catch {
         /* ignore */
       }
-    }
-  }, [key, state]);
+    },
+    [fullKey, defaultValue]
+  );
 
-  return [state, setState];
+  return [value, setStoredState];
 }

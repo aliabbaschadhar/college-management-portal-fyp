@@ -581,9 +581,7 @@ export default function ManageAttendancePage() {
             >
               Struck Off
             </Button>
-          ) : (
-            <span className="text-xs text-muted-foreground font-medium px-2 py-1 bg-accent rounded-md">Active</span>
-          )}
+          ) : null}
         </div>
       ),
     },

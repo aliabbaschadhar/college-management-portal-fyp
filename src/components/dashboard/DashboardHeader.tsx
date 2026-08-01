@@ -48,7 +48,7 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
     name: string | null;
     role: string;
     faculty?: { department: string; specialization: string } | null;
-    student?: { department: string; semester: number; shift: string } | null;
+    student?: { department: string; semester: number; shift: string; blocked?: boolean; readmitRequested?: boolean } | null;
   } | null>(null);
 
   const { user } = useUser();
@@ -150,8 +150,28 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
     });
   }, [isMounted, visibleAnnouncements, userId]);
 
-  // Recalculate unread count based on unread announcements + unpaid dues
-  const unreadCount = unreadAnnouncements.length + unpaidFees.length;
+  const isStruckOff = role === "student" && dbProfile?.student?.blocked === true;
+  const [showWelcomeNotice, setShowWelcomeNotice] = useState(false);
+
+  useEffect(() => {
+    if (userId && role === "student" && dbProfile?.student !== undefined) {
+      const wasBlocked = localStorage.getItem(`was_blocked_${userId}`) === "true";
+      const isNowBlocked = dbProfile.student?.blocked === true;
+
+      if (wasBlocked && !isNowBlocked) {
+        setShowWelcomeNotice(true);
+        localStorage.setItem(`welcome_notice_${userId}`, "true");
+      }
+      localStorage.setItem(`was_blocked_${userId}`, String(isNowBlocked));
+
+      if (localStorage.getItem(`welcome_notice_${userId}`) === "true" && !isNowBlocked) {
+        setShowWelcomeNotice(true);
+      }
+    }
+  }, [userId, role, dbProfile]);
+
+  // Recalculate unread count based on unread announcements + unpaid dues + struck off alert + welcome notice
+  const unreadCount = unreadAnnouncements.length + unpaidFees.length + (isStruckOff ? 1 : 0) + (showWelcomeNotice ? 1 : 0);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -279,6 +299,43 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
                     </div>
                   ) : (
                     <>
+                      {isStruckOff && (
+                        <div className="p-4 rounded-2xl bg-rose-600/15 border-2 border-rose-600 text-rose-600 dark:text-rose-400 space-y-2 animate-pulse">
+                          <div className="flex items-center justify-between gap-2">
+                            <Badge variant="destructive" className="uppercase text-[9px] font-black bg-rose-600 text-white">
+                              URGENT ALERT
+                            </Badge>
+                            <span className="text-[10px] font-bold uppercase tracking-wider">Status: Struck Off</span>
+                          </div>
+                          <p className="text-xs font-bold leading-snug">
+                            You have been Struck Off due to attendance shortage. Please contact your instructor or administration for Re-Admission approval.
+                          </p>
+                        </div>
+                      )}
+
+                      {showWelcomeNotice && (
+                        <div className="p-4 rounded-2xl bg-emerald-500/15 border-2 border-emerald-500 text-emerald-700 dark:text-emerald-400 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <Badge className="bg-emerald-600 text-white uppercase text-[9px] font-black">
+                              ACCOUNT REACTIVATED
+                            </Badge>
+                            <button
+                              onClick={() => {
+                                if (userId) {
+                                  localStorage.removeItem(`welcome_notice_${userId}`);
+                                }
+                                setShowWelcomeNotice(false);
+                              }}
+                              className="text-xs font-bold underline hover:opacity-80 cursor-pointer"
+                            >
+                              Dismiss
+                            </button>
+                          </div>
+                          <p className="text-xs font-bold leading-snug">
+                            Welcome Back! 🎉 Your account has been reactivated and re-admission has been approved by the Administration.
+                          </p>
+                        </div>
+                      )}
                       {unpaidFees.map((fee) => (
                         <div
                           key={fee.id}

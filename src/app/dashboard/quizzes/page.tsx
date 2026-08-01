@@ -618,10 +618,10 @@ export default function ManageQuizzesPage() {
           <DialogHeader>
             <DialogTitle className="text-lg font-bold flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-brand-primary" />
-              Assigned Students &amp; Quiz Output Results
+              {activeSubTab === "assignments" ? "Assignment Submissions" : "Quiz Results"}
             </DialogTitle>
             <p className="text-xs text-muted-foreground">
-              {submissionModalQuiz?.title} ({submissionModalQuiz?.course?.courseCode}) • {enrolledStudents.filter((s) => s.submitted).length}/{enrolledStudents.length} Attempted / Submitted
+              {submissionModalQuiz?.title} ({submissionModalQuiz?.course?.courseCode}) • {enrolledStudents.filter((s) => s.submitted).length}/{enrolledStudents.length} Submitted
             </p>
           </DialogHeader>
 
@@ -637,32 +637,16 @@ export default function ManageQuizzesPage() {
                 {enrolledStudents.map((st) => (
                   <div
                     key={st.id}
-                    className="flex items-center justify-between p-3 rounded-2xl bg-card border border-border hover:bg-accent/20 transition-colors"
+                    className="flex items-center justify-between p-3.5 rounded-2xl bg-card border border-border hover:bg-accent/20 transition-colors"
                   >
                     <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-bold text-xs text-foreground">{st.name}</p>
-                        <Badge
-                          variant="secondary"
-                          className={
-                            st.submitted
-                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] py-0 px-1.5 font-bold"
-                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 text-[10px] py-0 px-1.5 font-bold"
-                          }
-                        >
-                          {st.submitted ? "Attempted ✓" : "Not Attempted"}
-                        </Badge>
-                      </div>
+                      <p className="font-bold text-xs text-foreground">{st.name}</p>
                       <p className="font-mono text-[10px] text-muted-foreground mt-0.5">{st.rollNo}</p>
                     </div>
 
                     <div className="flex items-center gap-3">
-                      {st.submitted ? (
-                        activeSubTab === "assignments" ? (
-                          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-xs px-2.5 py-1 font-bold">
-                            Submitted ✓
-                          </Badge>
-                        ) : (
+                      {activeSubTab === "quizzes" ? (
+                        st.submitted ? (
                           <div className="text-right">
                             <p className="text-sm font-extrabold text-brand-primary">
                               {st.score !== undefined ? `${st.score} / ${st.totalMarks}` : "Submitted"}
@@ -673,12 +657,10 @@ export default function ManageQuizzesPage() {
                               </p>
                             )}
                           </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic font-mono">Not Attempted</span>
                         )
                       ) : (
-                        <span className="text-xs text-muted-foreground italic font-mono">—</span>
-                      )}
-
-                      {activeSubTab === "assignments" && (
                         <Button
                           size="sm"
                           variant={st.submitted ? "default" : "outline"}
@@ -708,7 +690,7 @@ export default function ManageQuizzesPage() {
                               setTogglingStudentSubmission(null);
                             }
                           }}
-                          className={`h-8 text-xs rounded-xl font-bold ${
+                          className={`h-8 text-xs rounded-xl font-bold transition-all ${
                             st.submitted
                               ? "bg-emerald-600 hover:bg-emerald-700 text-white"
                               : "border-amber-500/40 text-amber-600 hover:bg-amber-500/10"
