@@ -341,7 +341,7 @@ export default function ManageQuizzesPage() {
                     {togglingQuizId === quiz.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />} Close
                   </Button>
                 )}
-                {quiz.status !== "Draft" && (
+                {quiz.status !== "Draft" && activeSubTab === "quizzes" && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -377,7 +377,7 @@ export default function ManageQuizzesPage() {
                     }}
                     className="gap-1 rounded-xl font-bold border-brand-primary/30 text-brand-primary hover:bg-brand-primary hover:text-white"
                   >
-                    <Eye className="h-3.5 w-3.5" /> Results / Students
+                    <Eye className="h-3.5 w-3.5" /> Results
                   </Button>
                 )}
                 {activeSubTab === "assignments" && (
@@ -486,14 +486,6 @@ export default function ManageQuizzesPage() {
         ))
       )}
       </div>
-
-      {quizzes.length === 0 && (
-        <div className="text-center py-16 text-muted-foreground">
-          <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
-          <p className="text-lg font-medium">No quizzes created</p>
-          <p className="text-sm mt-1">Click &quot;Create Quiz&quot; to get started.</p>
-        </div>
-      )}
 
       {/* Create Quiz / Assignment Modal */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
@@ -666,16 +658,22 @@ export default function ManageQuizzesPage() {
 
                     <div className="flex items-center gap-3">
                       {st.submitted ? (
-                        <div className="text-right">
-                          <p className="text-sm font-extrabold text-brand-primary">
-                            {st.score !== undefined ? `${st.score} / ${st.totalMarks}` : "Submitted"}
-                          </p>
-                          {st.score !== undefined && st.totalMarks && st.totalMarks > 0 && (
-                            <p className="text-[10px] font-bold text-muted-foreground">
-                              {Math.round((st.score / st.totalMarks) * 100)}% Score
+                        activeSubTab === "assignments" ? (
+                          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-xs px-2.5 py-1 font-bold">
+                            Submitted ✓
+                          </Badge>
+                        ) : (
+                          <div className="text-right">
+                            <p className="text-sm font-extrabold text-brand-primary">
+                              {st.score !== undefined ? `${st.score} / ${st.totalMarks}` : "Submitted"}
                             </p>
-                          )}
-                        </div>
+                            {st.score !== undefined && st.totalMarks && st.totalMarks > 0 && (
+                              <p className="text-[10px] font-bold text-muted-foreground">
+                                {Math.round((st.score / st.totalMarks) * 100)}% Score
+                              </p>
+                            )}
+                          </div>
+                        )
                       ) : (
                         <span className="text-xs text-muted-foreground italic font-mono">—</span>
                       )}

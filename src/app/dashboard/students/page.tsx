@@ -486,10 +486,12 @@ export default function ManageStudentsPage() {
             header: "Actions",
             render: (row: StudentWithUser) => (
               <div className="flex items-center gap-1">
-                {row.readmitRequested && (
+                {row.blocked && (
                   <Button
                     size="sm"
+                    disabled={!row.readmitRequested}
                     onClick={async () => {
+                      if (!row.readmitRequested) return;
                       try {
                         await api.patch(`/api/students/${row.id}`, { blocked: false, readmitRequested: false });
                         setStudents((prev) =>
@@ -500,10 +502,18 @@ export default function ManageStudentsPage() {
                         console.error("Failed to approve re-admission:", err);
                       }
                     }}
-                    className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-2 gap-1 font-semibold"
-                    title="Approve Re-admission / Activate Student"
+                    className={`h-8 text-xs rounded-lg px-2 gap-1 font-semibold ${
+                      row.readmitRequested
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+                        : "bg-muted text-muted-foreground opacity-50 cursor-not-allowed border border-muted"
+                    }`}
+                    title={
+                      row.readmitRequested
+                        ? "Approve Re-admission / Activate Student"
+                        : "Re-admission request required from faculty first"
+                    }
                   >
-                    <CheckCircle className="h-3.5 w-3.5" /> Re-Admit
+                    <CheckCircle className="h-3.5 w-3.5" /> Re-Admit Student
                   </Button>
                 )}
                 <button

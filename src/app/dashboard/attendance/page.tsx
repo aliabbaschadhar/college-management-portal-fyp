@@ -234,8 +234,11 @@ export default function ManageAttendancePage() {
     }
   };
 
+  const [actionLoadingStudentId, setActionLoadingStudentId] = useState<string | null>(null);
+
   const handleToggleBlock = async (student: StudentStatsItem) => {
     const nextState = !student.blocked;
+    setActionLoadingStudentId(student.id);
     try {
       await api.patch(`/api/students/${student.id}`, { blocked: nextState, readmitRequested: false });
       if (student.enrollments) {
@@ -257,10 +260,13 @@ export default function ManageAttendancePage() {
       }
     } catch (err) {
       console.error("Failed to toggle student blocked status:", err);
+    } finally {
+      setActionLoadingStudentId(null);
     }
   };
 
   const handleRequestReadmission = async (student: StudentStatsItem) => {
+    setActionLoadingStudentId(student.id);
     try {
       const targetEnrollment = student.enrollments?.[0];
       if (targetEnrollment) {
@@ -281,6 +287,8 @@ export default function ManageAttendancePage() {
       }
     } catch (err) {
       console.error("Failed to request re-admission:", err);
+    } finally {
+      setActionLoadingStudentId(null);
     }
   };
 
@@ -523,10 +531,23 @@ export default function ManageAttendancePage() {
               <Button
                 variant="outline"
                 size="sm"
+                disabled={actionLoadingStudentId === row.id || !row.readmitRequested}
                 onClick={() => handleToggleBlock(row)}
-                className="h-8 text-xs gap-1 rounded-lg border-emerald-500 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-600 hover:text-white font-bold"
+                className={`h-8 text-xs gap-1 rounded-lg border-emerald-500 font-bold min-w-[140px] ml-2 ${
+                  row.readmitRequested
+                    ? "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-600 hover:text-white cursor-pointer"
+                    : "opacity-50 cursor-not-allowed text-muted-foreground border-muted"
+                }`}
+                title={
+                  row.readmitRequested
+                    ? "Approve Re-admission / Activate Student"
+                    : "Re-admission request required from faculty first"
+                }
               >
-                Activate / Restore
+                {actionLoadingStudentId === row.id ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : null}
+                Re-Admit Student
               </Button>
             ) : row.readmitRequested ? (
               <Badge variant="outline" className="text-xs py-1 px-2 bg-amber-500/10 text-amber-600 border-amber-500/30">
@@ -536,9 +557,13 @@ export default function ManageAttendancePage() {
               <Button
                 variant="outline"
                 size="sm"
+                disabled={actionLoadingStudentId === row.id}
                 onClick={() => handleRequestReadmission(row)}
-                className="h-8 text-xs gap-1 rounded-lg border-amber-500 text-amber-600 hover:bg-amber-500 hover:text-white font-semibold"
+                className="h-8 text-xs gap-1 rounded-lg border-amber-500 text-amber-600 hover:bg-amber-500 hover:text-white font-semibold min-w-[140px]"
               >
+                {actionLoadingStudentId === row.id ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : null}
                 Request Re-Admission
               </Button>
             )
@@ -546,6 +571,7 @@ export default function ManageAttendancePage() {
             <Button
               variant="destructive"
               size="sm"
+              disabled={submittingStruckOff}
               onClick={() => handleStruckOffClick(row)}
               className={`h-8 text-xs gap-1 rounded-lg ${
                 row.stats.rate < 75
@@ -819,22 +845,6 @@ export default function ManageAttendancePage() {
 
             {/* Selected Student Stats Summary Panel */}
             <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/30 p-3 rounded-2xl border border-border">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Selected Student Stats:</span>
-                  {activeStatsStudent ? (
-                    <Badge variant="outline" className="bg-brand-primary/10 text-brand-primary border-brand-primary/30 text-xs py-1 px-2.5 font-bold">
-                      {activeStatsStudent.user?.name ?? "Unknown"} ({activeStatsStudent.rollNo})
-                    </Badge>
-                  ) : (
-                    <span className="text-xs text-muted-foreground italic">No student selected</span>
-                  )}
-                </div>
-                <span className="text-xs text-muted-foreground italic">
-                  💡 Click any student row in table below to inspect stats
-                </span>
-              </div>
-
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="p-5 bg-card border-2 border-border rounded-2xl flex flex-col justify-between shadow-sm">
                   <span className="text-sm font-semibold text-muted-foreground uppercase">Total Lectures</span>
@@ -1118,29 +1128,16 @@ export default function ManageAttendancePage() {
                   );
                 })()}
 
-                <div className="flex items-center gap-4 text-xs justify-center py-1">
-                  <span className="flex items-center gap-1 font-semibold text-emerald-600">
-                    <span className="h-5 w-5 rounded-md bg-emerald-500/20 flex items-center justify-center text-[10px] font-bold">P</span> Present
-                  </span>
-                  <span className="flex items-center gap-1 font-semibold text-amber-600">
-                    <span className="h-5 w-5 rounded-md bg-amber-500/20 flex items-center justify-center text-[10px] font-bold">L</span> Late
-                  </span>
-                  <span className="flex items-center gap-1 font-semibold text-rose-600">
-                    <span className="h-5 w-5 rounded-md bg-rose-500/20 flex items-center justify-center text-[10px] font-bold">A</span> Absent
-                  </span>
-                </div>
-
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-[300px] overflow-y-auto p-1">
                   {selectedStudentLogs.map((log) => {
                     const formattedDate = new Date(log.date).toLocaleDateString(undefined, {
                       month: "short",
                       day: "numeric",
                     });
-                    const letter = log.status[0];
                     return (
                       <div
                         key={log.id}
-                        className={`p-2 rounded-xl border flex items-center justify-between text-xs font-mono ${
+                        className={`p-2 rounded-xl border flex items-center justify-between text-xs ${
                           log.status === "Present"
                             ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
                             : log.status === "Late"
@@ -1149,8 +1146,8 @@ export default function ManageAttendancePage() {
                         }`}
                       >
                         <span className="font-sans font-medium text-foreground text-[11px]">{formattedDate}</span>
-                        <span className="h-6 w-6 rounded-lg bg-card flex items-center justify-center font-bold text-xs shadow-xs">
-                          {letter}
+                        <span className="font-bold text-xs">
+                          {log.status}
                         </span>
                       </div>
                     );

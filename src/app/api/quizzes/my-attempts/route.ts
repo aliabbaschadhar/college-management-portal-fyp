@@ -29,7 +29,18 @@ export async function GET(_request: NextRequest) {
       orderBy: { submittedAt: "desc" },
     });
 
-    return NextResponse.json(attempts);
+    const formatted = attempts.map((a) => ({
+      ...a,
+      quiz: a.quiz ?? {
+        title: a.quizTitle ?? "Completed Quiz",
+        duration: 0,
+        totalMarks: a.totalMarks,
+        course: { courseCode: a.courseCode ?? "N/A", courseName: "Course" },
+        _count: { questions: 0 },
+      },
+    }));
+
+    return NextResponse.json(formatted);
   } catch (error) {
     console.error("GET /api/quizzes/my-attempts error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

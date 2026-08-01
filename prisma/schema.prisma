@@ -198,13 +198,15 @@ model Question {
 
 model QuizAttempt {
   id          String   @id @default(uuid())
-  quizId      String
+  quizId      String?
   studentId   String
   score       Int
   totalMarks  Int
   submittedAt DateTime @default(now())
   answers     Int[]
-  quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quizTitle   String?
+  courseCode  String?
+  quiz        Quiz?    @relation(fields: [quizId], references: [id], onDelete: SetNull)
   student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([quizId])

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/axios";
-import { BookOpen, Users, ChevronDown, ChevronUp, RefreshCw, Eye, Mail, Phone, Calendar } from "lucide-react";
+import { BookOpen, Users, ChevronDown, ChevronUp, RefreshCw, Eye, Calendar } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +43,7 @@ interface CourseWithEnrollments {
   creditHours: number;
   department: string;
   semester: number;
+  shift?: string;
   enrollments: { student: StudentInCourse }[];
 }
 
@@ -89,10 +90,11 @@ export default function ClassesPage() {
     fetchClasses(true);
   };
 
-  // Filter courses by department and semester
+  // Filter courses by department, semester, and shift
   const filteredCourses = courses.filter((c) => {
     if (selectedDept !== "ALL" && c.department !== selectedDept) return false;
     if (selectedSemester !== "ALL" && c.semester !== Number(selectedSemester)) return false;
+    if (selectedShift !== "ALL" && c.shift?.toLowerCase() !== selectedShift.toLowerCase()) return false;
     return true;
   });
 
@@ -249,7 +251,6 @@ export default function ClassesPage() {
                                 <th className="py-3 px-4 font-semibold text-muted-foreground w-12">#</th>
                                 <th className="py-3 px-4 font-semibold text-muted-foreground">Student Name</th>
                                 <th className="py-3 px-4 font-semibold text-muted-foreground">Roll No</th>
-                                <th className="py-3 px-4 font-semibold text-muted-foreground">Email</th>
                                 <th className="py-3 px-4 font-semibold text-muted-foreground">Shift</th>
                                 <th className="py-3 px-4 font-semibold text-muted-foreground text-center">Actions</th>
                               </tr>
@@ -260,7 +261,6 @@ export default function ClassesPage() {
                                   <td className="py-3 px-4 text-muted-foreground font-medium">{i + 1}</td>
                                   <td className="py-3 px-4 font-bold text-foreground">{s.user.name ?? "—"}</td>
                                   <td className="py-3 px-4 font-mono text-muted-foreground">{s.rollNo}</td>
-                                  <td className="py-3 px-4 text-muted-foreground">{s.user.email}</td>
                                   <td className="py-3 px-4">
                                     <Badge
                                       variant="secondary"
@@ -305,7 +305,7 @@ export default function ClassesPage() {
         <div className="text-center py-16 text-muted-foreground bg-card border border-border rounded-2xl">
           <BookOpen className="h-12 w-12 mx-auto mb-3 opacity-30" />
           <p className="text-lg font-medium text-foreground">No classes found</p>
-          <p className="text-sm mt-1">Try adjusting your department or semester filter.</p>
+          <p className="text-sm mt-1">Try adjusting your department, semester, or shift filter.</p>
         </div>
       )}
 
@@ -346,18 +346,6 @@ export default function ClassesPage() {
                   <span className="font-bold text-foreground">Sem {selectedStudent.semester} ({selectedStudent.shift})</span>
                 </div>
                 <div className="p-3 rounded-xl bg-card border border-border space-y-1 col-span-2">
-                  <span className="text-muted-foreground font-medium uppercase tracking-wider text-[10px] flex items-center gap-1">
-                    <Mail className="h-3 w-3" /> Email Address
-                  </span>
-                  <span className="font-bold text-foreground font-mono">{selectedStudent.user.email}</span>
-                </div>
-                <div className="p-3 rounded-xl bg-card border border-border space-y-1">
-                  <span className="text-muted-foreground font-medium uppercase tracking-wider text-[10px] flex items-center gap-1">
-                    <Phone className="h-3 w-3" /> Phone Number
-                  </span>
-                  <span className="font-bold text-foreground font-mono">{selectedStudent.phone || "Not Provided"}</span>
-                </div>
-                <div className="p-3 rounded-xl bg-card border border-border space-y-1">
                   <span className="text-muted-foreground font-medium uppercase tracking-wider text-[10px] flex items-center gap-1">
                     <Calendar className="h-3 w-3" /> Enrollment Date
                   </span>

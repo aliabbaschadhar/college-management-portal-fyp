@@ -723,19 +723,6 @@ export default function FacultyAttendancePage() {
                 );
               })()}
 
-              {/* Legend */}
-              <div className="flex items-center gap-4 text-xs justify-center pt-1">
-                <span className="flex items-center gap-1 font-semibold text-emerald-600">
-                  <span className="h-5 w-5 rounded-md bg-emerald-500/20 flex items-center justify-center text-[10px] font-bold">P</span> Present
-                </span>
-                <span className="flex items-center gap-1 font-semibold text-amber-600">
-                  <span className="h-5 w-5 rounded-md bg-amber-500/20 flex items-center justify-center text-[10px] font-bold">L</span> Late
-                </span>
-                <span className="flex items-center gap-1 font-semibold text-rose-600">
-                  <span className="h-5 w-5 rounded-md bg-rose-500/20 flex items-center justify-center text-[10px] font-bold">A</span> Absent
-                </span>
-              </div>
-
               {/* 90 Days Records List Grid */}
               <div className="max-h-[350px] overflow-y-auto rounded-2xl border border-border p-3 space-y-2">
                 {faculty90DayHistory.length === 0 ? (
@@ -748,12 +735,11 @@ export default function FacultyAttendancePage() {
                         month: "short",
                         day: "numeric",
                       });
-                      const letter = item.status[0];
 
                       return (
                         <div
                           key={item.id}
-                          className={`p-2 rounded-xl border flex items-center justify-between text-xs font-mono ${
+                          className={`p-2 rounded-xl border flex items-center justify-between text-xs ${
                             item.status === "Present"
                               ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
                               : item.status === "Late"
@@ -762,8 +748,8 @@ export default function FacultyAttendancePage() {
                           }`}
                         >
                           <span className="font-sans font-medium text-foreground text-[11px]">{formattedDate}</span>
-                          <span className="h-6 w-6 rounded-lg bg-card flex items-center justify-center font-bold text-xs shadow-xs">
-                            {letter}
+                          <span className="font-bold text-xs">
+                            {item.status}
                           </span>
                         </div>
                       );

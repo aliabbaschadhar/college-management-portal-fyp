@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { FileText, Clock, ArrowRight, Trophy, AlertCircle, RefreshCw, Loader2 } from "lucide-react";
+import { FileText, Clock, ArrowRight, Trophy, AlertCircle, RefreshCw, Loader2, Trash2, CheckCircle } from "lucide-react";
 import { api } from "@/lib/axios";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion, AnimatePresence } from "framer-motion";
@@ -52,7 +52,7 @@ function CountdownTimer({ targetDate }: { targetDate: string }) {
   useEffect(() => {
     const updateTimer = () => {
       const target = new Date(targetDate);
-      target.setHours(23, 50, 0, 0);
+      target.setHours(23, 59, 59, 0);
       const diff = target.getTime() - Date.now();
       if (diff <= 0) {
         setTimeLeft("Expired");
@@ -73,7 +73,7 @@ function CountdownTimer({ targetDate }: { targetDate: string }) {
     return () => clearInterval(interval);
   }, [targetDate]);
 
-  return <span className="font-mono text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">{timeLeft}</span>;
+  return <span className="font-mono text-xs font-extrabold text-amber-800 dark:text-amber-300 bg-amber-500/20 px-2.5 py-1 rounded-lg border border-amber-500/40 shadow-xs">{timeLeft}</span>;
 }
 
 export default function TakeQuizPage() {
@@ -91,8 +91,22 @@ export default function TakeQuizPage() {
   const [score, setScore] = useState(0);
   const [isBlocked, setIsBlocked] = useState(false);
   const [blockedCourseIds, setBlockedCourseIds] = useState<string[]>([]);
-  const [completedAttempts, setCompletedAttempts] = useState<Record<string, { score: number; totalMarks: number }>>({});  const [startingQuizId, setStartingQuizId] = useState<string | null>(null);
+  const [completedAttempts, setCompletedAttempts] = useState<Record<string, { score: number; totalMarks: number }>>({});
+  const [startingQuizId, setStartingQuizId] = useState<string | null>(null);
   const [submittingQuiz, setSubmittingQuiz] = useState(false);
+  const [deletingAttemptId, setDeletingAttemptId] = useState<string | null>(null);
+
+  const handleDeleteAttempt = async (attemptId: string) => {
+    setDeletingAttemptId(attemptId);
+    try {
+      await api.delete(`/api/quizzes/my-attempts/${attemptId}`);
+      setMyAttempts((prev) => prev.filter((a) => a.id !== attemptId));
+    } catch (err) {
+      console.error("Failed to delete attempt record:", err);
+    } finally {
+      setDeletingAttemptId(null);
+    }
+  };
 
   useEffect(() => {
     try {
@@ -321,6 +335,7 @@ export default function TakeQuizPage() {
               </div>
             ) : (
               myAttempts.map((att) => {
+                const isAssignment = att.quiz.title.toLowerCase().includes("assignment") || att.quiz._count?.questions === 0;
                 const percentage = att.totalMarks > 0 ? Math.round((att.score / att.totalMarks) * 100) : 0;
                 return (
                   <motion.div
@@ -341,14 +356,37 @@ export default function TakeQuizPage() {
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-4 shrink-0">
-                      <div className="text-right">
-                        <p className="text-lg font-extrabold text-foreground">{att.score} / {att.totalMarks}</p>
-                        <p className="text-[11px] font-bold text-muted-foreground">{percentage}% Score</p>
-                      </div>
-                      <Badge className={percentage >= 50 ? "bg-emerald-500 text-white font-bold" : "bg-rose-500 text-white font-bold"}>
-                        {percentage >= 50 ? "Passed" : "Needs Improvement"}
-                      </Badge>
+                    <div className="flex items-center gap-3 shrink-0">
+                      {isAssignment ? (
+                        <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-bold px-3 py-1 text-xs">
+                          Submitted ✓
+                        </Badge>
+                      ) : (
+                        <>
+                          <div className="text-right">
+                            <p className="text-lg font-extrabold text-foreground">{att.score} / {att.totalMarks}</p>
+                            <p className="text-[11px] font-bold text-muted-foreground">{percentage}% Score</p>
+                          </div>
+                          <Badge className={percentage >= 50 ? "bg-emerald-500 text-white font-bold" : "bg-rose-500 text-white font-bold"}>
+                            {percentage >= 50 ? "Passed" : "Needs Improvement"}
+                          </Badge>
+                        </>
+                      )}
+
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={deletingAttemptId === att.id}
+                        onClick={() => handleDeleteAttempt(att.id)}
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 rounded-lg transition-colors"
+                        title="Delete from my history"
+                      >
+                        {deletingAttemptId === att.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
                     </div>
                   </motion.div>
                 );
@@ -369,35 +407,58 @@ export default function TakeQuizPage() {
             ) : (
               hardformAssignments.map((quiz) => {
                 const daysLeft = Math.ceil((new Date(quiz.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                const isSubmitted = myAttempts.some(
+                  (a) => a.quiz.title === quiz.title || (a.quiz.course?.courseCode === quiz.course?.courseCode && a.quiz.title === quiz.title)
+                );
+
                 return (
                   <motion.div
                     key={quiz.id}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5 flex items-center justify-between gap-4 hover:shadow-md transition-shadow"
+                    className={`rounded-xl border p-5 flex items-center justify-between gap-4 transition-all ${
+                      isSubmitted
+                        ? "border-border/40 bg-muted/20 opacity-80"
+                        : "border-amber-500/40 bg-amber-500/10 dark:bg-amber-950/20 shadow-sm"
+                    }`}
                   >
                     <div className="space-y-1">
-                      <h3 className="text-sm font-bold text-foreground">{quiz.title}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-foreground">{quiz.title}</h3>
+                        {isSubmitted && (
+                          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] py-0 px-2 font-bold">
+                            Marked / Done ✓
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         {quiz.course?.courseCode} — {quiz.course?.courseName}
                       </p>
-                      <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1 mt-1">
+                      <p className="text-xs text-amber-700 dark:text-amber-300 font-bold flex items-center gap-1 mt-1">
                         <Clock className="h-3.5 w-3.5" />
-                        Deadline: {new Date(quiz.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })} till 11:50 PM
+                        Deadline: {new Date(quiz.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })} till 11:59 PM
                       </p>
                     </div>
 
                     <div className="flex items-center gap-3 shrink-0">
-                      <Badge
-                        className={
-                          daysLeft <= 2
-                            ? "bg-rose-600 text-white font-extrabold px-3 py-1.5 text-xs shadow-sm"
-                            : "bg-amber-600 text-white font-extrabold px-3 py-1.5 text-xs shadow-sm"
-                        }
-                      >
-                        {daysLeft <= 0 ? "Due Today" : `${daysLeft} days remaining`}
-                      </Badge>
-                      <CountdownTimer targetDate={quiz.dueDate} />
+                      {isSubmitted ? (
+                        <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-extrabold px-3 py-1.5 text-xs rounded-xl border border-emerald-500/30">
+                          Submitted ✓
+                        </Badge>
+                      ) : (
+                        <>
+                          <Badge
+                            className={
+                              daysLeft <= 2
+                                ? "bg-rose-600 text-white font-extrabold px-3 py-1.5 text-xs shadow-sm"
+                                : "bg-amber-600 text-white font-extrabold px-3 py-1.5 text-xs shadow-sm"
+                            }
+                          >
+                            {daysLeft <= 0 ? "Due Today" : `${daysLeft} days remaining`}
+                          </Badge>
+                          <CountdownTimer targetDate={quiz.dueDate} />
+                        </>
+                      )}
                     </div>
                   </motion.div>
                 );

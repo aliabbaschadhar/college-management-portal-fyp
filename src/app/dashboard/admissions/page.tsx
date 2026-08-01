@@ -371,7 +371,10 @@ export default function ManageAdmissionsPage() {
       header: "Applicant",
       sortable: true,
       render: (row) => (
-        <p className="font-medium text-foreground">{row.name}</p>
+        <div>
+          <p className="font-medium text-foreground">{row.name}</p>
+          <p className="text-xs text-muted-foreground font-mono">{row.email}</p>
+        </div>
       ),
     },
     {
@@ -379,59 +382,24 @@ export default function ManageAdmissionsPage() {
       header: "Requested Role",
       sortable: true,
       render: (row) => (
-        <Badge
-          variant="secondary"
-          className={`capitalize gap-1 ${
-            row.role === "ADMIN"
-              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-          }`}
-        >
-          {row.role === "ADMIN" ? <Shield className="h-3 w-3" /> : <Users className="h-3 w-3" />}
-          {row.role.toLowerCase()}
-        </Badge>
-      ),
-    },
-    {
-      key: "phone",
-      header: "Phone",
-      render: (row) => row.phone ?? <span className="text-muted-foreground">—</span>,
-    },
-    {
-      key: "department",
-      header: "Department",
-      sortable: true,
-      render: (row) => row.department ? (
-        <Badge variant="outline" className="border-border">
-          {row.department}
-        </Badge>
-      ) : (
-        <span className="text-muted-foreground">—</span>
-      ),
-    },
-    {
-      key: "specialization",
-      header: "Specialization / Designation",
-      render: (row) => {
-        if (!row.specialization) return <span className="text-muted-foreground">—</span>;
-        return (
-          <div>
-            <p className="font-medium text-foreground">{row.specialization}</p>
-            <p className="text-[10px] text-muted-foreground">
-              {row.role === "ADMIN" ? "Admin Designation" : "Faculty Specialization"}
-            </p>
-          </div>
-        );
-      }
-    },
-    {
-      key: "createdAt",
-      header: "Applied On",
-      sortable: true,
-      render: (row) => (
-        <span className="text-muted-foreground font-mono text-xs">
-          {new Date(row.createdAt).toLocaleDateString()}
-        </span>
+        <div className="flex items-center gap-2">
+          <Badge
+            variant="secondary"
+            className={`capitalize gap-1 ${
+              row.role === "ADMIN"
+                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+            }`}
+          >
+            {row.role === "ADMIN" ? <Shield className="h-3 w-3" /> : <Users className="h-3 w-3" />}
+            {row.role.toLowerCase()}
+          </Badge>
+          {row.department && (
+            <Badge variant="outline" className="border-border text-xs">
+              {row.department}
+            </Badge>
+          )}
+        </div>
       ),
     },
     {

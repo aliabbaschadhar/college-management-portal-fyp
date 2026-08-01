@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
         createdBy: userId,
         duration: body.duration,
         totalMarks: calculatedMarks || 10,
-        dueDate: new Date(body.dueDate),
+        dueDate: new Date(body.dueDate.includes("T") ? body.dueDate : `${body.dueDate}T23:59:59`),
         status: body.status,
         ...(body.questionIds && body.questionIds.length > 0
           ? { questions: { connect: body.questionIds.map((id) => ({ id })) } }

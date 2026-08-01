@@ -518,7 +518,7 @@ export function StudentDashboardHome() {
                         {quiz.title}
                       </p>
                       <p className="text-xs text-muted-foreground font-mono">
-                        Due: {new Date(quiz.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })} till 11:50 PM
+                        Due: {new Date(quiz.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })} till 11:59 PM
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">

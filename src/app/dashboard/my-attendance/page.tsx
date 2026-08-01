@@ -11,13 +11,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatsCardSkeleton, ChartSkeleton, TableSkeleton } from "@/components/ui";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -32,7 +25,7 @@ import {
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
-type AttendanceStatus = "Present" | "Absent" | "Late";
+type AttendanceStatus = "Present" | "Absent" | "Late" | "Not Marked Yet";
 
 interface AttendanceRecord {
   id: string;
@@ -56,6 +49,8 @@ const statusColors: Record<AttendanceStatus, string> = {
     "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
   Absent: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
   Late: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+  "Not Marked Yet":
+    "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 border border-slate-300 dark:border-slate-700",
 };
 
 const chartConfig = {
@@ -67,7 +62,6 @@ const chartConfig = {
 export default function MyAttendancePage() {
   const [allAttendance, setAllAttendance] = useState<AttendanceRecord[]>([]);
   const [courses, setCourses] = useState<CourseOption[]>([]);
-  const [filterCourse, setFilterCourse] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -99,43 +93,39 @@ export default function MyAttendancePage() {
     setRefreshing(false);
   };
 
+  // Map over all enrolled courses and return current day's (today's) attendance record
   const filtered = useMemo(() => {
-    if (filterCourse === "all") {
-      // Map over all enrolled courses so that ALL enrolled subjects (e.g. 7 subjects) are consistently listed
-      return courses.map((c) => {
-        const cLogs = allAttendance.filter((a) => a.courseId === c.id);
-        if (cLogs.length > 0) {
-          const sorted = [...cLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-          return sorted[0];
-        }
-        return {
-          id: `placeholder-${c.id}`,
-          studentId: "me",
-          courseId: c.id,
-          date: new Date().toISOString(),
-          status: "Present" as AttendanceStatus,
-          markedBy: "System",
-          student: { rollNo: "", user: { name: "" } },
-          course: { courseCode: c.courseCode, courseName: c.courseName },
-        };
+    const todayStr = new Date().toISOString().split("T")[0];
+    return courses.map((c) => {
+      const todayLog = allAttendance.find((a) => {
+        if (a.courseId !== c.id) return false;
+        const dStr = new Date(a.date).toISOString().split("T")[0];
+        return dStr === todayStr;
       });
-    } else {
-      // Specific course selected: Show up to 10 logs for that course
-      return allAttendance
-        .filter((a) => a.courseId === filterCourse)
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0, 10);
-    }
-  }, [allAttendance, courses, filterCourse]);
 
-  const presentCount = filtered.filter((a) => a.status === "Present").length;
-  const absentCount = filtered.filter((a) => a.status === "Absent").length;
-  const lateCount = filtered.filter((a) => a.status === "Late").length;
-  const totalCount = filtered.length;
+      if (todayLog) return todayLog;
+
+      return {
+        id: `today-${c.id}`,
+        studentId: "me",
+        courseId: c.id,
+        date: new Date().toISOString(),
+        status: "Not Marked Yet" as AttendanceStatus,
+        markedBy: "System",
+        student: { rollNo: "", user: { name: "" } },
+        course: { courseCode: c.courseCode, courseName: c.courseName },
+      };
+    });
+  }, [allAttendance, courses]);
+
+  const presentCount = allAttendance.filter((a) => a.status === "Present").length;
+  const absentCount = allAttendance.filter((a) => a.status === "Absent").length;
+  const lateCount = allAttendance.filter((a) => a.status === "Late").length;
+  const totalCount = allAttendance.length;
   const attendancePercent =
     totalCount > 0
       ? Math.round(((presentCount + lateCount) / totalCount) * 100)
-      : 0;
+      : 100;
 
   const chartData = courses.map((c) => {
     const courseAtt = allAttendance.filter((a) => a.courseId === c.id);
@@ -192,7 +182,7 @@ export default function MyAttendancePage() {
       header: "Status",
       sortable: true,
       render: (row) => (
-        <Badge variant="secondary" className={statusColors[row.status]}>
+        <Badge variant="secondary" className={statusColors[row.status] || "bg-muted text-muted-foreground"}>
           {row.status}
         </Badge>
       ),
@@ -210,7 +200,7 @@ export default function MyAttendancePage() {
               if (foundCourse) setSelectedCourseModal(foundCourse);
             }}
             className="h-8 text-xs gap-1 border-brand-primary/30 text-brand-primary hover:bg-brand-primary hover:text-white rounded-lg"
-            title="View 90-day attendance history for this course"
+            title="View attendance history for this course"
           >
             <Eye className="h-3.5 w-3.5" /> History
           </Button>
@@ -247,38 +237,22 @@ export default function MyAttendancePage() {
     >
       <PageHeader
         title="My Attendance"
-        subtitle="Track your attendance across all enrolled courses"
+        subtitle="Current daily attendance updates across enrolled courses"
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "My Attendance" },
         ]}
         action={
-          <div className="flex items-center gap-3">
-            <Select value={filterCourse} onValueChange={setFilterCourse}>
-              <SelectTrigger className="w-[180px] rounded-xl">
-                <SelectValue placeholder="All Courses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Courses</SelectItem>
-                {courses.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.courseName} - {c.courseCode}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="geo-pressable flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer rounded-xl"
-            >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="geo-pressable flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer rounded-xl"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
         }
       />
 
@@ -437,31 +411,17 @@ export default function MyAttendancePage() {
                   );
                 })()}
 
-                {/* P, A, L Legend */}
-                <div className="flex items-center gap-4 text-xs justify-center pt-1">
-                  <span className="flex items-center gap-1 font-semibold text-emerald-600">
-                    <span className="h-5 w-5 rounded-md bg-emerald-500/20 flex items-center justify-center text-[10px] font-bold">P</span> Present
-                  </span>
-                  <span className="flex items-center gap-1 font-semibold text-amber-600">
-                    <span className="h-5 w-5 rounded-md bg-amber-500/20 flex items-center justify-center text-[10px] font-bold">L</span> Late
-                  </span>
-                  <span className="flex items-center gap-1 font-semibold text-rose-600">
-                    <span className="h-5 w-5 rounded-md bg-rose-500/20 flex items-center justify-center text-[10px] font-bold">A</span> Absent
-                  </span>
-                </div>
-
-                {/* P, A, L Compact Grid */}
+                {/* Compact Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-[300px] overflow-y-auto p-1">
                   {courseThreeMonthLogs.map((log) => {
                     const formattedDate = new Date(log.date).toLocaleDateString(undefined, {
                       month: "short",
                       day: "numeric",
                     });
-                    const letter = log.status[0];
                     return (
                       <div
                         key={log.id}
-                        className={`p-2 rounded-xl border flex items-center justify-between text-xs font-mono ${
+                        className={`p-2 rounded-xl border flex items-center justify-between text-xs ${
                           log.status === "Present"
                             ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
                             : log.status === "Late"
@@ -470,8 +430,8 @@ export default function MyAttendancePage() {
                         }`}
                       >
                         <span className="font-sans font-medium text-foreground text-[11px]">{formattedDate}</span>
-                        <span className="h-6 w-6 rounded-lg bg-card flex items-center justify-center font-bold text-xs shadow-xs">
-                          {letter}
+                        <span className="font-bold text-xs">
+                          {log.status}
                         </span>
                       </div>
                     );

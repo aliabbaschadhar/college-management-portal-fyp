@@ -25,7 +25,10 @@ export async function POST(
 
     const quiz = await prisma.quiz.findUnique({
       where: { id: quizId },
-      include: { questions: { orderBy: { id: "asc" } } },
+      include: {
+        questions: { orderBy: { id: "asc" } },
+        course: { select: { courseCode: true } },
+      },
     });
 
     if (!quiz) {
@@ -65,6 +68,8 @@ export async function POST(
         score,
         totalMarks: quiz.totalMarks,
         answers: body.answers ?? [],
+        quizTitle: quiz.title,
+        courseCode: quiz.course?.courseCode ?? null,
       },
     });
 

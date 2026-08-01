@@ -90,7 +90,10 @@ export default function MarkAttendancePage() {
   const [historyLogs, setHistoryLogs] = useState<StudentHistoryLog[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
+  const [actionLoadingStudentId, setActionLoadingStudentId] = useState<string | null>(null);
+
   const handleStruckOffStudent = async (student: StudentOption) => {
+    setActionLoadingStudentId(student.id);
     try {
       await api.patch(`/api/students/${student.id}`, { blocked: true, readmitRequested: false });
       setAttendanceData((prev) =>
@@ -102,10 +105,13 @@ export default function MarkAttendancePage() {
       );
     } catch (err) {
       console.error("Failed to strike off student:", err);
+    } finally {
+      setActionLoadingStudentId(null);
     }
   };
 
   const handleRequestReadmit = async (student: StudentOption) => {
+    setActionLoadingStudentId(student.id);
     try {
       await api.patch(`/api/students/${student.id}`, { readmitRequested: true });
       setAttendanceData((prev) =>
@@ -117,6 +123,8 @@ export default function MarkAttendancePage() {
       );
     } catch (err) {
       console.error("Failed to request readmission:", err);
+    } finally {
+      setActionLoadingStudentId(null);
     }
   };
 
@@ -544,9 +552,13 @@ export default function MarkAttendancePage() {
                                 <Button
                                   variant="outline"
                                   size="sm"
+                                  disabled={actionLoadingStudentId === item.student.id}
                                   onClick={() => handleRequestReadmit(item.student)}
-                                  className="h-8 text-xs text-amber-600 border-amber-500 hover:bg-amber-500 hover:text-white rounded-xl font-semibold"
+                                  className="h-8 text-xs text-amber-600 border-amber-500 hover:bg-amber-500 hover:text-white rounded-xl font-semibold gap-1 min-w-[130px]"
                                 >
+                                  {actionLoadingStudentId === item.student.id && (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  )}
                                   Request Readmit
                                 </Button>
                               )
@@ -554,9 +566,13 @@ export default function MarkAttendancePage() {
                               <Button
                                 variant="destructive"
                                 size="sm"
+                                disabled={actionLoadingStudentId === item.student.id}
                                 onClick={() => handleStruckOffStudent(item.student)}
-                                className="h-8 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white"
+                                className="h-8 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white gap-1 min-w-[90px]"
                               >
+                                {actionLoadingStudentId === item.student.id && (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                )}
                                 Struck Off
                               </Button>
                             )}
@@ -649,32 +665,18 @@ export default function MarkAttendancePage() {
                   );
                 })()}
 
-                {/* Legend */}
-                <div className="flex items-center gap-4 text-xs justify-center pt-1">
-                  <span className="flex items-center gap-1 font-semibold text-emerald-600">
-                    <span className="h-5 w-5 rounded-md bg-emerald-500/20 flex items-center justify-center text-[10px] font-bold">P</span> Present
-                  </span>
-                  <span className="flex items-center gap-1 font-semibold text-amber-600">
-                    <span className="h-5 w-5 rounded-md bg-amber-500/20 flex items-center justify-center text-[10px] font-bold">L</span> Late
-                  </span>
-                  <span className="flex items-center gap-1 font-semibold text-rose-600">
-                    <span className="h-5 w-5 rounded-md bg-rose-500/20 flex items-center justify-center text-[10px] font-bold">A</span> Absent
-                  </span>
-                </div>
-
-                {/* Concise P, L, A Cards Grid */}
+                {/* Cards Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-[300px] overflow-y-auto p-1">
                   {historyLogs.map((log) => {
                     const formattedDate = new Date(log.date).toLocaleDateString(undefined, {
                       month: "short",
                       day: "numeric",
                     });
-                    const letter = log.status[0];
 
                     return (
                       <div
                         key={log.id}
-                        className={`p-2 rounded-xl border flex items-center justify-between text-xs font-mono ${
+                        className={`p-2 rounded-xl border flex items-center justify-between text-xs ${
                           log.status === "Present"
                             ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
                             : log.status === "Late"
@@ -683,8 +685,8 @@ export default function MarkAttendancePage() {
                         }`}
                       >
                         <span className="font-sans font-medium text-foreground text-[11px]">{formattedDate}</span>
-                        <span className="h-6 w-6 rounded-lg bg-card flex items-center justify-center font-bold text-xs shadow-xs">
-                          {letter}
+                        <span className="font-bold text-xs">
+                          {log.status}
                         </span>
                       </div>
                     );
