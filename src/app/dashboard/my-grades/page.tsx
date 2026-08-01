@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { api } from "@/lib/axios";
 import { GraduationCap, Lock, Unlock, TrendingUp, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
@@ -31,6 +31,12 @@ interface GradeWithCourse {
   course: { courseCode: string; courseName: string };
 }
 
+interface CourseOption {
+  id: string;
+  courseCode: string;
+  courseName: string;
+}
+
 const chartConfig = {
   mid: { label: "Midterm", color: "var(--color-data-3)" },
   final: { label: "Sessional", color: "var(--color-data-4)" },
@@ -38,13 +44,18 @@ const chartConfig = {
 
 export default function MyGradesPage() {
   const [grades, setGrades] = useState<GradeWithCourse[]>([]);
+  const [courses, setCourses] = useState<CourseOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchGrades = async () => {
     try {
-      const r = await api.get<GradeWithCourse[]>("/api/grades");
-      setGrades(r.data);
+      const [gRes, cRes] = await Promise.all([
+        api.get<GradeWithCourse[]>("/api/grades"),
+        api.get<CourseOption[]>("/api/courses").catch(() => ({ data: [] })),
+      ]);
+      setGrades(Array.isArray(gRes.data) ? gRes.data : []);
+      setCourses(Array.isArray(cRes.data) ? cRes.data : []);
     } catch {
       /* ignore */
     } finally {
@@ -62,9 +73,31 @@ export default function MyGradesPage() {
     setRefreshing(false);
   };
 
-  const previousCGPA = grades[0]?.student?.cgpa ?? 0.0;
+  const mergedGrades = useMemo<GradeWithCourse[]>(() => {
+    if (courses.length === 0) return grades;
+    return courses.map((course) => {
+      const found = grades.find((g) => g.courseId === course.id);
+      if (found) return found;
+      return {
+        id: `placeholder-${course.id}`,
+        studentId: "me",
+        courseId: course.id,
+        quizMarks: 0,
+        assignmentMarks: 0,
+        midMarks: 0,
+        finalMarks: 0,
+        total: 0,
+        gpa: 0,
+        locked: false,
+        student: { rollNo: "", user: { name: null }, cgpa: grades[0]?.student?.cgpa ?? 0.0 },
+        course: { courseCode: course.courseCode, courseName: course.courseName },
+      };
+    });
+  }, [courses, grades]);
 
-  const chartData = grades.map((g) => ({
+  const previousCGPA = mergedGrades[0]?.student?.cgpa ?? 0.0;
+
+  const chartData = mergedGrades.map((g: GradeWithCourse) => ({
     course: g.course?.courseCode || g.courseId,
     mid: g.midMarks,
     final: g.finalMarks,
@@ -187,7 +220,7 @@ export default function MyGradesPage() {
               </tr>
             </thead>
             <tbody>
-              {grades.map((g) => {
+              {mergedGrades.map((g) => {
                 return (
                   <tr
                     key={g.id}

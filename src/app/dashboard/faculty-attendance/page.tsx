@@ -497,13 +497,14 @@ export default function FacultyAttendancePage() {
                     <th className="text-center py-3 px-3 font-semibold text-foreground">Check-In</th>
                     <th className="text-center py-3 px-3 font-semibold text-foreground">Check-Out</th>
                     <th className="text-center py-3 px-3 font-semibold text-foreground">Log Type</th>
-                    <th className="text-center py-3 px-4 font-semibold text-foreground">Action</th>
+                    <th className="text-center py-3 px-3 font-semibold text-foreground">3-Month Logs</th>
+                    <th className="text-center py-3 px-4 font-semibold text-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {facultyList.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-16 text-muted-foreground">
+                      <td colSpan={8} className="text-center py-16 text-muted-foreground">
                         No faculty records match the selected date and filters.
                       </td>
                     </tr>
@@ -557,31 +558,33 @@ export default function FacultyAttendancePage() {
                           )}
                         </td>
 
-                        {/* Action */}
+                        {/* 3-Month History Column */}
+                        <td className="py-3 px-3 text-center">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 rounded-lg gap-1 text-xs border-brand-primary/30 text-brand-primary hover:bg-brand-primary hover:text-white transition-all"
+                            onClick={() => open3MonthHistory(fac)}
+                            title="View 3-month attendance history"
+                          >
+                            <Eye className="h-3.5 w-3.5" /> 3-Mo Log
+                          </Button>
+                        </td>
+
+                        {/* Edit Status Action Column */}
                         <td className="py-3 px-4 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 rounded-lg gap-1 text-xs border-brand-primary/30 text-brand-primary hover:bg-brand-primary hover:text-white transition-all"
-                              onClick={() => open3MonthHistory(fac)}
-                              title="View 3-month attendance history"
-                            >
-                              <Eye className="h-3.5 w-3.5" /> 3-Mo Log
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 rounded-lg gap-1 text-xs"
-                              onClick={() => {
-                                setOverrideFaculty(fac);
-                                setOverrideStatus(fac.status);
-                                setOverrideNotes(fac.notes ?? "");
-                              }}
-                            >
-                              <Edit3 className="h-3.5 w-3.5" /> Edit Status
-                            </Button>
-                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 rounded-lg gap-1 text-xs"
+                            onClick={() => {
+                              setOverrideFaculty(fac);
+                              setOverrideStatus(fac.status);
+                              setOverrideNotes(fac.notes ?? "");
+                            }}
+                          >
+                            <Edit3 className="h-3.5 w-3.5" /> Edit Status
+                          </Button>
                         </td>
                       </motion.tr>
                     ))

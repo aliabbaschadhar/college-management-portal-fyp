@@ -320,21 +320,17 @@ export default function ManageAttendancePage() {
     );
   }, [students, selectedDept, selectedSemester, selectedShift]);
 
-  // Compute current day (today's) stats for each student in the selected class/shift
-  const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
+  // Selected student state for top stats boxes
+  const [selectedStudentForStatsId, setSelectedStudentForStatsId] = useState<string | null>(null);
+
   const studentStats = useMemo(() => {
     return classStudents.map((student) => {
-      const todayRecords = attendance.filter((a) => {
-        if (a.studentId !== student.id) return false;
-        const logDateStr = new Date(a.date).toISOString().split("T")[0];
-        return logDateStr === todayStr;
-      });
-      const recordsToUse = todayRecords.length > 0 ? todayRecords : attendance.filter((a) => a.studentId === student.id);
-      const total = recordsToUse.length;
-      const present = recordsToUse.filter((a) => a.status === "Present").length;
-      const absent = recordsToUse.filter((a) => a.status === "Absent").length;
-      const late = recordsToUse.filter((a) => a.status === "Late").length;
-      const rate = total > 0 ? Math.round(((present + late) / total) * 100) : 0;
+      const studentLogs = attendance.filter((a) => a.studentId === student.id);
+      const total = studentLogs.length;
+      const present = studentLogs.filter((a) => a.status === "Present").length;
+      const absent = studentLogs.filter((a) => a.status === "Absent").length;
+      const late = studentLogs.filter((a) => a.status === "Late").length;
+      const rate = total > 0 ? Math.round(((present + late) / total) * 100) : 100;
 
       return {
         ...student,
@@ -347,36 +343,16 @@ export default function ManageAttendancePage() {
         },
       };
     });
-  }, [classStudents, attendance, todayStr]);
+  }, [classStudents, attendance]);
 
-  // Compute class-wide overall stats
-  const classStats = useMemo(() => {
-    let overallTotal = 0;
-    let overallPresent = 0;
-    let overallAbsent = 0;
-    let overallLate = 0;
-
-    studentStats.forEach((s) => {
-      overallTotal += s.stats.total;
-      overallPresent += s.stats.present;
-      overallAbsent += s.stats.absent;
-      overallLate += s.stats.late;
-    });
-
-    const overallRate =
-      overallTotal > 0
-        ? Math.round(((overallPresent + overallLate) / overallTotal) * 100)
-        : 0;
-
-    return {
-      totalStudents: classStudents.length,
-      overallTotal,
-      overallPresent,
-      overallAbsent,
-      overallLate,
-      overallRate,
-    };
-  }, [studentStats, classStudents]);
+  const activeStatsStudent = useMemo(() => {
+    if (studentStats.length === 0) return null;
+    if (selectedStudentForStatsId) {
+      const found = studentStats.find((s) => s.id === selectedStudentForStatsId);
+      if (found) return found;
+    }
+    return studentStats[0];
+  }, [studentStats, selectedStudentForStatsId]);
 
   const [filterDate, setFilterDate] = useState<string>("");
 
@@ -533,6 +509,7 @@ export default function ManageAttendancePage() {
             size="sm"
             onClick={() => {
               setSelectedStudent(row);
+              setSelectedStudentForStatsId(row.id);
               setLogDialogOpen(true);
             }}
             className="h-8 text-xs gap-1 border-brand-primary/20 hover:bg-brand-primary hover:text-white transition-all rounded-lg"
@@ -840,25 +817,52 @@ export default function ManageAttendancePage() {
               )}
             </div>
 
-            {/* Stats Summary Panel */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="p-5 bg-card border-2 border-border rounded-2xl flex flex-col justify-between shadow-sm">
-                <span className="text-sm font-semibold text-muted-foreground uppercase">Total Students</span>
-                <span className="text-3xl font-extrabold text-foreground mt-2">{classStats.totalStudents}</span>
-              </div>
-              <div className="p-5 bg-card border-2 border-border rounded-2xl flex flex-col justify-between shadow-sm">
-                <span className="text-sm font-semibold text-muted-foreground uppercase">Overall Attendance Rate</span>
-                <span className="text-3xl font-extrabold text-brand-primary mt-2">{classStats.overallRate}%</span>
-              </div>
-              <div className="p-5 bg-card border-2 border-border rounded-2xl flex flex-col justify-between shadow-sm">
-                <span className="text-sm font-semibold text-muted-foreground uppercase">Presents / Lates</span>
-                <span className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-2">
-                  {classStats.overallPresent} <span className="text-lg font-medium text-muted-foreground">/ {classStats.overallLate}</span>
+            {/* Selected Student Stats Summary Panel */}
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/30 p-3 rounded-2xl border border-border">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Selected Student Stats:</span>
+                  {activeStatsStudent ? (
+                    <Badge variant="outline" className="bg-brand-primary/10 text-brand-primary border-brand-primary/30 text-xs py-1 px-2.5 font-bold">
+                      {activeStatsStudent.user?.name ?? "Unknown"} ({activeStatsStudent.rollNo})
+                    </Badge>
+                  ) : (
+                    <span className="text-xs text-muted-foreground italic">No student selected</span>
+                  )}
+                </div>
+                <span className="text-xs text-muted-foreground italic">
+                  💡 Click any student row in table below to inspect stats
                 </span>
               </div>
-              <div className="p-5 bg-card border-2 border-border rounded-2xl flex flex-col justify-between shadow-sm">
-                <span className="text-sm font-semibold text-muted-foreground uppercase">Absents</span>
-                <span className="text-3xl font-extrabold text-rose-600 dark:text-rose-400 mt-2">{classStats.overallAbsent}</span>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="p-5 bg-card border-2 border-border rounded-2xl flex flex-col justify-between shadow-sm">
+                  <span className="text-sm font-semibold text-muted-foreground uppercase">Total Lectures</span>
+                  <span className="text-3xl font-extrabold text-foreground mt-2">
+                    {activeStatsStudent ? activeStatsStudent.stats.total : 0}
+                  </span>
+                </div>
+                <div className="p-5 bg-card border-2 border-border rounded-2xl flex flex-col justify-between shadow-sm">
+                  <span className="text-sm font-semibold text-muted-foreground uppercase">Attendance Rate</span>
+                  <span className="text-3xl font-extrabold text-brand-primary mt-2">
+                    {activeStatsStudent ? activeStatsStudent.stats.rate : 0}%
+                  </span>
+                </div>
+                <div className="p-5 bg-card border-2 border-border rounded-2xl flex flex-col justify-between shadow-sm">
+                  <span className="text-sm font-semibold text-muted-foreground uppercase">Presents / Lates</span>
+                  <span className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-2">
+                    {activeStatsStudent ? activeStatsStudent.stats.present : 0}{" "}
+                    <span className="text-lg font-medium text-muted-foreground">
+                      / {activeStatsStudent ? activeStatsStudent.stats.late : 0}
+                    </span>
+                  </span>
+                </div>
+                <div className="p-5 bg-card border-2 border-border rounded-2xl flex flex-col justify-between shadow-sm">
+                  <span className="text-sm font-semibold text-muted-foreground uppercase">Absents</span>
+                  <span className="text-3xl font-extrabold text-rose-600 dark:text-rose-400 mt-2">
+                    {activeStatsStudent ? activeStatsStudent.stats.absent : 0}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -869,6 +873,8 @@ export default function ManageAttendancePage() {
                 columns={columns}
                 searchPlaceholder="Search by student name or roll no..."
                 searchKeys={["rollNo"]}
+                onRowClick={(row) => setSelectedStudentForStatsId(row.id)}
+                selectedRowKey={(row) => activeStatsStudent?.id === row.id}
               />
             </div>
           </motion.div>

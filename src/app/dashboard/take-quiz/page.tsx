@@ -46,6 +46,36 @@ interface MyQuizAttempt {
   };
 }
 
+function CountdownTimer({ targetDate }: { targetDate: string }) {
+  const [timeLeft, setTimeLeft] = useState("");
+
+  useEffect(() => {
+    const updateTimer = () => {
+      const target = new Date(targetDate);
+      target.setHours(23, 50, 0, 0);
+      const diff = target.getTime() - Date.now();
+      if (diff <= 0) {
+        setTimeLeft("Expired");
+        return;
+      }
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      if (days > 0) {
+        setTimeLeft(`${days}d ${hours}h ${minutes}m ${seconds}s left`);
+      } else {
+        setTimeLeft(`${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")} left`);
+      }
+    };
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [targetDate]);
+
+  return <span className="font-mono text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">{timeLeft}</span>;
+}
+
 export default function TakeQuizPage() {
   const [quizzes, setQuizzes] = useState<QuizWithDetails[]>([]);
   const [myAttempts, setMyAttempts] = useState<MyQuizAttempt[]>([]);
@@ -347,35 +377,27 @@ export default function TakeQuizPage() {
                     className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5 flex items-center justify-between gap-4 hover:shadow-md transition-shadow"
                   >
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-sm font-bold text-foreground">{quiz.title}</h3>
-                        <Badge variant="outline" className="text-[10px] uppercase font-bold py-0 px-2 bg-amber-500/10 text-amber-600 border-amber-500/30">
-                          Hardform Submission
-                        </Badge>
-                      </div>
+                      <h3 className="text-sm font-bold text-foreground">{quiz.title}</h3>
                       <p className="text-xs text-muted-foreground">
-                        {quiz.course?.courseCode} — {quiz.course?.courseName} • Total Marks: {quiz.totalMarks}
+                        {quiz.course?.courseCode} — {quiz.course?.courseName}
                       </p>
                       <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1 mt-1">
                         <Clock className="h-3.5 w-3.5" />
-                        Deadline: {new Date(quiz.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                        Deadline: {new Date(quiz.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })} till 11:50 PM
                       </p>
                     </div>
 
-                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <div className="flex items-center gap-3 shrink-0">
                       <Badge
-                        variant="secondary"
                         className={
                           daysLeft <= 2
-                            ? "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 font-bold"
-                            : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 font-bold"
+                            ? "bg-rose-600 text-white font-extrabold px-3 py-1.5 text-xs shadow-sm"
+                            : "bg-amber-600 text-white font-extrabold px-3 py-1.5 text-xs shadow-sm"
                         }
                       >
                         {daysLeft <= 0 ? "Due Today" : `${daysLeft} days remaining`}
                       </Badge>
-                      <span className="text-[11px] font-medium text-muted-foreground bg-card border border-border px-2.5 py-1 rounded-lg">
-                        Submit hard copy to course faculty
-                      </span>
+                      <CountdownTimer targetDate={quiz.dueDate} />
                     </div>
                   </motion.div>
                 );

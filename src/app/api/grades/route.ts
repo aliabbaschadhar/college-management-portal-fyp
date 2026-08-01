@@ -151,7 +151,7 @@ export async function GET(request: NextRequest) {
         student: {
           include: { user: { select: { name: true } } },
         },
-        course: { select: { courseCode: true } },
+        course: { select: { courseCode: true, courseName: true } },
       },
     });
 

@@ -40,6 +40,7 @@ interface StudentOption {
   rollNo: string;
   shift: string;
   blocked: boolean;
+  readmitRequested?: boolean;
   user: { name: string | null };
 }
 
@@ -88,6 +89,36 @@ export default function MarkAttendancePage() {
   const [historyStudent, setHistoryStudent] = useState<StudentOption | null>(null);
   const [historyLogs, setHistoryLogs] = useState<StudentHistoryLog[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const handleStruckOffStudent = async (student: StudentOption) => {
+    try {
+      await api.patch(`/api/students/${student.id}`, { blocked: true, readmitRequested: false });
+      setAttendanceData((prev) =>
+        prev.map((item) =>
+          item.student.id === student.id
+            ? { ...item, student: { ...item.student, blocked: true, readmitRequested: false } }
+            : item
+        )
+      );
+    } catch (err) {
+      console.error("Failed to strike off student:", err);
+    }
+  };
+
+  const handleRequestReadmit = async (student: StudentOption) => {
+    try {
+      await api.patch(`/api/students/${student.id}`, { readmitRequested: true });
+      setAttendanceData((prev) =>
+        prev.map((item) =>
+          item.student.id === student.id
+            ? { ...item, student: { ...item.student, readmitRequested: true } }
+            : item
+        )
+      );
+    } catch (err) {
+      console.error("Failed to request readmission:", err);
+    }
+  };
 
   // Fetch initial assigned courses list and set defaults
   const fetchCourses = useCallback(async () => {
@@ -437,8 +468,9 @@ export default function MarkAttendancePage() {
                         <th className="text-left py-3 px-4 font-semibold text-foreground">Student</th>
                         <th className="text-left py-3 px-4 font-semibold text-foreground">Roll No</th>
                         <th className="text-left py-3 px-4 font-semibold text-foreground w-24">Shift</th>
-                        <th className="text-center py-3 px-4 font-semibold text-foreground w-64">Status</th>
                         <th className="text-center py-3 px-4 font-semibold text-foreground w-28">History</th>
+                        <th className="text-center py-3 px-4 font-semibold text-foreground w-64">Status</th>
+                        <th className="text-center py-3 px-4 font-semibold text-foreground w-36">Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -451,6 +483,11 @@ export default function MarkAttendancePage() {
                               {item.student.blocked && (
                                 <Badge variant="destructive" className="text-[10px] py-0 px-1.5 uppercase font-bold tracking-wider animate-pulse">
                                   Struck Off
+                                </Badge>
+                              )}
+                              {item.student.readmitRequested && (
+                                <Badge variant="secondary" className="text-[10px] py-0 px-1.5 uppercase font-bold tracking-wider bg-amber-500/20 text-amber-600 border border-amber-500/30">
+                                  Pending Readmit
                                 </Badge>
                               )}
                             </div>
@@ -467,6 +504,17 @@ export default function MarkAttendancePage() {
                             >
                               {item.student.shift ?? "Morning"}
                             </Badge>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleStudentClick(item.student)}
+                              className="h-8 text-xs gap-1 border-brand-primary/30 text-brand-primary hover:bg-brand-primary hover:text-white rounded-lg"
+                              title="View 90-day attendance history"
+                            >
+                              <Eye className="h-3.5 w-3.5" /> History
+                            </Button>
                           </td>
                           <td className="py-3 px-4">
                             <div className="flex items-center justify-center gap-1.5">
@@ -487,15 +535,31 @@ export default function MarkAttendancePage() {
                             </div>
                           </td>
                           <td className="py-3 px-4 text-center">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleStudentClick(item.student)}
-                              className="h-8 text-xs gap-1 border-brand-primary/30 text-brand-primary hover:bg-brand-primary hover:text-white rounded-lg"
-                              title="View 90-day attendance history"
-                            >
-                              <Eye className="h-3.5 w-3.5" /> History
-                            </Button>
+                            {item.student.blocked ? (
+                              item.student.readmitRequested ? (
+                                <Badge variant="outline" className="text-[10px] py-1 px-2 bg-amber-500/10 text-amber-600 border-amber-500/30">
+                                  Request Sent
+                                </Badge>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleRequestReadmit(item.student)}
+                                  className="h-8 text-xs text-amber-600 border-amber-500 hover:bg-amber-500 hover:text-white rounded-xl font-semibold"
+                                >
+                                  Request Readmit
+                                </Button>
+                              )
+                            ) : (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleStruckOffStudent(item.student)}
+                                className="h-8 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white"
+                              >
+                                Struck Off
+                              </Button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -532,19 +596,19 @@ export default function MarkAttendancePage() {
 
       {/* Student 90-Day History Modal */}
       <Dialog open={!!historyStudent} onOpenChange={(open) => { if (!open) setHistoryStudent(null); }}>
-        <DialogContent className="sm:max-w-[550px] border-none shadow-2xl overflow-hidden rounded-3xl">
+        <DialogContent className="sm:max-w-[600px] border-none shadow-2xl overflow-hidden rounded-3xl">
           <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-r from-brand-primary via-brand-secondary to-brand-primary" />
           <DialogHeader className="pt-6">
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <Calendar className="h-6 w-6 text-brand-primary" />
-              90-Day Attendance History
+              90-Day Student Attendance History
             </DialogTitle>
             <DialogDescription className="mt-1">
               Reviewing past 90-day attendance record for <strong>{historyStudent?.user?.name}</strong> ({historyStudent?.rollNo}).
             </DialogDescription>
           </DialogHeader>
 
-          <div className="py-4 max-h-[55vh] overflow-y-auto pr-1">
+          <div className="py-4 max-h-[60vh] overflow-y-auto pr-1">
             {loadingHistory ? (
               <div className="flex justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-brand-primary" />
@@ -554,31 +618,78 @@ export default function MarkAttendancePage() {
                 No attendance records found for this student in the last 90 days.
               </p>
             ) : (
-              <div className="space-y-3">
-                {historyLogs.map((log) => (
-                  <div
-                    key={log.id}
-                    className="p-3.5 bg-accent/30 border border-border rounded-2xl flex items-center justify-between gap-4"
-                  >
-                    <div>
-                      <p className="font-bold text-sm text-foreground">
-                        {log.course?.courseCode} {log.course?.courseName ? `— ${log.course.courseName}` : ""}
-                      </p>
-                      <p className="text-xs text-muted-foreground font-mono flex items-center gap-1.5 mt-0.5">
-                        <Calendar className="h-3 w-3" />
-                        {new Date(log.date).toLocaleDateString(undefined, {
-                          weekday: "short",
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </p>
+              <div className="space-y-4">
+                {/* Concise Metrics Summary */}
+                {(() => {
+                  const total = historyLogs.length;
+                  const presents = historyLogs.filter((h) => h.status === "Present").length;
+                  const lates = historyLogs.filter((h) => h.status === "Late").length;
+                  const absents = historyLogs.filter((h) => h.status === "Absent").length;
+                  const rate = total > 0 ? Math.round(((presents + lates) / total) * 100) : 0;
+
+                  return (
+                    <div className="grid grid-cols-4 gap-3 p-3 bg-muted/30 rounded-2xl text-center">
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Presents</p>
+                        <p className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">{presents}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Lates</p>
+                        <p className="text-lg font-extrabold text-amber-600 dark:text-amber-400">{lates}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Absents</p>
+                        <p className="text-lg font-extrabold text-rose-600 dark:text-rose-400">{absents}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Overall Rate</p>
+                        <p className="text-lg font-extrabold text-brand-primary">{rate}%</p>
+                      </div>
                     </div>
-                    <Badge className={`${statusColors[log.status]} font-bold`}>
-                      {log.status}
-                    </Badge>
-                  </div>
-                ))}
+                  );
+                })()}
+
+                {/* Legend */}
+                <div className="flex items-center gap-4 text-xs justify-center pt-1">
+                  <span className="flex items-center gap-1 font-semibold text-emerald-600">
+                    <span className="h-5 w-5 rounded-md bg-emerald-500/20 flex items-center justify-center text-[10px] font-bold">P</span> Present
+                  </span>
+                  <span className="flex items-center gap-1 font-semibold text-amber-600">
+                    <span className="h-5 w-5 rounded-md bg-amber-500/20 flex items-center justify-center text-[10px] font-bold">L</span> Late
+                  </span>
+                  <span className="flex items-center gap-1 font-semibold text-rose-600">
+                    <span className="h-5 w-5 rounded-md bg-rose-500/20 flex items-center justify-center text-[10px] font-bold">A</span> Absent
+                  </span>
+                </div>
+
+                {/* Concise P, L, A Cards Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-[300px] overflow-y-auto p-1">
+                  {historyLogs.map((log) => {
+                    const formattedDate = new Date(log.date).toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                    });
+                    const letter = log.status[0];
+
+                    return (
+                      <div
+                        key={log.id}
+                        className={`p-2 rounded-xl border flex items-center justify-between text-xs font-mono ${
+                          log.status === "Present"
+                            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                            : log.status === "Late"
+                            ? "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"
+                            : "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400"
+                        }`}
+                      >
+                        <span className="font-sans font-medium text-foreground text-[11px]">{formattedDate}</span>
+                        <span className="h-6 w-6 rounded-lg bg-card flex items-center justify-center font-bold text-xs shadow-xs">
+                          {letter}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>

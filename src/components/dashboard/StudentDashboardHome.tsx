@@ -504,6 +504,7 @@ export function StudentDashboardHome() {
                   (new Date(quiz.dueDate).getTime() - now.getTime()) /
                     (1000 * 60 * 60 * 24),
                 );
+                const isAssignment = quiz.title.toLowerCase().includes("assignment");
                 return (
                   <div
                     key={quiz.id}
@@ -513,23 +514,25 @@ export function StudentDashboardHome() {
                       <FileText className="h-4 w-4 text-purple-500" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground">
+                      <p className="text-sm font-medium text-foreground truncate">
                         {quiz.title}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {quiz.duration} mins
+                      <p className="text-xs text-muted-foreground font-mono">
+                        Due: {new Date(quiz.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })} till 11:50 PM
                       </p>
                     </div>
-                    <Badge
-                      variant="secondary"
-                      className={
-                        daysLeft <= 2
-                          ? "bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400"
-                          : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                      }
-                    >
-                      {daysLeft}d left
-                    </Badge>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Badge
+                        variant="secondary"
+                        className={
+                          daysLeft <= 2
+                            ? "bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400 font-bold"
+                            : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 font-bold"
+                        }
+                      >
+                        {daysLeft <= 0 ? "Due Today" : `${daysLeft}d left`}
+                      </Badge>
+                    </div>
                   </div>
                 );
               })}

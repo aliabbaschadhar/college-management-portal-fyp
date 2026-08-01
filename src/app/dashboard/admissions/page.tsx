@@ -271,11 +271,7 @@ export default function ManageAdmissionsPage() {
       header: "Applicant",
       sortable: true,
       render: (row) => (
-        <div>
-          <p className="font-medium text-foreground">{row.studentName}</p>
-          <p className="text-xs text-muted-foreground">{row.email}</p>
-          <AuditBadgeInline entity="Admission" entityId={row.id} />
-        </div>
+        <p className="font-medium text-foreground">{row.studentName}</p>
       ),
     },
     { key: "appliedDepartment", header: "Department", sortable: true },
@@ -375,10 +371,7 @@ export default function ManageAdmissionsPage() {
       header: "Applicant",
       sortable: true,
       render: (row) => (
-        <div>
-          <p className="font-medium text-foreground">{row.name}</p>
-          <p className="text-xs text-muted-foreground">{row.email}</p>
-        </div>
+        <p className="font-medium text-foreground">{row.name}</p>
       ),
     },
     {
@@ -527,12 +520,12 @@ export default function ManageAdmissionsPage() {
           { label: "Admissions & Requests" },
         ]}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap max-w-full">
             <Button
               variant="outline"
               size="sm"
               onClick={handleRefresh}
-              className="flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_var(--border)] active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_var(--border)] transition-all"
+              className="flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_var(--border)] active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_var(--border)] transition-all shrink-0"
             >
               <RefreshCw className="h-4 w-4" />
               Refresh
@@ -551,6 +544,7 @@ export default function ManageAdmissionsPage() {
                   size="sm"
                   disabled={importing || loading}
                   onClick={() => csvInputRef.current?.click()}
+                  className="max-w-full truncate shrink-0"
                 >
                   {importing ? (
                     <Spinner size="sm" className="mr-2" />
@@ -776,20 +770,23 @@ export default function ManageAdmissionsPage() {
                 </div>
               </div>
 
-              <div className="space-y-1 p-3 rounded-lg bg-accent/50 border">
-                <p className="text-xs font-medium text-muted-foreground uppercase">
-                  Current Status
-                </p>
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge className={statusColors[selectedAdmission.status]}>
-                    {selectedAdmission.status}
-                  </Badge>
-                  {selectedAdmission.status === "Pending" && (
-                    <span className="text-xs text-muted-foreground italic">
-                      (Needs review)
-                    </span>
-                  )}
+              <div className="space-y-1 p-3 rounded-lg bg-accent/50 border flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase">
+                    Current Status
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge className={statusColors[selectedAdmission.status]}>
+                      {selectedAdmission.status}
+                    </Badge>
+                    {selectedAdmission.status === "Pending" && (
+                      <span className="text-xs text-muted-foreground italic">
+                        (Needs review)
+                      </span>
+                    )}
+                  </div>
                 </div>
+                <AuditBadgeInline entity="Admission" entityId={selectedAdmission.id} />
               </div>
             </div>
           )}

@@ -409,12 +409,15 @@ export default function ManageFacultyPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-foreground">{viewingFaculty.user.name}</h3>
-                  <p className="text-sm text-muted-foreground">{viewingFaculty.user.email}</p>
-                  <AuditBadgeInline entity="Faculty" entityId={viewingFaculty.id} />
+                  <p className="text-xs text-muted-foreground uppercase font-semibold mt-0.5">Faculty Member</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="font-semibold text-muted-foreground block text-xs uppercase tracking-wider">Email Address</span>
+                  <span className="font-medium text-foreground font-mono">{viewingFaculty.user.email}</span>
+                </div>
                 <div>
                   <span className="font-semibold text-muted-foreground block text-xs uppercase tracking-wider">Department</span>
                   <span className="font-medium text-foreground">{viewingFaculty.department}</span>
@@ -436,6 +439,12 @@ export default function ManageFacultyPage() {
                       day: "numeric"
                     })}
                   </span>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground block text-xs uppercase tracking-wider">System Audit Details</span>
+                  <div className="mt-1">
+                    <AuditBadgeInline entity="Faculty" entityId={viewingFaculty.id} />
+                  </div>
                 </div>
               </div>
             </div>

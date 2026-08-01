@@ -27,6 +27,8 @@ interface DataTableProps<T> {
   searchKeys?: string[];
   pageSize?: number;
   onRowAction?: (row: T) => void;
+  onRowClick?: (row: T) => void;
+  selectedRowKey?: (row: T) => boolean;
 }
 
 export function DataTable<T extends Record<string, unknown>>({
@@ -35,6 +37,8 @@ export function DataTable<T extends Record<string, unknown>>({
   searchPlaceholder = "Search...",
   searchKeys = [],
   pageSize = 10,
+  onRowClick,
+  selectedRowKey,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -164,7 +168,12 @@ export function DataTable<T extends Record<string, unknown>>({
                 paginated.map((row, i) => (
                   <TableRow
                     key={i}
-                    className="hover:bg-accent/30 transition-colors"
+                    onClick={() => onRowClick && onRowClick(row)}
+                    className={cn(
+                      "hover:bg-accent/30 transition-colors",
+                      onRowClick && "cursor-pointer",
+                      selectedRowKey && selectedRowKey(row) && "bg-brand-primary/10 hover:bg-brand-primary/15 font-medium border-l-4 border-l-brand-primary"
+                    )}
                   >
                     {columns.map((col) => (
                       <TableCell key={col.key} className="text-sm">

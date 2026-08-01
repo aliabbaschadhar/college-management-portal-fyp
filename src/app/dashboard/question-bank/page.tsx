@@ -117,43 +117,100 @@ export default function QuestionBankPage() {
     setImportingCsv(true);
     setCsvError(null);
     try {
-      // Simple robust CSV parsing (lines: type,text,marks,optionA,optionB,optionC,optionD,correctOption,sampleAnswer)
+      const parseCsvLine = (textLine: string): string[] => {
+        const result: string[] = [];
+        let cur = "";
+        let inQuotes = false;
+        for (let i = 0; i < textLine.length; i++) {
+          const char = textLine[i];
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === "," && !inQuotes) {
+            result.push(cur.trim().replace(/^["']|["']$/g, ""));
+            cur = "";
+          } else {
+            cur += char;
+          }
+        }
+        result.push(cur.trim().replace(/^["']|["']$/g, ""));
+        return result;
+      };
+
       const lines = csvText.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
       const parsedItems = [];
 
       for (let idx = 0; idx < lines.length; idx++) {
         const line = lines[idx];
-        if (idx === 0 && line.toLowerCase().includes("text")) continue; // Skip header row
-        const parts = line.split(",").map((p) => p.trim().replace(/^["']|["']$/g, ""));
-        if (parts.length < 2) continue;
-
-        const rawType = parts[0]?.toUpperCase();
-        const qType: "MCQ" | "Short" | "Long" = rawType === "SHORT" ? "Short" : rawType === "LONG" ? "Long" : "MCQ";
-        const qText = parts[1];
-        const marks = Number(parts[2] || (qType === "Long" ? 5 : qType === "Short" ? 2 : 1));
-
-        if (qType === "MCQ") {
-          const optionA = parts[3] || "";
-          const optionB = parts[4] || "";
-          const optionC = parts[5] || "";
-          const optionD = parts[6] || "";
-          const correctIdx = Number(parts[7] || 0);
-          parsedItems.push({
-            courseId: csvCourseId,
-            type: "MCQ" as const,
-            text: qText,
-            marks,
-            options: [optionA, optionB, optionC, optionD],
-            correctOption: isNaN(correctIdx) ? 0 : correctIdx,
-          });
-        } else {
-          // Bulk CSV import is restricted to MCQs only per system policy
-          setCsvError(`Row ${idx + 1} (${qType}) ignored: CSV Bulk Import is for MCQ questions only.`);
+        const lowerLine = line.toLowerCase();
+        // Skip header row if it contains question/option/type header labels
+        if (idx === 0 && (lowerLine.includes("question") || lowerLine.includes("option a") || lowerLine.includes("correct answer") || lowerLine.startsWith("type"))) {
+          continue;
         }
+
+        const parts = parseCsvLine(line);
+        if (parts.length < 5) continue;
+
+        let qText = "";
+        let marks = 1;
+        let optionA = "";
+        let optionB = "";
+        let optionC = "";
+        let optionD = "";
+        let rawAnswer = "";
+
+        if (parts[0].toUpperCase() === "MCQ" || parts[0].toUpperCase() === "SHORT" || parts[0].toUpperCase() === "LONG") {
+          // 8-column format: Type, Question, Marks, Option A, Option B, Option C, Option D, Correct Answer
+          if (parts[0].toUpperCase() !== "MCQ") {
+            setCsvError(`Row ${idx + 1} (${parts[0]}) skipped: Bulk CSV import is for MCQ questions only.`);
+            continue;
+          }
+          qText = parts[1] || "";
+          marks = Number(parts[2]) || 1;
+          optionA = parts[3] || "";
+          optionB = parts[4] || "";
+          optionC = parts[5] || "";
+          optionD = parts[6] || "";
+          rawAnswer = parts[7] || "0";
+        } else {
+          // Standard 6-column production format: Question, Option A, Option B, Option C, Option D, Correct Answer
+          qText = parts[0] || "";
+          optionA = parts[1] || "";
+          optionB = parts[2] || "";
+          optionC = parts[3] || "";
+          optionD = parts[4] || "";
+          rawAnswer = parts[5] || "A";
+          marks = 1;
+        }
+
+        if (!qText || !optionA || !optionB) continue;
+
+        // Parse correct answer (supports "A", "B", "C", "D", "0", "1", "2", "3", "Option A", etc.)
+        let correctIdx = 0;
+        const normalizedAns = rawAnswer.trim().toUpperCase();
+        if (normalizedAns === "A" || normalizedAns === "OPTION A" || normalizedAns === "0") {
+          correctIdx = 0;
+        } else if (normalizedAns === "B" || normalizedAns === "OPTION B" || normalizedAns === "1") {
+          correctIdx = 1;
+        } else if (normalizedAns === "C" || normalizedAns === "OPTION C" || normalizedAns === "2") {
+          correctIdx = 2;
+        } else if (normalizedAns === "D" || normalizedAns === "OPTION D" || normalizedAns === "3") {
+          correctIdx = 3;
+        } else {
+          correctIdx = Number(normalizedAns) || 0;
+        }
+
+        parsedItems.push({
+          courseId: csvCourseId,
+          type: "MCQ" as const,
+          text: qText,
+          marks,
+          options: [optionA, optionB, optionC, optionD],
+          correctOption: Math.min(3, Math.max(0, correctIdx)),
+        });
       }
 
       if (parsedItems.length === 0) {
-        setCsvError("No valid MCQ question rows found in CSV data. CSV Bulk Import is strictly for MCQs.");
+        setCsvError("No valid MCQ question rows found. Please ensure CSV matches standard format: Question, Option A, Option B, Option C, Option D, Correct Answer.");
         setImportingCsv(false);
         return;
       }
@@ -347,9 +404,9 @@ export default function QuestionBankPage() {
                           </div>
                         </summary>
 
-                        <div className="p-4 border-t border-border/40 space-y-3 bg-background/50">
+                        <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 bg-background/50">
                           {courseQuestions.map((q) => (
-                            <div key={q.id} className="rounded-xl bg-card p-4 space-y-2.5 shadow-2xs hover:shadow-xs transition-shadow">
+                            <div key={q.id} className="rounded-xl bg-card p-4 space-y-2.5 shadow-2xs hover:shadow-xs transition-shadow border border-border/40">
                               <div className="flex items-start justify-between gap-4">
                                 <div className="space-y-1">
                                   <div className="flex items-center gap-2 flex-wrap">
@@ -373,17 +430,17 @@ export default function QuestionBankPage() {
                               </div>
 
                               {q.type === "MCQ" && q.options && q.options.length > 0 && (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                <div className="flex flex-wrap gap-2 pt-1">
                                   {q.options.map((opt, oIdx) => (
                                     <div
                                       key={oIdx}
-                                      className={`p-2 rounded-lg text-xs font-medium ${
+                                      className={`w-fit max-w-full px-2.5 py-1 rounded-lg text-xs font-medium ${
                                         oIdx === q.correctOption
-                                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold"
-                                          : "bg-muted/40 text-muted-foreground"
+                                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold border border-emerald-500/20"
+                                          : "bg-muted/40 text-muted-foreground border border-transparent"
                                       }`}
                                     >
-                                      <span className="opacity-70 mr-1.5">{String.fromCharCode(65 + oIdx)}.</span> {opt}
+                                      <span className="opacity-70 mr-1">{String.fromCharCode(65 + oIdx)}.</span> {opt}
                                     </div>
                                   ))}
                                 </div>
@@ -531,7 +588,7 @@ export default function QuestionBankPage() {
 
       {/* CSV Bulk Import Modal */}
       <Dialog open={showCsvModal} onOpenChange={setShowCsvModal}>
-        <DialogContent className="max-w-xl rounded-3xl">
+        <DialogContent className="max-w-xl w-full rounded-3xl overflow-hidden">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold flex items-center gap-2">
               <FileSpreadsheet className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
@@ -540,16 +597,16 @@ export default function QuestionBankPage() {
           </DialogHeader>
 
           {csvError && (
-            <div className="rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs text-rose-600 dark:bg-rose-950/20 dark:border-rose-900/50 dark:text-rose-400 font-medium">
+            <div className="rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs text-rose-600 dark:bg-rose-950/20 dark:border-rose-900/50 dark:text-rose-400 font-medium break-words">
               {csvError}
             </div>
           )}
 
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
+          <div className="space-y-4 py-2 w-full overflow-hidden">
+            <div className="space-y-1.5 w-full">
               <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Target Subject / Course</Label>
               <Select value={csvCourseId} onValueChange={setCsvCourseId}>
-                <SelectTrigger className="h-11 rounded-xl">
+                <SelectTrigger className="h-11 rounded-xl w-full">
                   <SelectValue placeholder="Select course" />
                 </SelectTrigger>
                 <SelectContent>
@@ -562,22 +619,23 @@ export default function QuestionBankPage() {
               </Select>
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 w-full">
               <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">CSV Data (Paste Rows below or upload)</Label>
-              <div className="relative">
+              <div className="relative w-full">
                 <Textarea
                   value={csvText}
                   onChange={(e) => setCsvText(e.target.value)}
-                  placeholder={`type, text, marks, optionA, optionB, optionC, optionD, correctOption, sampleAnswer\nMCQ, What is 2+2?, 1, 2, 3, 4, 5, 2\nShort, Explain Newton's First Law, 3, Objects in motion stay in motion...`}
-                  className="rounded-xl font-mono text-xs min-h-[160px]"
+                  placeholder={`Question,Option A,Option B,Option C,Option D,Correct Answer\n"What is a programming language?","A set of rules for writing programs","A computer hardware","An operating system","A database","A"`}
+                  className="rounded-xl font-mono text-xs h-40 max-h-48 overflow-y-auto resize-none w-full max-w-full break-all"
                 />
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 text-[11px] text-muted-foreground space-y-1">
-              <p className="font-bold text-purple-600 dark:text-purple-400">💡 CSV Bulk Import Guide (MCQ Only):</p>
-              <p>• <strong>MCQ Row:</strong> <code>MCQ, Question Text, Marks, Option A, Option B, Option C, Option D, CorrectIndex (0-3)</code></p>
-              <p className="text-[10px] text-muted-foreground italic">Note: Bulk CSV import is dedicated strictly to online MCQ quizzes.</p>
+            <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 text-[11px] text-muted-foreground space-y-1 w-full overflow-hidden break-words">
+              <p className="font-bold text-purple-600 dark:text-purple-400">💡 Standard MCQ CSV Format:</p>
+              <p className="break-all">• Header: <code>Question,Option A,Option B,Option C,Option D,Correct Answer</code></p>
+              <p className="break-all">• Example: <code>&quot;What is 2+2?&quot;,&quot;2&quot;,&quot;3&quot;,&quot;4&quot;,&quot;5&quot;,&quot;C&quot;</code></p>
+              <p className="text-[10px] text-muted-foreground italic">Note: Correct Answer accepts &quot;A&quot;, &quot;B&quot;, &quot;C&quot;, or &quot;D&quot;.</p>
             </div>
           </div>
 

@@ -99,24 +99,34 @@ export default function MyAttendancePage() {
     setRefreshing(false);
   };
 
-  const todayStr = new Date().toISOString().split("T")[0];
-
   const filtered = useMemo(() => {
     if (filterCourse === "all") {
-      // Show present day attendance (or fallback to latest day if no logs today)
-      const todayLogs = allAttendance.filter((a) => new Date(a.date).toISOString().split("T")[0] === todayStr);
-      if (todayLogs.length > 0) return todayLogs;
-      // Fallback: Latest day records
-      const latestDateStr = allAttendance[0] ? new Date(allAttendance[0].date).toISOString().split("T")[0] : null;
-      return latestDateStr ? allAttendance.filter((a) => new Date(a.date).toISOString().split("T")[0] === latestDateStr) : [];
+      // Map over all enrolled courses so that ALL enrolled subjects (e.g. 7 subjects) are consistently listed
+      return courses.map((c) => {
+        const cLogs = allAttendance.filter((a) => a.courseId === c.id);
+        if (cLogs.length > 0) {
+          const sorted = [...cLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          return sorted[0];
+        }
+        return {
+          id: `placeholder-${c.id}`,
+          studentId: "me",
+          courseId: c.id,
+          date: new Date().toISOString(),
+          status: "Present" as AttendanceStatus,
+          markedBy: "System",
+          student: { rollNo: "", user: { name: "" } },
+          course: { courseCode: c.courseCode, courseName: c.courseName },
+        };
+      });
     } else {
-      // Specific course selected: Show 5 days attendance
+      // Specific course selected: Show up to 10 logs for that course
       return allAttendance
         .filter((a) => a.courseId === filterCourse)
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0, 5);
+        .slice(0, 10);
     }
-  }, [allAttendance, filterCourse, todayStr]);
+  }, [allAttendance, courses, filterCourse]);
 
   const presentCount = filtered.filter((a) => a.status === "Present").length;
   const absentCount = filtered.filter((a) => a.status === "Absent").length;
