@@ -410,7 +410,9 @@ export default function TakeQuizPage() {
               </h3>
 
               {(() => {
-                const quizAttempts = myAttempts.filter((att) => !att.quiz.title.toLowerCase().includes("assignment") && att.quiz._count?.questions !== 0);
+                const quizAttempts = myAttempts.filter(
+                  (att) => !att.quiz.title.toLowerCase().includes("assignment")
+                );
 
                 if (quizAttempts.length === 0) {
                   return (
@@ -443,6 +445,9 @@ export default function TakeQuizPage() {
                       </div>
 
                       <div className="flex items-center gap-3 shrink-0">
+                        <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs px-2.5 py-1 font-bold">
+                          Attempted ✓
+                        </Badge>
                         <div className="text-right">
                           <p className="text-base font-extrabold text-foreground">{att.score} / {att.totalMarks}</p>
                           <p className="text-[10px] font-bold text-muted-foreground">{percentage}% Score</p>
@@ -556,7 +561,9 @@ export default function TakeQuizPage() {
               </h3>
 
               {(() => {
-                const assignmentAttempts = myAttempts.filter((att) => att.quiz.title.toLowerCase().includes("assignment") || att.quiz._count?.questions === 0);
+                const assignmentAttempts = myAttempts.filter(
+                  (att) => att.quiz.title.toLowerCase().includes("assignment")
+                );
 
                 if (assignmentAttempts.length === 0) {
                   return (

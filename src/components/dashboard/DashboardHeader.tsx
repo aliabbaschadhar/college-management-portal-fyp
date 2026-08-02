@@ -1,4 +1,4 @@
-import { Bell, Menu, X, Calendar, Megaphone, ArrowRight } from "lucide-react";
+import { Bell, Menu, Calendar, Megaphone, ArrowRight } from "lucide-react";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
@@ -159,13 +159,13 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
       const isNowBlocked = dbProfile.student?.blocked === true;
 
       if (wasBlocked && !isNowBlocked) {
-        setShowWelcomeNotice(true);
+        setTimeout(() => setShowWelcomeNotice(true), 0);
         localStorage.setItem(`welcome_notice_${userId}`, "true");
       }
       localStorage.setItem(`was_blocked_${userId}`, String(isNowBlocked));
 
       if (localStorage.getItem(`welcome_notice_${userId}`) === "true" && !isNowBlocked) {
-        setShowWelcomeNotice(true);
+        setTimeout(() => setShowWelcomeNotice(true), 0);
       }
     }
   }, [userId, role, dbProfile]);

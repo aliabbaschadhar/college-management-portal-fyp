@@ -198,8 +198,8 @@ export default function MarkAttendancePage() {
       const students = enrollments
         .map((e) => {
           if (!e.student) return null;
-          const isBlocked = e.student.blocked && e.blocked !== false;
-          const isReadmitReq = !isBlocked ? false : (e.student.readmitRequested || e.readmitRequested || false);
+          const isBlocked = Boolean(e.student.blocked || e.blocked);
+          const isReadmitReq = !isBlocked ? false : Boolean(e.student.readmitRequested || e.readmitRequested);
           return {
             ...e.student,
             blocked: isBlocked,

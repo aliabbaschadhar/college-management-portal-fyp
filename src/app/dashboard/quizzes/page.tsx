@@ -452,6 +452,7 @@ export default function ManageQuizzesPage() {
                             <tr className="border-b border-border bg-muted/30 text-left">
                               <th className="p-2 font-semibold text-foreground">Student</th>
                               <th className="p-2 font-semibold text-foreground">Roll No</th>
+                              <th className="p-2 font-semibold text-foreground text-center">Status</th>
                               <th className="p-2 font-semibold text-foreground text-center">Score</th>
                               <th className="p-2 font-semibold text-foreground">Submitted At</th>
                             </tr>
@@ -461,6 +462,11 @@ export default function ManageQuizzesPage() {
                               <tr key={attempt.id} className="border-b border-border last:border-0">
                                 <td className="p-2 font-medium text-foreground">{attempt.student.user.name || "—"}</td>
                                 <td className="p-2 font-mono text-muted-foreground">{attempt.student.rollNo}</td>
+                                <td className="p-2 text-center">
+                                  <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] font-bold py-0.5 px-2">
+                                    Attempted ✓
+                                  </Badge>
+                                </td>
                                 <td className="p-2 text-center font-bold text-brand-primary">
                                   {attempt.score} / {attempt.totalMarks}
                                 </td>
@@ -647,15 +653,20 @@ export default function ManageQuizzesPage() {
                     <div className="flex items-center gap-3">
                       {activeSubTab === "quizzes" ? (
                         st.submitted ? (
-                          <div className="text-right">
-                            <p className="text-sm font-extrabold text-brand-primary">
-                              {st.score !== undefined ? `${st.score} / ${st.totalMarks}` : "Submitted"}
-                            </p>
-                            {st.score !== undefined && st.totalMarks && st.totalMarks > 0 && (
-                              <p className="text-[10px] font-bold text-muted-foreground">
-                                {Math.round((st.score / st.totalMarks) * 100)}% Score
+                          <div className="flex items-center gap-2.5">
+                            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 font-extrabold text-[11px] py-1 px-2.5">
+                              Attempted ✓
+                            </Badge>
+                            <div className="text-right">
+                              <p className="text-sm font-extrabold text-brand-primary">
+                                {st.score !== undefined ? `${st.score} / ${st.totalMarks}` : "Submitted"}
                               </p>
-                            )}
+                              {st.score !== undefined && st.totalMarks && st.totalMarks > 0 && (
+                                <p className="text-[10px] font-bold text-muted-foreground">
+                                  {Math.round((st.score / st.totalMarks) * 100)}% Score
+                                </p>
+                              )}
+                            </div>
                           </div>
                         ) : (
                           <span className="text-xs text-muted-foreground italic font-mono">Not Attempted</span>
