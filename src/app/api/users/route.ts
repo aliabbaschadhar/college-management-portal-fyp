@@ -25,24 +25,49 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const roleFilter = searchParams.get("role");
+    const departmentFilter = searchParams.get("department");
+    const semesterFilter = searchParams.get("semester");
     const search = searchParams.get("search") ?? "";
 
+    const whereClause: Record<string, unknown> = {};
+
+    if (roleFilter && roleFilter !== "ALL") {
+      whereClause.role = roleFilter as "ADMIN" | "FACULTY" | "STUDENT";
+    }
+
+    if (search) {
+      whereClause.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { email: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    if (departmentFilter && departmentFilter !== "ALL") {
+      whereClause.AND = [
+        ...(whereClause.AND as unknown[] ?? []),
+        {
+          OR: [
+            { student: { department: { equals: departmentFilter, mode: "insensitive" } } },
+            { faculty: { department: { equals: departmentFilter, mode: "insensitive" } } },
+          ],
+        },
+      ];
+    }
+
+    if (semesterFilter && semesterFilter !== "ALL") {
+      const semNum = parseInt(semesterFilter, 10);
+      if (!isNaN(semNum)) {
+        whereClause.AND = [
+          ...(whereClause.AND as unknown[] ?? []),
+          { student: { semester: semNum } },
+        ];
+      }
+    }
+
     const users = await prisma.user.findMany({
-      where: {
-        ...(roleFilter && roleFilter !== "ALL"
-          ? { role: roleFilter as "ADMIN" | "FACULTY" | "STUDENT" }
-          : {}),
-        ...(search
-          ? {
-              OR: [
-                { name: { contains: search, mode: "insensitive" } },
-                { email: { contains: search, mode: "insensitive" } },
-              ],
-            }
-          : {}),
-      },
+      where: whereClause,
       include: {
-        student: { select: { rollNo: true, department: true } },
+        student: { select: { rollNo: true, department: true, semester: true } },
         faculty: { select: { phone: true, department: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -57,7 +82,7 @@ export async function GET(request: NextRequest) {
         role: u.role,
         createdAt: u.createdAt.toISOString(),
         student: u.student
-          ? { rollNo: u.student.rollNo, department: u.student.department }
+          ? { rollNo: u.student.rollNo, department: u.student.department, semester: u.student.semester }
           : null,
         faculty: u.faculty
           ? { department: u.faculty.department }

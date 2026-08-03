@@ -14,11 +14,27 @@ interface SidebarProps {
   roleLabel: string;
   isMobileOpen: boolean;
   onMobileClose: () => void;
+  onNavigate?: () => void;
 }
 
-export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose }: SidebarProps) {
+export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose, onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("sidebar_collapsed");
+    if (saved !== null) {
+      setCollapsed(saved === "true");
+    }
+  }, []);
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("sidebar_collapsed", String(next));
+      return next;
+    });
+  };
 
   // Close mobile sidebar on route change
   useEffect(() => {
@@ -28,7 +44,7 @@ export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose }: Si
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
-    return pathname.startsWith(href);
+    return pathname === href || pathname.startsWith(href + "/");
   };
 
   return (
@@ -51,9 +67,9 @@ export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose }: Si
       >
         {/* Logo */}
         <div className="flex h-16 items-center gap-3 border-b border-border px-4">
-          <div className="h-9 w-9 shrink-0 overflow-hidden">
+          <div className="h-11 w-11 shrink-0 overflow-hidden">
             <Image
-              src="/logo.svg"
+              src="/collegelogo.png"
               alt="College Management Portal logo"
               width={146}
               height={108}
@@ -78,6 +94,11 @@ export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose }: Si
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={() => {
+                  if (!active && onNavigate) {
+                    onNavigate();
+                  }
+                }}
                 className={cn(
                   "group flex items-center gap-3 rounded-none px-3 py-2.5 text-sm font-bold transition-all duration-200 border-2 border-transparent",
                   active
@@ -119,7 +140,7 @@ export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose }: Si
           {/* Collapse toggle (desktop) */}
           <div className="hidden lg:flex">
             <button
-              onClick={() => setCollapsed(!collapsed)}
+              onClick={toggleCollapsed}
               className="flex w-full items-center justify-center gap-2 rounded-none border-2 border-transparent px-3 py-2 text-sm font-bold text-muted-foreground hover:bg-accent hover:text-foreground hover:border-border hover:shadow-[2px_2px_0px_0px_var(--border)] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all cursor-pointer"
             >
               {collapsed ? (

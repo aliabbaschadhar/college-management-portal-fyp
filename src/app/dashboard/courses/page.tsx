@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/axios";
 import {
@@ -8,6 +8,7 @@ import {
   Pencil,
   Trash2,
   UserPlus,
+  UserMinus,
   Laptop,
   Calculator,
   Atom,
@@ -19,9 +20,11 @@ import {
   ChevronRight,
   ArrowLeft,
   GraduationCap,
-  Loader2
+  Loader2,
+  Eye,
+  Clock,
+  RefreshCw
 } from "lucide-react";
-import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
 import { DEPARTMENTS } from "@/lib/constants";
@@ -56,7 +59,8 @@ interface CourseWithDetails {
   department: string;
   semester: number;
   assignedFaculty: string | null;
-  faculty: { user: { name: string | null } } | null;
+  shift: string;
+  faculty: { user: { name: string | null }; department: string } | null;
   _count: { enrollments: number };
 }
 
@@ -72,6 +76,17 @@ interface CourseForm {
   creditHours: number;
   department: string;
   semester: number;
+}
+
+interface AuditLogEntry {
+  id: string;
+  action: string;
+  entity: string;
+  entityId: string;
+  description: string;
+  adminId: string;
+  adminName: string;
+  createdAt: string;
 }
 
 const emptyCourse: CourseForm = {
@@ -157,14 +172,23 @@ export default function ManageCoursesPage() {
     useState<CourseWithDetails | null>(null);
   const [form, setForm] = useState<CourseForm>(emptyCourse);
   const [selectedFaculty, setSelectedFaculty] = useState<string>("");
+  const [selectedAssignShift, setSelectedAssignShift] = useState<string>("Morning");
   const [assigning, setAssigning] = useState(false);
+  const [unassigningCourseId, setUnassigningCourseId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Drill-down states
-  const [selectedDept, setSelectedDept] = useState<string | null>(null);
-  const [selectedSem, setSelectedSem] = useState<number | null>(null);
+  // Detail Dialog states
+  const [viewingCourse, setViewingCourse] = useState<CourseWithDetails | null>(null);
+  const [courseAuditLogs, setCourseAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
 
-  useEffect(() => {
+  // Drill-down states
+  const [selectedDept, setSelectedDept] = useState<string | null>("Computer Science");
+  const [selectedSem, setSelectedSem] = useState<number | null>(1);
+
+  const handleRefresh = useCallback(() => {
+    setLoading(true);
     Promise.all([
       api.get<CourseWithDetails[]>("/api/courses"),
       api.get<FacultyOption[]>("/api/faculty"),
@@ -176,6 +200,10 @@ export default function ManageCoursesPage() {
       })
       .catch(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    handleRefresh();
+  }, [handleRefresh]);
 
   const openAdd = () => {
     setEditingCourse(null);
@@ -199,6 +227,22 @@ export default function ManageCoursesPage() {
       semester: c.semester,
     });
     setDialogOpen(true);
+  };
+
+  const openDetails = async (course: CourseWithDetails) => {
+    setViewingCourse(course);
+    setDetailDialogOpen(true);
+    setLoadingAudit(true);
+    try {
+      const res = await api.get<AuditLogEntry[]>(
+        `/api/audit-log?entity=Course&entityId=${course.id}`,
+      );
+      setCourseAuditLogs(res.data || []);
+    } catch {
+      setCourseAuditLogs([]);
+    } finally {
+      setLoadingAudit(false);
+    }
   };
 
   const handleSave = async () => {
@@ -251,7 +295,31 @@ export default function ManageCoursesPage() {
       setAssigning(true);
       const { data: updated } = await api.patch<CourseWithDetails>(
         `/api/courses/${assigningCourse.id}`,
-        { assignedFaculty: selectedFaculty },
+        { assignedFaculty: selectedFaculty, shift: selectedAssignShift },
+      );
+      setCourses((prev) =>
+        prev.map((c) => (c.id === updated.id ? updated : c)),
+      );
+      setAssignDialogOpen(false);
+      setSelectedFaculty("");
+      setSelectedAssignShift("Morning");
+      router.refresh();
+    } catch (err) {
+      console.error("Failed to assign faculty:", err);
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const handleUnassign = async (courseId?: string) => {
+    const targetId = courseId || assigningCourse?.id;
+    if (!targetId) return;
+    try {
+      setAssigning(true);
+      setUnassigningCourseId(targetId);
+      const { data: updated } = await api.patch<CourseWithDetails>(
+        `/api/courses/${targetId}`,
+        { assignedFaculty: null },
       );
       setCourses((prev) =>
         prev.map((c) => (c.id === updated.id ? updated : c)),
@@ -259,10 +327,11 @@ export default function ManageCoursesPage() {
       setAssignDialogOpen(false);
       setSelectedFaculty("");
       router.refresh();
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.error("Failed to unassign faculty:", err);
     } finally {
       setAssigning(false);
+      setUnassigningCourseId(null);
     }
   };
 
@@ -283,8 +352,7 @@ export default function ManageCoursesPage() {
       sortable: true,
       render: (row) => (
         <div>
-          <span className="font-medium text-foreground">{row.courseName}</span>
-          <AuditBadgeInline entity="Course" entityId={row.id} />
+          <span className="font-semibold text-foreground">{row.courseName}</span>
         </div>
       ),
     },
@@ -299,7 +367,12 @@ export default function ManageCoursesPage() {
       header: "Faculty",
       render: (row) =>
         row.faculty?.user.name ? (
-          <span className="text-sm">{row.faculty.user.name}</span>
+          <div className="flex flex-col">
+            <span className="text-sm font-semibold">{row.faculty.user.name}</span>
+            <span className="text-[10px] text-muted-foreground">
+              {`${row.shift || "Morning"} Shift`}
+            </span>
+          </div>
         ) : (
           <span className="text-xs text-muted-foreground italic">
             Unassigned
@@ -320,9 +393,17 @@ export default function ManageCoursesPage() {
       render: (row) => (
         <div className="flex items-center gap-1">
           <button
+            onClick={() => openDetails(row)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"
+            title="View Details"
+          >
+            <Eye className="h-4 w-4 text-brand-primary" />
+          </button>
+          <button
             onClick={() => {
               setAssigningCourse(row);
               setSelectedFaculty(row.assignedFaculty || "");
+              setSelectedAssignShift(row.shift || "Morning");
               setAssignDialogOpen(true);
             }}
             className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"
@@ -330,6 +411,20 @@ export default function ManageCoursesPage() {
           >
             <UserPlus className="h-4 w-4 text-brand-secondary" />
           </button>
+          {row.assignedFaculty && (
+            <button
+              onClick={() => handleUnassign(row.id)}
+              disabled={unassigningCourseId === row.id}
+              className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-rose-500/10 transition-colors disabled:opacity-50"
+              title="Unassign Faculty"
+            >
+              {unassigningCourseId === row.id ? (
+                <Loader2 className="h-4 w-4 animate-spin text-rose-500" />
+              ) : (
+                <UserMinus className="h-4 w-4 text-rose-500" />
+              )}
+            </button>
+          )}
           <button
             onClick={() => openEdit(row)}
             className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"
@@ -353,9 +448,11 @@ export default function ManageCoursesPage() {
   ];
 
   // Filter courses for DataTable in View 3
-  const filteredCourses = courses.filter(
-    (c) => c.department === selectedDept && c.semester === selectedSem
-  );
+  const filteredCourses = courses.filter((c) => {
+    const matchesDept = !selectedDept || selectedDept === "all" || c.department === selectedDept;
+    const matchesSem = !selectedSem || c.semester === Number(selectedSem);
+    return matchesDept && matchesSem;
+  });
 
   if (loading) {
     return (
@@ -513,32 +610,71 @@ export default function ManageCoursesPage() {
             className="space-y-6"
           >
             <PageHeader
-              title={`Semester ${selectedSem} Courses`}
-              subtitle={`Offered subjects in ${selectedDept}.`}
+              title="Manage Courses"
+              subtitle={`${filteredCourses.length} subjects found`}
               breadcrumbs={[
                 { label: "Dashboard", href: "/dashboard" },
-                { label: "Manage Courses", onClick: () => { setSelectedDept(null); setSelectedSem(null); }, href: "#" },
-                { label: selectedDept, onClick: () => setSelectedSem(null), href: "#" },
-                { label: `Semester ${selectedSem}` },
+                { label: "Manage Courses" },
               ]}
               action={
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
-                    onClick={() => setSelectedSem(null)}
-                    className="gap-2 border-border hover:bg-accent hover:text-accent-foreground"
+                    size="sm"
+                    onClick={handleRefresh}
+                    className="flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_var(--border)] active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_var(--border)] transition-all"
                   >
-                    <ArrowLeft className="h-4 w-4" /> Back to Semesters
+                    <RefreshCw className="h-4 w-4" />
+                    Refresh
                   </Button>
                   <Button
                     onClick={openAdd}
-                    className="bg-brand-primary hover:bg-brand-primary/90 text-white"
+                    className="bg-brand-primary hover:bg-brand-primary/90 text-white h-9 px-4 rounded-xl flex items-center gap-2"
                   >
-                    <Plus className="h-4 w-4 mr-2" /> Add Subject
+                    <Plus className="h-4 w-4" /> Add Subject
                   </Button>
                 </div>
               }
             />
+
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-wrap items-center gap-4 bg-card p-4 rounded-xl border border-border w-full">
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase">Dept:</Label>
+                  <Select value={selectedDept || ""} onValueChange={setSelectedDept}>
+                    <SelectTrigger className="w-[180px] h-10 bg-card rounded-xl">
+                      <SelectValue placeholder="Select Department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DEPARTMENTS.map((d) => (
+                        <SelectItem key={d} value={d}>
+                          {d}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase">Sem:</Label>
+                  <Select
+                    value={String(selectedSem || 1)}
+                    onValueChange={(v) => setSelectedSem(Number(v))}
+                  >
+                    <SelectTrigger className="w-[120px] h-10 bg-card rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                        <SelectItem key={s} value={String(s)}>
+                          Semester {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
 
             <DataTable
               data={filteredCourses as unknown as Record<string, unknown>[]}
@@ -672,34 +808,59 @@ export default function ManageCoursesPage() {
           <DialogHeader>
             <DialogTitle>Assign Faculty</DialogTitle>
             <DialogDescription>
-              Assign a faculty member to{" "}
+              Assign a faculty member and select a shift for{" "}
               <strong>{assigningCourse?.courseName}</strong> (
               {assigningCourse?.courseCode})
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Select value={selectedFaculty} onValueChange={setSelectedFaculty} disabled={assigning}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select faculty member" />
-              </SelectTrigger>
-              <SelectContent>
-                {facultyList.filter((f) => f.department === assigningCourse?.department).length === 0 ? (
-                  <SelectItem value="none" disabled>
-                    No faculty available in {assigningCourse?.department}
-                  </SelectItem>
-                ) : (
-                  facultyList
-                    .filter((f) => f.department === assigningCourse?.department)
-                    .map((f) => (
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="faculty-select">Faculty Member</Label>
+              <Select value={selectedFaculty} onValueChange={setSelectedFaculty} disabled={assigning}>
+                <SelectTrigger id="faculty-select" className="bg-card">
+                  <SelectValue placeholder="Select faculty member" />
+                </SelectTrigger>
+                <SelectContent>
+                  {facultyList.length === 0 ? (
+                    <SelectItem value="none" disabled>
+                      No faculty members available
+                    </SelectItem>
+                  ) : (
+                    facultyList.map((f) => (
                       <SelectItem key={f.id} value={f.id}>
-                        {f.user.name ?? "—"}
+                        {f.user.name ?? "—"} ({f.department})
                       </SelectItem>
                     ))
-                )}
-              </SelectContent>
-            </Select>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="shift-select">Assign Shift</Label>
+              <Select value={selectedAssignShift} onValueChange={setSelectedAssignShift} disabled={assigning}>
+                <SelectTrigger id="shift-select" className="bg-card">
+                  <SelectValue placeholder="Select shift" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Morning">Morning Shift</SelectItem>
+                  <SelectItem value="Evening">Evening Shift</SelectItem>
+                  <SelectItem value="Both">Both Shifts (Morning &amp; Evening)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2">
+            {assigningCourse?.assignedFaculty && (
+              <Button
+                variant="destructive"
+                onClick={() => handleUnassign()}
+                disabled={assigning}
+                className="mr-auto"
+              >
+                Unassign Faculty
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => setAssignDialogOpen(false)}
@@ -745,6 +906,66 @@ export default function ManageCoursesPage() {
             </Button>
             <Button variant="destructive" disabled={saving} onClick={handleDelete} className="min-w-[100px]">
               {saving ? "Deleting..." : <><Trash2 className="h-4 w-4 mr-2" /> Delete</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Course Details Dialog */}
+      <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] border-none shadow-2xl rounded-3xl overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-r from-brand-primary via-brand-secondary to-brand-primary" />
+          <DialogHeader className="pt-6">
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <BookOpen className="h-6 w-6 text-brand-primary" />
+              Course Details
+            </DialogTitle>
+            <DialogDescription>
+              Detailed information and assignment logs for {viewingCourse?.courseName}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4">
+            <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 rounded-2xl border border-border">
+              <div>
+                <span className="text-xs text-muted-foreground block font-medium">Subject Code</span>
+                <span className="font-mono font-bold text-sm text-foreground">{viewingCourse?.courseCode}</span>
+              </div>
+              <div>
+                <span className="text-xs text-muted-foreground block font-medium">Subject Name</span>
+                <span className="font-bold text-sm text-foreground">{viewingCourse?.courseName}</span>
+              </div>
+              <div className="mt-2">
+                <span className="text-xs text-muted-foreground block font-medium">Department</span>
+                <span className="font-semibold text-sm text-foreground">{viewingCourse?.department}</span>
+              </div>
+              <div className="mt-2">
+                <span className="text-xs text-muted-foreground block font-medium">Semester / Credits</span>
+                <span className="font-semibold text-sm text-foreground">Semester {viewingCourse?.semester} • {viewingCourse?.creditHours} CH</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 rounded-2xl border border-border">
+              <div>
+                <span className="text-xs text-muted-foreground block font-medium">Assigned Teacher</span>
+                <span className="font-bold text-sm text-foreground font-semibold">
+                  {viewingCourse?.faculty?.user?.name || "Unassigned"}
+                </span>
+              </div>
+              <div>
+                <span className="text-xs text-muted-foreground block font-medium">Shift Assigned</span>
+                <span className="font-bold text-sm text-foreground font-semibold">
+                  {`${viewingCourse?.shift || "Morning"} Shift`}
+                </span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => setDetailDialogOpen(false)}
+              className="bg-brand-primary hover:bg-brand-primary/90 text-white min-w-20"
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

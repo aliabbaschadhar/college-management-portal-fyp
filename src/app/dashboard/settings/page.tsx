@@ -18,6 +18,7 @@ export default async function SettingsPage() {
       name: true,
       email: true,
       role: true,
+      avatar: true,
       student: {
         select: { phone: true, department: true, rollNo: true },
       },
@@ -36,6 +37,7 @@ export default async function SettingsPage() {
         name: dbUser.name,
         email: dbUser.email,
         role: dbUser.role,
+        avatar: dbUser.avatar,
         student: dbUser.student,
         faculty: dbUser.faculty,
       }}

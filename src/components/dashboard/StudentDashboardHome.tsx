@@ -11,6 +11,7 @@ import {
   ArrowRight,
   FileText,
   CalendarDays,
+  AlertCircle,
 } from "lucide-react";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { PageHeader } from "@/components/dashboard/PageHeader";
@@ -84,6 +85,13 @@ interface StudentDashboardResponse {
     mid: number;
     final: number;
   }>;
+  studentProfile?: {
+    department: string;
+    semester: number;
+    shift: string;
+    blocked?: boolean;
+    readmitRequested?: boolean;
+  };
 }
 
 const container = {
@@ -102,10 +110,8 @@ const attendanceChartConfig = {
 } satisfies ChartConfig;
 
 const gradeChartConfig = {
-  quiz: { label: "Quiz", color: "var(--color-brand-primary)" },
-  assignment: { label: "Assignment", color: "var(--color-brand-secondary)" },
-  mid: { label: "Mid", color: "var(--color-data-3)" },
-  final: { label: "Final", color: "var(--color-data-4)" },
+  mid: { label: "Midterm", color: "var(--color-data-3)" },
+  sessional: { label: "Sessional", color: "var(--color-data-4)" },
 } satisfies ChartConfig;
 
 export function StudentDashboardHome() {
@@ -115,24 +121,6 @@ export function StudentDashboardHome() {
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] =
     useState<StudentDashboardResponse | null>(null);
-  const [showWelcome, setShowWelcome] = useState(false);
-
-  useEffect(() => {
-    if (user?.id && dashboardData) {
-      const shownKey = `welcome_shown_${user.id}`;
-      const hasShown = localStorage.getItem(shownKey);
-      if (!hasShown) {
-        setShowWelcome(true);
-      }
-    }
-  }, [user?.id, dashboardData]);
-
-  const dismissWelcome = () => {
-    if (user?.id) {
-      localStorage.setItem(`welcome_shown_${user.id}`, "true");
-    }
-    setShowWelcome(false);
-  };
 
   const fetchDashboard = async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
@@ -290,27 +278,31 @@ export function StudentDashboardHome() {
       animate="show"
       className="space-y-6"
     >
-      {showWelcome && (
+      {dashboardData?.studentProfile?.blocked && (
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="relative flex items-center justify-between gap-4 p-4 rounded-xl border border-brand-primary/20 bg-brand-primary/5 dark:bg-[#131022] shadow-md"
+          className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-5 rounded-2xl border-2 border-rose-500 bg-rose-500/10 dark:bg-rose-950/30 shadow-lg"
         >
-          <div className="flex items-center gap-3">
-            <span className="text-2xl animate-bounce">🎓</span>
+          <div className="flex items-center gap-3.5">
+            <div className="h-12 w-12 rounded-full bg-rose-500/20 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0">
+              <AlertCircle className="h-6 w-6" />
+            </div>
             <div>
-              <h4 className="font-extrabold text-brand-primary text-sm">Welcome to Govt. Graduate College Portal!</h4>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Your admission application has been approved. You now have full access to your student dashboard, courses, timetable, and attendance tracking.
+              <div className="flex items-center gap-2">
+                <h4 className="font-extrabold text-rose-600 dark:text-rose-400 text-base">Account Struck Off (Attendance Shortage)</h4>
+                <Badge variant="destructive" className="uppercase text-[10px] font-black">Suspended</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                Your portal status has been set to <strong>Struck Off</strong> due to attendance shortage (below 75%). Interactive submissions and quiz attempts are restricted. Please contact your Department Head / Admin for re-admission.
               </p>
             </div>
           </div>
-          <button
-            onClick={dismissWelcome}
-            className="text-xs font-bold text-brand-primary hover:underline px-3 py-1 rounded-lg hover:bg-brand-primary/10 shrink-0 cursor-pointer"
-          >
-            Dismiss
-          </button>
+          {dashboardData.studentProfile.readmitRequested ? (
+            <Badge className="bg-amber-500/20 text-amber-600 border border-amber-500/30 font-bold px-3 py-1.5 shrink-0 text-xs">
+              Re-Admission Requested
+            </Badge>
+          ) : null}
         </motion.div>
       )}
 
@@ -336,7 +328,7 @@ export function StudentDashboardHome() {
         className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4"
       >
         <StatsCard
-          title="Current GPA"
+          title="Previous CGPA"
           value={currentGpa === null || currentGpa === undefined ? "—" : currentGpa.toFixed(2)}
           trend={gpaTrend}
           trendDirection={gpaTrendDir}
@@ -389,7 +381,7 @@ export function StudentDashboardHome() {
           </h3>
           <ChartContainer
             config={attendanceChartConfig}
-            className="min-h-[280px] w-full"
+            className="h-[200px] w-full"
           >
             <BarChart accessibilityLayer data={attendanceChartData}>
               <CartesianGrid vertical={false} />
@@ -430,7 +422,7 @@ export function StudentDashboardHome() {
           </h3>
           <ChartContainer
             config={gradeChartConfig}
-            className="min-h-[280px] w-full"
+            className="h-[200px] w-full"
           >
             <BarChart accessibilityLayer data={gradeChartData}>
               <CartesianGrid vertical={false} />
@@ -442,14 +434,8 @@ export function StudentDashboardHome() {
               />
               <YAxis tickLine={false} axisLine={false} />
               <ChartTooltip content={<ChartTooltipContent />} />
-              <Bar dataKey="quiz" fill="var(--color-quiz)" radius={4} />
-              <Bar
-                dataKey="assignment"
-                fill="var(--color-assignment)"
-                radius={4}
-              />
               <Bar dataKey="mid" fill="var(--color-mid)" radius={4} />
-              <Bar dataKey="final" fill="var(--color-final)" radius={4} />
+              <Bar dataKey="sessional" fill="var(--color-final)" radius={4} />
             </BarChart>
           </ChartContainer>
         </div>
@@ -518,6 +504,7 @@ export function StudentDashboardHome() {
                   (new Date(quiz.dueDate).getTime() - now.getTime()) /
                     (1000 * 60 * 60 * 24),
                 );
+                const isAssignment = quiz.title.toLowerCase().includes("assignment");
                 return (
                   <div
                     key={quiz.id}
@@ -527,23 +514,25 @@ export function StudentDashboardHome() {
                       <FileText className="h-4 w-4 text-purple-500" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground">
+                      <p className="text-sm font-medium text-foreground truncate">
                         {quiz.title}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {quiz.duration} mins
+                      <p className="text-xs text-muted-foreground font-mono">
+                        Due: {new Date(quiz.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })} till 11:59 PM
                       </p>
                     </div>
-                    <Badge
-                      variant="secondary"
-                      className={
-                        daysLeft <= 2
-                          ? "bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400"
-                          : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                      }
-                    >
-                      {daysLeft}d left
-                    </Badge>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Badge
+                        variant="secondary"
+                        className={
+                          daysLeft <= 2
+                            ? "bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400 font-bold"
+                            : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 font-bold"
+                        }
+                      >
+                        {daysLeft <= 0 ? "Due Today" : `${daysLeft}d left`}
+                      </Badge>
+                    </div>
                   </div>
                 );
               })}

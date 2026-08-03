@@ -25,6 +25,7 @@ export async function GET() {
       email: user.email,
       name: user.name,
       role: user.role,
+      avatar: user.avatar,
       student: user.student,
       faculty: user.faculty,
       admin: user.admin,
@@ -39,8 +40,8 @@ export async function PATCH(request: NextRequest) {
   if (!userId) return errorResponse("UNAUTHORIZED", "Unauthorized", 401);
 
   try {
-    const body = (await request.json()) as { name?: string; phone?: string };
-    const { name, phone } = body;
+    const body = (await request.json()) as { name?: string; phone?: string; avatar?: string };
+    const { name, phone, avatar } = body;
 
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
@@ -49,10 +50,13 @@ export async function PATCH(request: NextRequest) {
 
     if (!user) return errorResponse("NOT_FOUND", "User not found", 404);
 
-    // Update base user name
+    // Update base user name and avatar
     const updated = await prisma.user.update({
       where: { clerkId: userId },
-      data: { ...(name !== undefined ? { name } : {}) },
+      data: { 
+        ...(name !== undefined ? { name } : {}),
+        ...(avatar !== undefined ? { avatar } : {}),
+      },
     });
 
     // Propagate phone to role-specific profile
@@ -75,6 +79,7 @@ export async function PATCH(request: NextRequest) {
       name: updated.name,
       email: updated.email,
       role: updated.role,
+      avatar: updated.avatar,
     });
   } catch (error) {
     return handleApiError("PATCH /api/me", error);

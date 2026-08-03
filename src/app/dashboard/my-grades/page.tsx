@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { api } from "@/lib/axios";
-import { GraduationCap, Lock, Unlock, TrendingUp } from "lucide-react";
+import { GraduationCap, Lock, Unlock, TrendingUp, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ChartSkeleton, TableSkeleton } from "@/components/ui";
 import {
   ChartContainer,
@@ -26,52 +27,81 @@ interface GradeWithCourse {
   total: number;
   gpa: number;
   locked: boolean;
-  student: { rollNo: string; user: { name: string | null } };
+  student: { rollNo: string; user: { name: string | null }; cgpa: number };
   course: { courseCode: string; courseName: string };
 }
 
+interface CourseOption {
+  id: string;
+  courseCode: string;
+  courseName: string;
+}
+
 const chartConfig = {
-  quiz: { label: "Quiz", color: "var(--color-brand-primary)" },
-  assignment: { label: "Assignment", color: "var(--color-brand-secondary)" },
   mid: { label: "Midterm", color: "var(--color-data-3)" },
-  final: { label: "Final", color: "var(--color-data-4)" },
+  final: { label: "Sessional", color: "var(--color-data-4)" },
 } satisfies ChartConfig;
 
 export default function MyGradesPage() {
   const [grades, setGrades] = useState<GradeWithCourse[]>([]);
+  const [courses, setCourses] = useState<CourseOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchGrades = async () => {
+    try {
+      const [gRes, cRes] = await Promise.all([
+        api.get<GradeWithCourse[]>("/api/grades"),
+        api.get<CourseOption[]>("/api/courses").catch(() => ({ data: [] })),
+      ]);
+      setGrades(Array.isArray(gRes.data) ? gRes.data : []);
+      setCourses(Array.isArray(cRes.data) ? cRes.data : []);
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    api
-      .get<GradeWithCourse[]>("/api/grades")
-      .then((r) => {
-        setGrades(r.data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    fetchGrades();
   }, []);
 
-  const overallGPA =
-    grades.length > 0
-      ? +(grades.reduce((sum, g) => sum + g.gpa, 0) / grades.length).toFixed(2)
-      : null;
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchGrades();
+    setRefreshing(false);
+  };
 
-  const chartData = grades.map((g) => ({
+  const mergedGrades = useMemo<GradeWithCourse[]>(() => {
+    if (courses.length === 0) return grades;
+    return courses.map((course) => {
+      const found = grades.find((g) => g.courseId === course.id);
+      if (found) return found;
+      return {
+        id: `placeholder-${course.id}`,
+        studentId: "me",
+        courseId: course.id,
+        quizMarks: 0,
+        assignmentMarks: 0,
+        midMarks: 0,
+        finalMarks: 0,
+        total: 0,
+        gpa: 0,
+        locked: false,
+        student: { rollNo: "", user: { name: null }, cgpa: grades[0]?.student?.cgpa ?? 0.0 },
+        course: { courseCode: course.courseCode, courseName: course.courseName },
+      };
+    });
+  }, [courses, grades]);
+
+  const previousCGPA = mergedGrades[0]?.student?.cgpa ?? 0.0;
+
+  const chartData = mergedGrades.map((g: GradeWithCourse) => ({
     course: g.course?.courseCode || g.courseId,
-    quiz: g.quizMarks,
-    assignment: g.assignmentMarks,
     mid: g.midMarks,
     final: g.finalMarks,
   }));
-
-  const gpaColor =
-    overallGPA === null
-      ? "text-muted-foreground"
-      : overallGPA >= 3.5
-        ? "text-emerald-500"
-        : overallGPA >= 3.0
-          ? "text-amber-500"
-          : "text-rose-500";
 
   if (loading) {
     return (
@@ -107,6 +137,18 @@ export default function MyGradesPage() {
           { label: "Dashboard", href: "/dashboard" },
           { label: "My Grades" },
         ]}
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="geo-pressable flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer rounded-xl"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        }
       />
 
       {/* Overall GPA Card */}
@@ -115,12 +157,12 @@ export default function MyGradesPage() {
           <GraduationCap className="h-8 w-8 text-brand-primary" />
         </div>
         <div>
-          <p className="text-sm text-muted-foreground">Overall GPA</p>
-          <p className={`text-4xl font-bold tracking-tight ${gpaColor}`}>
-            {overallGPA === null ? "—" : overallGPA}
+          <p className="text-sm text-muted-foreground">Previous Semester CGPA</p>
+          <p className="text-4xl font-bold tracking-tight text-brand-primary">
+            {grades.length > 0 ? previousCGPA.toFixed(2) : "—"}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Across {grades.length} courses
+            CGPA from previous semesters
           </p>
         </div>
         <div className="ml-auto flex items-center gap-1 text-sm text-muted-foreground">
@@ -134,7 +176,7 @@ export default function MyGradesPage() {
         <h3 className="text-sm font-semibold text-foreground mb-4">
           Mark Distribution
         </h3>
-        <ChartContainer config={chartConfig} className="min-h-[280px] w-full">
+        <ChartContainer config={chartConfig} className="h-[200px] w-full">
           <BarChart accessibilityLayer data={chartData}>
             <CartesianGrid vertical={false} />
             <XAxis
@@ -145,12 +187,6 @@ export default function MyGradesPage() {
             />
             <YAxis tickLine={false} axisLine={false} />
             <ChartTooltip content={<ChartTooltipContent />} />
-            <Bar dataKey="quiz" fill="var(--color-quiz)" radius={4} />
-            <Bar
-              dataKey="assignment"
-              fill="var(--color-assignment)"
-              radius={4}
-            />
             <Bar dataKey="mid" fill="var(--color-mid)" radius={4} />
             <Bar dataKey="final" fill="var(--color-final)" radius={4} />
           </BarChart>
@@ -167,22 +203,16 @@ export default function MyGradesPage() {
                   Course
                 </th>
                 <th className="text-center py-3 px-3 font-semibold text-foreground">
-                  Quiz
+                  Mid Exam (25)
                 </th>
                 <th className="text-center py-3 px-3 font-semibold text-foreground">
-                  Assignment
+                  Sessional (15)
                 </th>
                 <th className="text-center py-3 px-3 font-semibold text-foreground">
-                  Mid
+                  Total (40)
                 </th>
                 <th className="text-center py-3 px-3 font-semibold text-foreground">
-                  Final
-                </th>
-                <th className="text-center py-3 px-3 font-semibold text-foreground">
-                  Total
-                </th>
-                <th className="text-center py-3 px-3 font-semibold text-foreground">
-                  GPA
+                  Obtained Marks
                 </th>
                 <th className="text-center py-3 px-3 font-semibold text-foreground">
                   Status
@@ -190,13 +220,7 @@ export default function MyGradesPage() {
               </tr>
             </thead>
             <tbody>
-              {grades.map((g) => {
-                const gpaClass =
-                  g.gpa >= 3.5
-                    ? "text-emerald-500"
-                    : g.gpa >= 3.0
-                      ? "text-amber-500"
-                      : "text-rose-500";
+              {mergedGrades.map((g) => {
                 return (
                   <tr
                     key={g.id}
@@ -204,19 +228,10 @@ export default function MyGradesPage() {
                   >
                     <td className="py-3 px-4">
                       <div>
-                        <span className="font-medium text-foreground">
-                          {g.course?.courseName}
+                        <span className="font-semibold text-foreground">
+                          {g.course?.courseName ? `${g.course.courseName} - ${g.course.courseCode}` : g.course?.courseCode || ""}
                         </span>
-                        <p className="text-xs text-muted-foreground font-mono">
-                          {g.course?.courseCode}
-                        </p>
                       </div>
-                    </td>
-                    <td className="text-center py-3 px-3 text-muted-foreground">
-                      {g.quizMarks}
-                    </td>
-                    <td className="text-center py-3 px-3 text-muted-foreground">
-                      {g.assignmentMarks}
                     </td>
                     <td className="text-center py-3 px-3 text-muted-foreground">
                       {g.midMarks}
@@ -228,9 +243,9 @@ export default function MyGradesPage() {
                       {g.total}
                     </td>
                     <td
-                      className={`text-center py-3 px-3 font-bold ${gpaClass}`}
+                      className="text-center py-3 px-3 font-bold text-foreground"
                     >
-                      {g.gpa}
+                      {g.total} / 40
                     </td>
                     <td className="text-center py-3 px-3">
                       {g.locked ? (

@@ -16,6 +16,7 @@ export async function PATCH(
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const adminName = await getAdminName(userId);
     const { id } = await params;
     const body = (await request.json()) as { status: "Approved" | "Rejected" | "Pending"; unblock?: boolean };
 
@@ -44,6 +45,49 @@ export async function PATCH(
             include: { student: true },
           });
 
+          if (!adm.appliedDepartment) throw new Error("Missing appliedDepartment");
+
+          // Department code mapping helper
+          const getDeptCode = (dept: string): string => {
+            const mapping: Record<string, string> = {
+              "Computer Science": "CS",
+              "Mathematics": "MATH",
+              "Physics": "PHY",
+              "English": "ENG",
+              "Chemistry": "CHM",
+              "Economics": "ECO",
+              "Urdu": "URD",
+              "Islamic Studies": "ISL",
+            };
+            return mapping[dept] || (dept.length >= 2 ? dept.substring(0, 2).toUpperCase() : "XX");
+          };
+
+          const currentYear = new Date().getFullYear();
+          const deptCode = getDeptCode(adm.appliedDepartment);
+          const prefix = `${deptCode}-${currentYear}-`;
+
+          // Find maximum sequence number among existing students with this prefix
+          const existingStudents = await tx.student.findMany({
+            where: {
+              rollNo: {
+                startsWith: prefix,
+              },
+            },
+            select: { rollNo: true },
+          });
+
+          let maxSeq = 0;
+          for (const s of existingStudents) {
+            const parts = s.rollNo.split("-");
+            const seqStr = parts[parts.length - 1];
+            const seq = parseInt(seqStr, 10);
+            if (!isNaN(seq) && seq > maxSeq) {
+              maxSeq = seq;
+            }
+          }
+
+          const nextSeq = maxSeq + 1;
+          const rollNo = `${prefix}${String(nextSeq).padStart(2, "0")}`;
 
           if (!existingUser) {
             // Create User + Student + enrollments
@@ -55,10 +99,6 @@ export async function PATCH(
               },
             });
 
-            if (!adm.appliedDepartment) throw new Error("Missing appliedDepartment");
-            const safeDept = adm.appliedDepartment.length >= 2 ? adm.appliedDepartment.substring(0, 2).toUpperCase() : "XX";
-            const rollNo = `${safeDept}-${new Date().getFullYear()}-${adm.id.substring(0, 8).toUpperCase()}`;
-
             const student = await tx.student.create({
               data: {
                 userId: newUser.id,
@@ -68,6 +108,7 @@ export async function PATCH(
                 semester: adm.semester,
                 shift: adm.shift,
                 enrollmentDate: new Date(),
+                approvedBy: adminName,
               },
             });
 
@@ -94,10 +135,6 @@ export async function PATCH(
               data: { role: "STUDENT" },
             });
 
-            if (!adm.appliedDepartment) throw new Error("Missing appliedDepartment");
-            const safeDept = adm.appliedDepartment.length >= 2 ? adm.appliedDepartment.substring(0, 2).toUpperCase() : "XX";
-            const rollNo = `${safeDept}-${new Date().getFullYear()}-${adm.id.substring(0, 8).toUpperCase()}`;
-
             const student = await tx.student.create({
               data: {
                 userId: existingUser.id,
@@ -107,6 +144,7 @@ export async function PATCH(
                 semester: adm.semester,
                 shift: adm.shift,
                 enrollmentDate: new Date(),
+                approvedBy: adminName,
               },
             });
 
@@ -148,7 +186,6 @@ export async function PATCH(
           }
         }
 
-        const adminName = await getAdminName(userId);
         await logAuditAction({
           action: "UPDATED",
           entity: "Admission",

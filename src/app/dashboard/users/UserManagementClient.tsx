@@ -6,11 +6,11 @@ import {
   Users2,
   Search,
   Shield,
-  ChevronRight,
   Check,
   X,
   AlertTriangle,
   Trash2,
+  Filter,
 } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { StatsCard } from "@/components/dashboard/StatsCard";
@@ -44,7 +44,7 @@ interface UserRow {
   email: string;
   role: Role;
   createdAt: string;
-  student: { rollNo: string; department: string } | null;
+  student: { rollNo: string; department: string; semester?: number } | null;
   faculty: { department: string } | null;
 }
 
@@ -55,6 +55,17 @@ const roleBadgeClass: Record<Role, string> = {
   STUDENT:
     "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
 };
+
+const DEPARTMENTS = [
+  "ALL",
+  "Computer Science",
+  "Software Engineering",
+  "Electrical Engineering",
+  "Business Administration",
+  "Mathematics",
+];
+
+const SEMESTERS = ["ALL", "1", "2", "3", "4", "5", "6", "7", "8"];
 
 function AvatarCircle({ name, role }: { name: string | null; role: Role }) {
   const initials = (name ?? "?")
@@ -83,21 +94,17 @@ export function UserManagementClient() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState<"ALL" | Role>("ALL");
-  const [pendingChange, setPendingChange] = useState<{
-    user: UserRow;
-    newRole: Role;
-  } | null>(null);
-  const [selectedRoles, setSelectedRoles] = useState<Record<string, Role>>({});
-  const [saving, setSaving] = useState(false);
+  const [filterDept, setFilterDept] = useState<string>("ALL");
+  const [filterSem, setFilterSem] = useState<string>("ALL");
+  
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<UserRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 3500);
   };
-
-  const [pendingDelete, setPendingDelete] = useState<UserRow | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
   const handleDeleteUser = async () => {
     if (!pendingDelete) return;
@@ -123,57 +130,38 @@ export function UserManagementClient() {
     try {
       const params = new URLSearchParams();
       if (filterRole !== "ALL") params.set("role", filterRole);
+      if (filterDept !== "ALL") params.set("department", filterDept);
+      if (filterSem !== "ALL") params.set("semester", filterSem);
       if (search) params.set("search", search);
+      
       const res = await api.get<UserRow[]>(`/api/users?${params.toString()}`);
-      const data = res.data;
-      setUsers(data);
-      // Seed role selects with current values
-      const initial: Record<string, Role> = {};
-      data.forEach((u) => {
-        initial[u.id] = u.role;
-      });
-      setSelectedRoles(initial);
+      setUsers(res.data);
     } finally {
       setLoading(false);
     }
-  }, [filterRole, search]);
+  }, [filterRole, filterDept, filterSem, search]);
 
   useEffect(() => {
     const timer = setTimeout(fetchUsers, 300);
     return () => clearTimeout(timer);
   }, [fetchUsers]);
 
-  const handleConfirmChange = async () => {
-    if (!pendingChange) return;
-    setSaving(true);
-    try {
-      await api.patch(`/api/users/${pendingChange.user.id}`, {
-        role: pendingChange.newRole,
-      });
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.id === pendingChange.user.id
-            ? { ...u, role: pendingChange.newRole }
-            : u,
-        ),
-      );
-      showToast(
-        `${pendingChange.user.name ?? pendingChange.user.email} is now ${pendingChange.newRole}`,
-      );
-    } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: string } } };
-      showToast(
-        axiosErr.response?.data?.error ?? "Network error — please try again",
-        false,
-      );
-    } finally {
-      setSaving(false);
-      setPendingChange(null);
+  const adminCount = users.filter((u) => u.role === "ADMIN").length;
+  const facultyCount = users.filter((u) => u.role === "FACULTY").length;
+  const studentCount = users.filter((u) => u.role === "STUDENT").length;
+
+  const handleRoleChange = (selected: "ALL" | Role) => {
+    setFilterRole(selected);
+    if (selected === "ALL" || selected === "ADMIN") {
+      setFilterDept("ALL");
+      setFilterSem("ALL");
+    } else if (selected === "FACULTY") {
+      setFilterSem("ALL");
     }
   };
 
-  const facultyCount = users.filter((u) => u.role === "FACULTY").length;
-  const studentCount = users.filter((u) => u.role === "STUDENT").length;
+  const showDeptFilter = filterRole === "FACULTY" || filterRole === "STUDENT";
+  const showSemFilter = filterRole === "STUDENT";
 
   return (
     <motion.div
@@ -184,7 +172,7 @@ export function UserManagementClient() {
     >
       <PageHeader
         title="User Management"
-        subtitle="View all portal users and manage their role assignments"
+        subtitle="View all registered users with clean search, role, department, and semester filters"
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "User Management" },
@@ -193,21 +181,31 @@ export function UserManagementClient() {
 
       {/* Stats */}
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <CardSkeleton />
           <CardSkeleton />
           <CardSkeleton />
           <CardSkeleton />
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatsCard
             title="Total Users"
             value={users.length}
-            trend="Registered accounts"
+            trend="Matching criteria"
             trendDirection="up"
             icon={Users2}
             iconColor="#6366f1"
             iconBg="#6366f120"
+          />
+          <StatsCard
+            title="Admins"
+            value={adminCount}
+            trend="System administrators"
+            trendDirection="up"
+            icon={Shield}
+            iconColor="#3b82f6"
+            iconBg="#3b82f620"
           />
           <StatsCard
             title="Faculty"
@@ -230,9 +228,10 @@ export function UserManagementClient() {
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
+      {/* Filters Bar */}
+      <div className="flex flex-col md:flex-row gap-3 items-center">
+        {/* Search */}
+        <div className="relative flex-1 w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             id="user-search"
@@ -242,26 +241,78 @@ export function UserManagementClient() {
             className="pl-9 h-10 rounded-xl"
           />
         </div>
-        <Select
-          value={filterRole}
-          onValueChange={(v) => setFilterRole(v as "ALL" | Role)}
-        >
-          <SelectTrigger
-            id="role-filter"
-            className="w-full sm:w-48 h-10 rounded-xl"
+
+        {/* Role Select */}
+        <div className="w-full md:w-44">
+          <Select
+            value={filterRole}
+            onValueChange={(v) => handleRoleChange(v as "ALL" | Role)}
           >
-            <SelectValue placeholder="All Roles" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">All Roles</SelectItem>
-            <SelectItem value="ADMIN">Admin</SelectItem>
-            <SelectItem value="FACULTY">Faculty</SelectItem>
-            <SelectItem value="STUDENT">Student</SelectItem>
-          </SelectContent>
-        </Select>
+            <SelectTrigger id="role-filter" className="h-10 rounded-xl">
+              <div className="flex items-center gap-2 truncate">
+                <Filter className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <SelectValue placeholder="All Roles" />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All Roles</SelectItem>
+              <SelectItem value="ADMIN">Admin</SelectItem>
+              <SelectItem value="FACULTY">Faculty</SelectItem>
+              <SelectItem value="STUDENT">Student</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Department Select (Shown for Faculty and Student roles) */}
+        {showDeptFilter && (
+          <div className="w-full md:w-52">
+            <Select
+              value={filterDept}
+              onValueChange={(v) => setFilterDept(v)}
+            >
+              <SelectTrigger id="dept-filter" className="h-10 rounded-xl">
+                <div className="flex items-center gap-2 truncate">
+                  <Filter className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <SelectValue placeholder="All Departments" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {DEPARTMENTS.map((dept) => (
+                  <SelectItem key={dept} value={dept}>
+                    {dept === "ALL" ? "All Departments" : dept}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Semester Select (Shown for Student role only) */}
+        {showSemFilter && (
+          <div className="w-full md:w-40">
+            <Select
+              value={filterSem}
+              onValueChange={(v) => setFilterSem(v)}
+            >
+              <SelectTrigger id="sem-filter" className="h-10 rounded-xl">
+                <div className="flex items-center gap-2 truncate">
+                  <Filter className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <SelectValue placeholder="All Semesters" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {SEMESTERS.map((sem) => (
+                  <SelectItem key={sem} value={sem}>
+                    {sem === "ALL" ? "All Semesters" : `Semester ${sem}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
-      {/* Table */}
+      {/* User Table */}
       {loading ? (
         <TableSkeleton rows={8} />
       ) : (
@@ -276,17 +327,17 @@ export function UserManagementClient() {
                   <th className="text-center py-3 px-3 font-semibold text-foreground">
                     Role
                   </th>
-                  <th className="text-center py-3 px-3 font-semibold text-foreground hidden md:table-cell">
-                    ID
+                  <th className="text-left py-3 px-3 font-semibold text-foreground hidden md:table-cell">
+                    Department & Semester / Roll
                   </th>
                   <th className="text-center py-3 px-3 font-semibold text-foreground hidden lg:table-cell">
-                    Joined
+                    Joined Date
                   </th>
-                  <th className="text-center py-3 px-3 font-semibold text-foreground hidden xl:table-cell">
+                  <th className="text-center py-3 px-3 font-semibold text-foreground hidden md:table-cell">
                     Audit
                   </th>
                   <th className="text-center py-3 px-4 font-semibold text-foreground">
-                    Change Role
+                    Action
                   </th>
                 </tr>
               </thead>
@@ -300,205 +351,92 @@ export function UserManagementClient() {
                       <Users2 className="h-10 w-10 mx-auto mb-3 opacity-30" />
                       <p className="font-medium">No users found</p>
                       <p className="text-xs mt-1">
-                        Try adjusting your search or role filter
+                        Try adjusting your search or dropdown filters
                       </p>
                     </td>
                   </tr>
-              ) : (
-                users.map((user, idx) => (
-                  <motion.tr
-                    key={user.id}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.03, duration: 0.25 }}
-                    className="border-b border-border/50 hover:bg-accent/20 transition-colors"
-                  >
-                    {/* User */}
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        <AvatarCircle name={user.name} role={user.role} />
-                        <div className="min-w-0">
-                          <p className="font-medium text-foreground truncate">
-                            {user.name ?? "—"}
-                          </p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {user.email}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
+                ) : (
+                  users.map((user, idx) => {
+                    const deptName = user.student?.department ?? user.faculty?.department ?? "N/A";
+                    const semVal = user.student?.semester ? `Sem ${user.student.semester}` : null;
+                    const rollNo = user.student?.rollNo;
 
-                    {/* Role badge */}
-                    <td className="text-center py-3 px-3">
-                      <Badge
-                        variant="secondary"
-                        className={roleBadgeClass[user.role]}
+                    return (
+                      <motion.tr
+                        key={user.id}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.03, duration: 0.25 }}
+                        className="border-b border-border/50 hover:bg-accent/20 transition-colors"
                       >
-                        {user.role}
-                      </Badge>
-                    </td>
+                        {/* User info */}
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-3">
+                            <AvatarCircle name={user.name} role={user.role} />
+                            <div className="min-w-0">
+                              <p className="font-medium text-foreground truncate">
+                                {user.name ?? "—"}
+                              </p>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {user.email}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
 
-                    {/* Identifier */}
-                    <td className="text-center py-3 px-3 text-xs text-muted-foreground font-mono hidden md:table-cell">
-                      {user.student?.rollNo ?? "—"}
-                    </td>
-
-                    {/* Joined */}
-                    <td className="text-center py-3 px-3 text-xs text-muted-foreground hidden lg:table-cell">
-                      {new Date(user.createdAt).toLocaleDateString()}
-                    </td>
-
-                    {/* Audit */}
-                    <td className="text-center py-3 px-3 hidden xl:table-cell">
-                      <AuditBadgeInline entity="User" entityId={user.id} />
-                    </td>
-
-                    {/* Actions */}
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2 justify-center">
-                        <Select
-                          value={selectedRoles[user.id] ?? user.role}
-                          onValueChange={(v) =>
-                            setSelectedRoles((prev) => ({
-                              ...prev,
-                              [user.id]: v as Role,
-                            }))
-                          }
-                        >
-                          <SelectTrigger
-                            id={`role-select-${user.id}`}
-                            className="h-8 w-32 rounded-lg text-xs"
+                        {/* Role badge */}
+                        <td className="text-center py-3 px-3">
+                          <Badge
+                            variant="secondary"
+                            className={roleBadgeClass[user.role]}
                           >
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="ADMIN">Admin</SelectItem>
-                            <SelectItem value="FACULTY">Faculty</SelectItem>
-                            <SelectItem value="STUDENT">Student</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 rounded-lg gap-1 text-xs"
-                          disabled={selectedRoles[user.id] === user.role}
-                          onClick={() =>
-                            setPendingChange({
-                              user,
-                              newRole: selectedRoles[user.id] ?? user.role,
-                            })
-                          }
-                        >
-                          Apply <ChevronRight className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 w-8 p-0 rounded-lg text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
-                          onClick={() => setPendingDelete(user)}
-                          title="Delete User"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </motion.tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                            {user.role}
+                          </Badge>
+                        </td>
+
+                        {/* Department / Semester / Roll */}
+                        <td className="py-3 px-3 text-xs text-muted-foreground hidden md:table-cell">
+                          <div className="flex flex-col">
+                            <span className="font-medium text-foreground">
+                              {deptName}
+                            </span>
+                            <span className="text-[11px]">
+                              {[rollNo, semVal].filter(Boolean).join(" • ") || "—"}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Joined Date */}
+                        <td className="text-center py-3 px-3 text-xs text-muted-foreground hidden lg:table-cell">
+                          {new Date(user.createdAt).toLocaleDateString()}
+                        </td>
+
+                        {/* Audit */}
+                        <td className="text-center py-3 px-3 hidden md:table-cell">
+                          <AuditBadgeInline entity="User" entityId={user.id} />
+                        </td>
+
+                        {/* Action */}
+                        <td className="py-3 px-4 text-center">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0 rounded-lg text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                            onClick={() => setPendingDelete(user)}
+                            title="Delete User"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </td>
+                      </motion.tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
       )}
-
-      {/* Confirmation Dialog */}
-      <Dialog
-        open={!!pendingChange}
-        onOpenChange={() => setPendingChange(null)}
-      >
-        <DialogContent className="max-w-md rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-foreground">
-              <Shield className="h-5 w-5 text-brand-primary" />
-              Confirm Role Change
-            </DialogTitle>
-          </DialogHeader>
-
-          {pendingChange && (
-            <div className="space-y-4 py-2">
-              {/* User preview */}
-              <div className="flex items-center gap-3 p-4 rounded-xl bg-muted/30 border border-border">
-                <AvatarCircle
-                  name={pendingChange.user.name}
-                  role={pendingChange.user.role}
-                />
-                <div>
-                  <p className="font-semibold text-foreground">
-                    {pendingChange.user.name ?? pendingChange.user.email}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {pendingChange.user.email}
-                  </p>
-                </div>
-              </div>
-
-              {/* Role transition */}
-              <div className="flex items-center gap-3 justify-center">
-                <Badge
-                  variant="secondary"
-                  className={roleBadgeClass[pendingChange.user.role]}
-                >
-                  {pendingChange.user.role}
-                </Badge>
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                <Badge
-                  variant="secondary"
-                  className={roleBadgeClass[pendingChange.newRole]}
-                >
-                  {pendingChange.newRole}
-                </Badge>
-              </div>
-
-              {/* ADMIN promotion warning */}
-              {pendingChange.newRole === "ADMIN" && (
-                <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 dark:bg-amber-950/30 dark:border-amber-900/50">
-                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                  <p className="text-xs text-amber-700 dark:text-amber-400">
-                    Granting Admin access gives full control over the portal
-                    including user management, grades, and financial data.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setPendingChange(null)}
-              className="rounded-xl"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleConfirmChange}
-              disabled={saving}
-              className="bg-brand-primary text-white hover:opacity-90 rounded-xl gap-2"
-            >
-              {saving ? (
-                <>
-                  <div className="h-4 w-4 animate-spin border-2 border-white/40 border-t-white rounded-full" />
-                  Saving…
-                </>
-              ) : (
-                <>
-                  <Check className="h-4 w-4" /> Confirm Change
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Deletion Dialog */}
       <Dialog
@@ -515,7 +453,6 @@ export function UserManagementClient() {
 
           {pendingDelete && (
             <div className="space-y-4 py-2">
-              {/* User preview */}
               <div className="flex items-center gap-3 p-4 rounded-xl bg-muted/30 border border-border">
                 <AvatarCircle
                   name={pendingDelete.name}

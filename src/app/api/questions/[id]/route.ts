@@ -12,12 +12,14 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = (await request.json()) as {
+      type?: "MCQ" | "Short" | "Long";
       text?: string;
       options?: string[];
-      correctOption?: number;
+      correctOption?: number | null;
+      sampleAnswer?: string | null;
+      marks?: number;
     };
 
-    // Load user role and faculty info
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: { role: true, clerkId: true, faculty: { select: { id: true } } },
@@ -25,15 +27,11 @@ export async function PATCH(
 
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // Load question with parent quiz and course info
     const question = await prisma.question.findUnique({
       where: { id },
       include: {
-        quiz: {
-          include: {
-            course: { select: { assignedFaculty: true } },
-          },
-        },
+        course: { select: { assignedFaculty: true } },
+        quiz: { select: { createdBy: true } },
       },
     });
 
@@ -41,11 +39,10 @@ export async function PATCH(
       return NextResponse.json({ error: "Question not found" }, { status: 404 });
     }
 
-    // Verify authorization: admin or faculty assigned to course or quiz creator
     const isAdmin = user.role === "ADMIN";
     const isFacultyAssignedToCourse =
-      user.faculty && question.quiz.course?.assignedFaculty === user.faculty.id;
-    const isQuizCreator = question.quiz.createdBy === user.clerkId;
+      user.faculty && question.course?.assignedFaculty === user.faculty.id;
+    const isQuizCreator = question.quiz?.createdBy === user.clerkId;
 
     if (!isAdmin && !isFacultyAssignedToCourse && !isQuizCreator) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -54,9 +51,24 @@ export async function PATCH(
     const updated = await prisma.question.update({
       where: { id },
       data: {
+        ...(body.type !== undefined ? { type: body.type } : {}),
         ...(body.text !== undefined ? { text: body.text } : {}),
         ...(body.options !== undefined ? { options: body.options } : {}),
         ...(body.correctOption !== undefined ? { correctOption: body.correctOption } : {}),
+        ...(body.sampleAnswer !== undefined ? { sampleAnswer: body.sampleAnswer } : {}),
+        ...(body.marks !== undefined ? { marks: body.marks } : {}),
+      },
+      select: {
+        id: true,
+        courseId: true,
+        type: true,
+        text: true,
+        options: true,
+        correctOption: true,
+        sampleAnswer: true,
+        marks: true,
+        quizId: true,
+        course: { select: { courseCode: true, courseName: true } },
       },
     });
 
@@ -77,7 +89,6 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    // Load user role and faculty info
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: { role: true, clerkId: true, faculty: { select: { id: true } } },
@@ -85,15 +96,11 @@ export async function DELETE(
 
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // Load question with parent quiz and course info
     const question = await prisma.question.findUnique({
       where: { id },
       include: {
-        quiz: {
-          include: {
-            course: { select: { assignedFaculty: true } },
-          },
-        },
+        course: { select: { assignedFaculty: true } },
+        quiz: { select: { createdBy: true } },
       },
     });
 
@@ -101,11 +108,10 @@ export async function DELETE(
       return NextResponse.json({ error: "Question not found" }, { status: 404 });
     }
 
-    // Verify authorization: admin or faculty assigned to course or quiz creator
     const isAdmin = user.role === "ADMIN";
     const isFacultyAssignedToCourse =
-      user.faculty && question.quiz.course?.assignedFaculty === user.faculty.id;
-    const isQuizCreator = question.quiz.createdBy === user.clerkId;
+      user.faculty && question.course?.assignedFaculty === user.faculty.id;
+    const isQuizCreator = question.quiz?.createdBy === user.clerkId;
 
     if (!isAdmin && !isFacultyAssignedToCourse && !isQuizCreator) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

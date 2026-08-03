@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/axios";
-import { CheckCircle, XCircle, Clock, Eye, Trash2, Upload, Users, Shield } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Eye, Trash2, Upload, Users, Shield, RefreshCw } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
@@ -80,7 +80,7 @@ interface CourseItem {
 
 export default function ManageAdmissionsPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"students" | "staff">("students");
+  const [activeTab, setActiveTab] = useState<"students" | "faculty" | "admins">("students");
   const [admissions, setAdmissions] = useState<Admission[]>([]);
   const [staffRequests, setStaffRequests] = useState<StaffRequest[]>([]);
   const [courses, setCourses] = useState<CourseItem[]>([]);
@@ -93,6 +93,8 @@ export default function ManageAdmissionsPage() {
   );
   const csvInputRef = useRef<HTMLInputElement>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [selectedStaffRequest, setSelectedStaffRequest] = useState<StaffRequest | null>(null);
+  const [viewStaffDialogOpen, setViewStaffDialogOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("Pending");
   const [importing, setImporting] = useState(false);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
@@ -141,13 +143,17 @@ export default function ManageAdmissionsPage() {
       .finally(() => setLoading(false));
   }, [filterStatus]);
 
-  useEffect(() => {
+  const handleRefresh = useCallback(() => {
     if (activeTab === "students") {
       loadAdmissions();
     } else {
       loadStaffRequests();
     }
   }, [activeTab, loadAdmissions, loadStaffRequests]);
+
+  useEffect(() => {
+    handleRefresh();
+  }, [handleRefresh]);
 
   const handleStatusChange = async (
     id: string,
@@ -213,9 +219,7 @@ export default function ManageAdmissionsPage() {
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete the admission for ${name}?`))
-      return;
+  const handleDelete = async (id: string) => {
     setMutationError(null);
     setDeletingId(id);
     try {
@@ -267,11 +271,7 @@ export default function ManageAdmissionsPage() {
       header: "Applicant",
       sortable: true,
       render: (row) => (
-        <div>
-          <p className="font-medium text-foreground">{row.studentName}</p>
-          <p className="text-xs text-muted-foreground">{row.email}</p>
-          <AuditBadgeInline entity="Admission" entityId={row.id} />
-        </div>
+        <p className="font-medium text-foreground">{row.studentName}</p>
       ),
     },
     { key: "appliedDepartment", header: "Department", sortable: true },
@@ -348,7 +348,7 @@ export default function ManageAdmissionsPage() {
           )}
           {row.status !== "Approved" && (
             <button
-              onClick={() => handleDelete(row.id, row.studentName)}
+              onClick={() => handleDelete(row.id)}
               disabled={submittingId !== null || deletingId !== null || importing}
               className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               title="Delete"
@@ -373,7 +373,7 @@ export default function ManageAdmissionsPage() {
       render: (row) => (
         <div>
           <p className="font-medium text-foreground">{row.name}</p>
-          <p className="text-xs text-muted-foreground">{row.email}</p>
+          <p className="text-xs text-muted-foreground font-mono">{row.email}</p>
         </div>
       ),
     },
@@ -382,59 +382,24 @@ export default function ManageAdmissionsPage() {
       header: "Requested Role",
       sortable: true,
       render: (row) => (
-        <Badge
-          variant="secondary"
-          className={`capitalize gap-1 ${
-            row.role === "ADMIN"
-              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-          }`}
-        >
-          {row.role === "ADMIN" ? <Shield className="h-3 w-3" /> : <Users className="h-3 w-3" />}
-          {row.role.toLowerCase()}
-        </Badge>
-      ),
-    },
-    {
-      key: "phone",
-      header: "Phone",
-      render: (row) => row.phone ?? <span className="text-muted-foreground">—</span>,
-    },
-    {
-      key: "department",
-      header: "Department",
-      sortable: true,
-      render: (row) => row.department ? (
-        <Badge variant="outline" className="border-border">
-          {row.department}
-        </Badge>
-      ) : (
-        <span className="text-muted-foreground">—</span>
-      ),
-    },
-    {
-      key: "specialization",
-      header: "Specialization / Designation",
-      render: (row) => {
-        if (!row.specialization) return <span className="text-muted-foreground">—</span>;
-        return (
-          <div>
-            <p className="font-medium text-foreground">{row.specialization}</p>
-            <p className="text-[10px] text-muted-foreground">
-              {row.role === "ADMIN" ? "Admin Designation" : "Faculty Specialization"}
-            </p>
-          </div>
-        );
-      }
-    },
-    {
-      key: "createdAt",
-      header: "Applied On",
-      sortable: true,
-      render: (row) => (
-        <span className="text-muted-foreground font-mono text-xs">
-          {new Date(row.createdAt).toLocaleDateString()}
-        </span>
+        <div className="flex items-center gap-2">
+          <Badge
+            variant="secondary"
+            className={`capitalize gap-1 ${
+              row.role === "ADMIN"
+                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+            }`}
+          >
+            {row.role === "ADMIN" ? <Shield className="h-3 w-3" /> : <Users className="h-3 w-3" />}
+            {row.role.toLowerCase()}
+          </Badge>
+          {row.department && (
+            <Badge variant="outline" className="border-border text-xs">
+              {row.department}
+            </Badge>
+          )}
+        </div>
       ),
     },
     {
@@ -459,6 +424,17 @@ export default function ManageAdmissionsPage() {
       header: "Actions",
       render: (row) => (
         <div className="flex items-center gap-1">
+          <button
+            onClick={() => {
+              setSelectedStaffRequest(row);
+              setViewStaffDialogOpen(true);
+            }}
+            disabled={submittingId !== null || deletingId !== null || importing}
+            className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            title="View Details"
+          >
+            <Eye className="h-4 w-4 text-muted-foreground" />
+          </button>
           {row.status === "Pending" && (
             <>
               <button
@@ -503,14 +479,25 @@ export default function ManageAdmissionsPage() {
         subtitle={
           activeTab === "students"
             ? `${admissions.filter((a) => a.status === "Pending").length} pending student admissions require review`
-            : `${staffRequests.filter((r) => r.status === "Pending").length} pending staff onboarding requests require review`
+            : activeTab === "faculty"
+            ? `${staffRequests.filter((r) => r.status === "Pending" && r.role === "FACULTY").length} pending faculty onboarding requests require review`
+            : `${staffRequests.filter((r) => r.status === "Pending" && r.role === "ADMIN").length} pending admin onboarding requests require review`
         }
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Admissions & Requests" },
         ]}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap max-w-full">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              className="flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_var(--border)] active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_var(--border)] transition-all shrink-0"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
             {activeTab === "students" && (
               <>
                 <input
@@ -525,6 +512,7 @@ export default function ManageAdmissionsPage() {
                   size="sm"
                   disabled={importing || loading}
                   onClick={() => csvInputRef.current?.click()}
+                  className="max-w-full truncate shrink-0"
                 >
                   {importing ? (
                     <Spinner size="sm" className="mr-2" />
@@ -568,17 +556,32 @@ export default function ManageAdmissionsPage() {
           )}
         </button>
         <button
-          onClick={() => setActiveTab("staff")}
+          onClick={() => setActiveTab("faculty")}
           className={`pb-3 px-6 font-bold text-sm border-b-2 transition-all relative ${
-            activeTab === "staff"
+            activeTab === "faculty"
               ? "border-brand-primary text-brand-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
-          Staff Onboarding Requests
-          {staffRequests.filter((r) => r.status === "Pending").length > 0 && (
+          Faculty Onboarding
+          {staffRequests.filter((r) => r.status === "Pending" && r.role === "FACULTY").length > 0 && (
             <span className="ml-2 bg-brand-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-              {staffRequests.filter((r) => r.status === "Pending").length}
+              {staffRequests.filter((r) => r.status === "Pending" && r.role === "FACULTY").length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab("admins")}
+          className={`pb-3 px-6 font-bold text-sm border-b-2 transition-all relative ${
+            activeTab === "admins"
+              ? "border-brand-primary text-brand-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Admin Onboarding
+          {staffRequests.filter((r) => r.status === "Pending" && r.role === "ADMIN").length > 0 && (
+            <span className="ml-2 bg-brand-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+              {staffRequests.filter((r) => r.status === "Pending" && r.role === "ADMIN").length}
             </span>
           )}
         </button>
@@ -602,12 +605,19 @@ export default function ManageAdmissionsPage() {
           searchPlaceholder="Search applicants..."
           searchKeys={["studentName", "email", "appliedDepartment"]}
         />
+      ) : activeTab === "faculty" ? (
+        <DataTable
+          data={staffRequests.filter((r) => r.role === "FACULTY") as unknown as Record<string, unknown>[]}
+          columns={staffColumns as unknown as Column<Record<string, unknown>>[]}
+          searchPlaceholder="Search faculty requests..."
+          searchKeys={["name", "email", "department"]}
+        />
       ) : (
         <DataTable
-          data={staffRequests as unknown as Record<string, unknown>[]}
+          data={staffRequests.filter((r) => r.role === "ADMIN") as unknown as Record<string, unknown>[]}
           columns={staffColumns as unknown as Column<Record<string, unknown>>[]}
-          searchPlaceholder="Search staff requests..."
-          searchKeys={["name", "email", "department", "role"]}
+          searchPlaceholder="Search admin requests..."
+          searchKeys={["name", "email", "specialization"]}
         />
       )}
 
@@ -728,20 +738,23 @@ export default function ManageAdmissionsPage() {
                 </div>
               </div>
 
-              <div className="space-y-1 p-3 rounded-lg bg-accent/50 border">
-                <p className="text-xs font-medium text-muted-foreground uppercase">
-                  Current Status
-                </p>
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge className={statusColors[selectedAdmission.status]}>
-                    {selectedAdmission.status}
-                  </Badge>
-                  {selectedAdmission.status === "Pending" && (
-                    <span className="text-xs text-muted-foreground italic">
-                      (Needs review)
-                    </span>
-                  )}
+              <div className="space-y-1 p-3 rounded-lg bg-accent/50 border flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase">
+                    Current Status
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge className={statusColors[selectedAdmission.status]}>
+                      {selectedAdmission.status}
+                    </Badge>
+                    {selectedAdmission.status === "Pending" && (
+                      <span className="text-xs text-muted-foreground italic">
+                        (Needs review)
+                      </span>
+                    )}
+                  </div>
                 </div>
+                <AuditBadgeInline entity="Admission" entityId={selectedAdmission.id} />
               </div>
             </div>
           )}
@@ -783,6 +796,133 @@ export default function ManageAdmissionsPage() {
               <Button
                 variant="outline"
                 onClick={() => setViewDialogOpen(false)}
+                className="w-full"
+              >
+                Close
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Details Dialog (Staff only) */}
+      <Dialog open={viewStaffDialogOpen} onOpenChange={(open) => { if (submittingId === null) setViewStaffDialogOpen(open); }}>
+        <DialogContent className="sm:max-w-125">
+          <DialogHeader>
+            <DialogTitle>Staff Request Details</DialogTitle>
+            <DialogDescription>
+              Reviewing onboarding request for {selectedStaffRequest?.name}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedStaffRequest && (
+            <div className="grid gap-5 py-4 max-h-[60vh] overflow-y-auto pr-1">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase">
+                    Applicant Name
+                  </p>
+                  <p className="text-sm font-semibold">{selectedStaffRequest.name}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase">
+                    Email Address
+                  </p>
+                  <p className="text-sm font-mono">{selectedStaffRequest.email}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase">
+                    Requested Role
+                  </p>
+                  <p className="text-sm font-semibold capitalize">{selectedStaffRequest.role.toLowerCase()}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase">
+                    Phone Number
+                  </p>
+                  <p className="text-sm">{selectedStaffRequest.phone || "—"}</p>
+                </div>
+                {selectedStaffRequest.role === "FACULTY" && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground uppercase">
+                      Department
+                    </p>
+                    <p className="text-sm">{selectedStaffRequest.department || "—"}</p>
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase">
+                    {selectedStaffRequest.role === "FACULTY" ? "Specialization" : "Designation"}
+                  </p>
+                  <p className="text-sm">{selectedStaffRequest.specialization || "—"}</p>
+                </div>
+                <div className="space-y-1 col-span-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase">
+                    Applied On
+                  </p>
+                  <p className="text-sm font-mono">
+                    {new Date(selectedStaffRequest.createdAt).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1 p-3 rounded-lg bg-accent/50 border">
+                <p className="text-xs font-medium text-muted-foreground uppercase">
+                  Current Status
+                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge className={statusColors[selectedStaffRequest.status]}>
+                    {selectedStaffRequest.status}
+                  </Badge>
+                  {selectedStaffRequest.status === "Pending" && (
+                    <span className="text-xs text-muted-foreground italic">
+                      (Needs review)
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex gap-2 sm:justify-start">
+            {selectedStaffRequest?.status === "Pending" ? (
+              <>
+                <Button
+                  onClick={async () => {
+                    await handleStaffStatusChange(selectedStaffRequest.id, "Approved");
+                    setViewStaffDialogOpen(false);
+                  }}
+                  disabled={submittingId !== null}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white flex-1 min-w-[120px]"
+                >
+                  {submittingId === selectedStaffRequest.id && submittingStatus === "Approved" ? (
+                    <Spinner size="sm" variant="white" className="mr-2" />
+                  ) : (
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                  )}
+                  Approve
+                </Button>
+                <Button
+                  onClick={async () => {
+                    await handleStaffStatusChange(selectedStaffRequest.id, "Rejected");
+                    setViewStaffDialogOpen(false);
+                  }}
+                  variant="destructive"
+                  disabled={submittingId !== null}
+                  className="flex-1 min-w-[110px]"
+                >
+                  {submittingId === selectedStaffRequest.id && submittingStatus === "Rejected" ? (
+                    <Spinner size="sm" variant="white" className="mr-2" />
+                  ) : (
+                    <XCircle className="h-4 w-4 mr-2" />
+                  )}
+                  Reject
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={() => setViewStaffDialogOpen(false)}
                 className="w-full"
               >
                 Close

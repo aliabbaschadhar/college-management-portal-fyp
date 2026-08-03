@@ -91,9 +91,9 @@ const Header = () => {
         <div className="flex items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group relative">
-            <div className="h-10 w-10 overflow-hidden transition-all duration-500 group-hover:rotate-3 group-hover:scale-105">
+            <div className="h-13 w-13 shrink-0 overflow-hidden transition-all duration-500 group-hover:rotate-3 group-hover:scale-105">
               <Image
-                src="/logo.svg"
+                src="/collegelogo.png"
                 alt="College Management Portal logo"
                 width={146}
                 height={108}

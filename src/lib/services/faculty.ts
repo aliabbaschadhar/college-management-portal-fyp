@@ -93,7 +93,13 @@ export async function getFacultyDashboardData(
   ];
 
   const announcements = await prisma.announcement.findMany({
-    where: { audience: { in: ["Faculty", "All"] } },
+    where: {
+      audience: { in: ["Faculty", "All"] },
+      OR: [
+        { targetDepartment: null },
+        { targetDepartment: faculty.department },
+      ],
+    },
     orderBy: { date: "desc" },
     take: 5,
     select: { id: true, title: true, priority: true, date: true },

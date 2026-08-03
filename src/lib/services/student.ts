@@ -122,6 +122,12 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
     prisma.announcement.findMany({
       where: {
         audience: { in: ["Students", "All"] },
+        OR: [
+          { targetDepartment: null, targetSemester: null },
+          { targetDepartment: student.department, targetSemester: null },
+          { targetDepartment: null, targetSemester: student.semester },
+          { targetDepartment: student.department, targetSemester: student.semester },
+        ],
       },
       orderBy: { date: "desc" },
       take: 5,
@@ -149,9 +155,7 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
   }
 
   // STATS
-  const avgGpa = grades.length > 0
-    ? +(grades.reduce((sum, g) => sum + g.gpa, 0) / grades.length).toFixed(2)
-    : null;
+  const previousCGPA = student.cgpa !== undefined ? student.cgpa : 0.0;
 
   const presentCount = attendances.filter((a) => a.status === "Present" || a.status === "Late").length;
   const attendancePercent = attendances.length > 0
@@ -169,8 +173,8 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
   const enrolledCourses = enrollments.map((e) => e.course);
 
   const stats = {
-    currentGpa: avgGpa,
-    currentGPA: avgGpa,
+    currentGpa: previousCGPA,
+    currentGPA: previousCGPA,
     attendanceRate: attendancePercent,
     attendancePercent,
     totalDues: pendingDues,
@@ -235,15 +239,13 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
     };
   });
 
-  // Chart Data: Grades
+  // Chart Data: Grades (Midterm & Sessional only)
   const gradeChartData = enrolledCourses.map((course) => {
     const grade = grades.find((g) => g.courseId === course.id);
     return {
       course: course.courseCode,
-      quiz: grade?.quizMarks || 0,
-      assignment: grade?.assignmentMarks || 0,
       mid: grade?.midMarks || 0,
-      final: grade?.finalMarks || 0,
+      sessional: grade?.finalMarks || 0,
     };
   });
 
@@ -255,6 +257,13 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
       courseName: c.courseName,
       creditHours: c.creditHours,
     })),
+    enrollments: enrollments.map((e) => ({
+      id: e.id,
+      courseId: e.courseId,
+      courseCode: e.course.courseCode,
+      blocked: e.blocked,
+      readmitRequested: e.readmitRequested,
+    })),
     timetable,
     pendingQuizzes,
     studentAnnouncements,
@@ -264,6 +273,8 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
       department: student.department,
       semester: student.semester,
       shift: student.shift,
+      blocked: student.blocked,
+      readmitRequested: student.readmitRequested,
     },
   };
 }

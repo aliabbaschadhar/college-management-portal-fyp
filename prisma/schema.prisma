@@ -12,6 +12,7 @@ model User {
   email     String   @unique
   name      String?
   role      Role     @default(STUDENT)
+  avatar    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   admin     Admin?
@@ -30,6 +31,10 @@ model Student {
   enrollmentDate DateTime      @default(now())
   avatar         String?
   shift          String        @default("Morning")
+  approvedBy     String?
+  cgpa           Float         @default(0.0)
+  blocked        Boolean       @default(false)
+  readmitRequested Boolean     @default(false)
   attendances    Attendance[]
   enrollments    Enrollment[]
   fees           Fee[]
@@ -40,15 +45,16 @@ model Student {
 }
 
 model Faculty {
-  id             String   @id @default(uuid())
-  userId         String   @unique
+  id             String              @id @default(uuid())
+  userId         String              @unique
   phone          String?
   department     String
   specialization String
-  joinDate       DateTime @default(now())
+  joinDate       DateTime            @default(now())
   avatar         String?
   teaches        Course[]
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attendances    FacultyAttendance[]
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Admin {
@@ -65,21 +71,25 @@ model Course {
   department      String
   semester        Int          @default(1)
   assignedFaculty String?
+  shift           String       @default("Morning")
   attendances     Attendance[]
   faculty         Faculty?     @relation(fields: [assignedFaculty], references: [id])
   enrollments     Enrollment[]
   grades          Grade[]
   quizzes         Quiz[]
   timetables      Timetable[]
+  questions       Question[]
 }
 
 model Enrollment {
-  id        String  @id @default(uuid())
-  studentId String
-  courseId  String
-  semester  Int
-  course    Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  id               String  @id @default(uuid())
+  studentId        String
+  courseId         String
+  semester         Int
+  blocked          Boolean @default(false)
+  readmitRequested Boolean @default(false)
+  course           Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  student          Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, courseId])
   @@index([courseId])
@@ -119,8 +129,10 @@ model Announcement {
   content  String
   author   String
   date     DateTime             @default(now())
-  audience AnnouncementAudience
-  priority Priority             @default(Medium)
+  audience         AnnouncementAudience
+  priority         Priority             @default(Medium)
+  targetDepartment String?
+  targetSemester   Int?
 }
 
 model Feedback {
@@ -168,24 +180,33 @@ model Quiz {
 
 model Question {
   id            String   @id @default(uuid())
+  courseId      String
+  type          String   @default("MCQ")
   text          String
   options       String[]
-  correctOption Int
-  quizId        String
-  quiz          Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  correctOption Int?
+  sampleAnswer  String?
+  marks         Int      @default(1)
+  quizId        String?
+  quiz          Quiz?    @relation(fields: [quizId], references: [id], onDelete: SetNull)
+  course        Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
 
+  @@index([courseId])
   @@index([quizId])
 }
 
 model QuizAttempt {
   id          String   @id @default(uuid())
-  quizId      String
+  quizId      String?
   studentId   String
   score       Int
   totalMarks  Int
   submittedAt DateTime @default(now())
   answers     Int[]
-  quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quizTitle   String?
+  courseCode  String?
+  quiz        Quiz?    @relation(fields: [quizId], references: [id], onDelete: SetNull)
   student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([quizId])
@@ -312,3 +333,19 @@ enum FeedbackType {
   Faculty
   Course
 }
+
+model FacultyAttendance {
+  id           String           @id @default(uuid())
+  facultyId    String
+  date         DateTime
+  status       AttendanceStatus
+  checkInTime  DateTime?
+  checkOutTime DateTime?
+  markedBy     String           @default("SELF")
+  notes        String?
+  faculty      Faculty          @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+
+  @@unique([facultyId, date])
+  @@index([date])
+}
+

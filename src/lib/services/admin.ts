@@ -34,7 +34,11 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       by: ["status"],
       _sum: { amount: true },
     }),
-    prisma.attendance.groupBy({ by: ["status"], _count: { _all: true } }),
+    prisma.attendance.groupBy({
+      where: { course: { assignedFaculty: { not: null } } },
+      by: ["status"],
+      _count: { _all: true },
+    }),
     prisma.student.groupBy({ by: ["department"], _count: { _all: true } }),
     prisma.announcement.findMany({
       orderBy: { date: "desc" },

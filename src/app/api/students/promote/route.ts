@@ -83,6 +83,11 @@ export async function POST(request: NextRequest) {
             include: { user: { select: { name: true } } },
           });
 
+          // Clean up old semester enrollments
+          await tx.enrollment.deleteMany({
+            where: { studentId: student.id },
+          });
+
           // Auto-enroll in target semester courses
           const courses = await tx.course.findMany({
             where: {

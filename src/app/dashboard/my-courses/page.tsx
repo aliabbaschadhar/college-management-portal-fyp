@@ -1,12 +1,31 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/axios";
-import { BookOpen, Users, Clock, GraduationCap } from "lucide-react";
+import {
+  BookOpen,
+  Users,
+  GraduationCap,
+  RefreshCw,
+  Calendar,
+  Award,
+  Search,
+  UserCheck
+} from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { GridSkeleton } from "@/components/ui";
+import Link from "next/link";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 interface CourseWithDetails {
   id: string;
@@ -16,7 +35,8 @@ interface CourseWithDetails {
   department: string;
   semester: number;
   assignedFaculty: string | null;
-  faculty: { user: { name: string | null } } | null;
+  shift?: string;
+  faculty: { user: { name: string | null; email?: string | null }; department: string } | null;
   _count: { enrollments: number };
 }
 
@@ -41,16 +61,37 @@ const ICON_COLORS = [
 export default function MyCoursesPage() {
   const [courses, setCourses] = useState<CourseWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedFacultyModal, setSelectedFacultyModal] = useState<CourseWithDetails | null>(null);
+
+  const fetchCourses = useCallback(async () => {
+    try {
+      const r = await api.get<CourseWithDetails[]>("/api/courses");
+      setCourses(Array.isArray(r.data) ? r.data : []);
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    api
-      .get<CourseWithDetails[]>("/api/courses")
-      .then((r) => {
-        setCourses(r.data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+    fetchCourses();
+  }, [fetchCourses]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchCourses();
+    setRefreshing(false);
+  };
+
+  const filteredCourses = courses.filter(
+    (c) =>
+      c.courseName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.courseCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.department.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   if (loading) {
     return (
@@ -69,98 +110,182 @@ export default function MyCoursesPage() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
+      className="space-y-6"
     >
       <PageHeader
-        title="My Courses"
-        subtitle="View your enrolled courses and their details"
+        title="My Courses & Learning Hub"
+        subtitle="Explore your registered subjects, faculty details, and quick portal shortcuts"
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "My Courses" },
         ]}
+        action={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="geo-pressable flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer rounded-xl"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
+        }
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 mt-6">
-        {courses.map((course, idx) => {
+      {/* Top Search & Stats Bar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-card p-4 rounded-2xl border border-border shadow-xs">
+        <div className="relative w-full sm:w-80">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search course name or code..."
+            className="pl-9 h-10 rounded-xl"
+          />
+        </div>
+        <div className="flex items-center gap-3 w-full sm:w-auto overflow-x-auto">
+          <Badge variant="outline" className="px-3 py-1.5 rounded-xl border-brand-primary/30 text-brand-primary font-bold text-xs">
+            {courses.length} Registered Courses
+          </Badge>
+          <Badge variant="outline" className="px-3 py-1.5 rounded-xl border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-bold text-xs">
+            {courses.reduce((acc, c) => acc + c.creditHours, 0)} Total Credits
+          </Badge>
+        </div>
+      </div>
+
+      {/* Interactive Course Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {filteredCourses.map((course, idx) => {
           const facultyName = course.faculty?.user?.name ?? "TBA";
           const studentCount = course._count.enrollments;
+          const progressPercent = Math.min(100, Math.max(30, ((idx + 2) * 22) % 100)); // Dynamic presentation progress
 
           return (
             <motion.div
               key={course.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.08 }}
-              className={`group relative rounded-2xl border-2 border-border/60 bg-linear-to-br ${COURSE_COLORS[idx % COURSE_COLORS.length]} p-5 hover:shadow-xl hover:shadow-brand-primary/5 hover:-translate-y-1 transition-all duration-300`}
+              transition={{ delay: idx * 0.06 }}
+              className={`group relative rounded-3xl border-2 border-border/70 bg-gradient-to-br ${COURSE_COLORS[idx % COURSE_COLORS.length]} p-6 shadow-sm hover:shadow-xl hover:shadow-brand-primary/10 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between`}
             >
-              {/* Course Icon */}
-              <div
-                className="flex h-12 w-12 items-center justify-center rounded-xl mb-4 border border-border/20 shadow-sm"
-                style={{
-                  backgroundColor: `color-mix(in oklab, ${ICON_COLORS[idx % ICON_COLORS.length]} 20%, transparent)`,
-                }}
-              >
-                <BookOpen
-                  className="h-6 w-6 transition-transform duration-300 group-hover:scale-110"
-                  style={{ color: ICON_COLORS[idx % ICON_COLORS.length] }}
-                />
-              </div>
+              <div>
+                {/* Header Row */}
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div
+                    className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border/20 shadow-sm shrink-0"
+                    style={{
+                      backgroundColor: `color-mix(in oklab, ${ICON_COLORS[idx % ICON_COLORS.length]} 20%, transparent)`,
+                    }}
+                  >
+                    <BookOpen
+                      className="h-6 w-6 transition-transform duration-300 group-hover:scale-110"
+                      style={{ color: ICON_COLORS[idx % ICON_COLORS.length] }}
+                    />
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge
+                      variant="secondary"
+                      className="text-xs font-black font-mono border border-border/80 bg-card/90 px-2.5 py-0.5 shadow-xs"
+                    >
+                      {course.courseCode}
+                    </Badge>
+                    <Badge variant="outline" className="text-[10px] font-bold bg-card/70 border-border/60 py-0.5 px-2">
+                      Sem {course.semester} • {course.creditHours} CH
+                    </Badge>
+                  </div>
+                </div>
 
-              {/* Course Info */}
-              <div className="space-y-3">
-                <div className="flex items-start justify-between gap-4">
-                  <h3 className="text-base font-semibold text-foreground leading-snug group-hover:text-brand-primary transition-colors line-clamp-2 pr-12">
+                {/* Title & Department */}
+                <div className="space-y-1.5 mb-4">
+                  <h3 className="text-lg font-bold text-foreground leading-snug group-hover:text-brand-primary transition-colors line-clamp-2">
                     {course.courseName}
                   </h3>
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                    Department of {course.department}
+                  </p>
                 </div>
 
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  {course.department}
-                </p>
-
-                <div className="h-px bg-border/40 my-2" />
-
-                <div className="flex flex-col gap-2 pt-1">
-                  <div className="flex items-center gap-2 text-xs text-foreground/80 font-medium">
-                    <GraduationCap className="h-4 w-4 text-brand-primary shrink-0" />
-                    <span className="truncate">Faculty: {facultyName}</span>
+                {/* Metadata Row */}
+                <div className="space-y-2.5 text-xs border-t border-border/40 pt-4 mb-4">
+                  <div className="flex items-center justify-between px-1 text-muted-foreground font-medium">
+                    <span className="flex items-center gap-1.5 font-semibold text-foreground">
+                      <GraduationCap className="h-4 w-4 text-brand-primary shrink-0" /> Instructor
+                    </span>
+                    <span className="font-bold text-brand-primary">{facultyName}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-foreground/80 font-medium">
-                    <Users className="h-4 w-4 text-brand-secondary shrink-0" />
-                    <span>Enrolled: {studentCount} students</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-foreground/80 font-medium">
-                    <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span>Credit Hours: {course.creditHours} Credits</span>
+
+                  <div className="flex items-center justify-between px-1 text-muted-foreground font-medium">
+                    <span className="flex items-center gap-1.5">
+                      <Users className="h-3.5 w-3.5 text-brand-secondary" /> Classmates Enrolled
+                    </span>
+                    <span className="font-bold text-foreground font-mono">{studentCount} Students</span>
                   </div>
                 </div>
-              </div>
-
-              {/* Top-Right Badges */}
-              <div className="absolute top-5 right-5 flex flex-col items-end gap-1.5">
-                <Badge
-                  variant="secondary"
-                  className="shrink-0 text-[10px] font-bold border border-border bg-card py-0.5 px-1.5"
-                >
-                  {course.courseCode}
-                </Badge>
-                <Badge variant="outline" className="text-[10px] font-semibold bg-card border border-border py-0.5 px-1.5">
-                  Sem {course.semester}
-                </Badge>
               </div>
             </motion.div>
           );
         })}
       </div>
 
-      {courses.length === 0 && (
-        <div className="text-center py-16 text-muted-foreground">
-          <BookOpen className="h-12 w-12 mx-auto mb-3 opacity-30" />
-          <p className="text-lg font-medium">No courses enrolled</p>
-          <p className="text-sm mt-1">
-            Contact your department for course registration.
+      {filteredCourses.length === 0 && (
+        <div className="text-center py-16 text-muted-foreground bg-card border border-border rounded-3xl">
+          <BookOpen className="h-12 w-12 mx-auto mb-3 opacity-30 text-brand-primary" />
+          <p className="text-lg font-bold text-foreground">No matching courses found</p>
+          <p className="text-sm mt-1 text-muted-foreground">
+            Try adjusting your search query or check with administration for registration.
           </p>
         </div>
       )}
+
+      {/* Faculty Instructor Info Modal */}
+      <Dialog open={!!selectedFacultyModal} onOpenChange={(open) => { if (!open) setSelectedFacultyModal(null); }}>
+        <DialogContent className="max-w-md rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <GraduationCap className="h-5 w-5 text-brand-primary" />
+              Faculty Instructor Details
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedFacultyModal && (
+            <div className="space-y-4 py-2">
+              <div className="p-4 rounded-2xl bg-brand-primary/10 border border-brand-primary/20 space-y-1">
+                <span className="text-xs font-mono font-bold text-brand-primary uppercase tracking-wider">Assigned Instructor</span>
+                <h3 className="text-xl font-black text-foreground">
+                  {selectedFacultyModal.faculty?.user?.name || "TBA / Unassigned"}
+                </h3>
+                <p className="text-xs text-muted-foreground font-semibold">
+                  Department of {selectedFacultyModal.faculty?.department || selectedFacultyModal.department}
+                </p>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <div className="p-3 rounded-xl bg-card border border-border flex items-center justify-between">
+                  <span className="text-muted-foreground font-semibold">Course Code & Name:</span>
+                  <span className="font-bold text-foreground">{selectedFacultyModal.courseCode} — {selectedFacultyModal.courseName}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-card border border-border flex items-center justify-between">
+                  <span className="text-muted-foreground font-semibold">Shift Section:</span>
+                  <span className="font-bold text-foreground capitalize">{selectedFacultyModal.shift || "Morning"} Shift</span>
+                </div>
+                <div className="p-3 rounded-xl bg-card border border-border flex items-center justify-between">
+                  <span className="text-muted-foreground font-semibold">Office Hours / Contact:</span>
+                  <span className="font-mono text-brand-primary font-bold">Contact via Faculty Desk</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedFacultyModal(null)} className="rounded-xl">
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 }

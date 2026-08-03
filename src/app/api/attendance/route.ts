@@ -51,6 +51,11 @@ export async function GET(request: NextRequest) {
     const attendances = await prisma.attendance.findMany({
       where: {
         ...(courseId ? { courseId } : {}),
+        ...(user.role === "FACULTY" && user.faculty ? {
+          course: {
+            assignedFaculty: user.faculty.id,
+          },
+        } : {}),
         ...(studentId ? {
           studentId,
           ...(user.role === "STUDENT" && user.student ? {
@@ -65,7 +70,7 @@ export async function GET(request: NextRequest) {
         student: {
           include: { user: { select: { name: true } } },
         },
-        course: { select: { courseCode: true } },
+        course: { select: { courseCode: true, courseName: true } },
       },
     });
 
@@ -136,7 +141,12 @@ export async function POST(request: NextRequest) {
     }
 
     const attendanceDate = new Date(body.date);
-    if (attendanceDate > new Date()) {
+    if (attendanceDate.getDay() === 0) {
+      return NextResponse.json({ error: "Attendance cannot be marked or modified on Sundays as campus is closed." }, { status: 400 });
+    }
+    const todayCutoff = new Date();
+    todayCutoff.setHours(23, 59, 59, 999);
+    if (attendanceDate > todayCutoff) {
       return NextResponse.json({ error: "Date cannot be in the future" }, { status: 400 });
     }
 

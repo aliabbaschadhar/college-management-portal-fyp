@@ -19,35 +19,34 @@ export async function GET(request: NextRequest) {
     const quizId = searchParams.get("quizId");
     const courseId = searchParams.get("courseId");
 
-    const quizWhere: Prisma.QuizWhereInput = {};
-    if (courseId) {
-      quizWhere.courseId = courseId;
-    }
-
-    if (user.role === "FACULTY") {
-      quizWhere.OR = [
-        { createdBy: userId },
-        { course: { assignedFaculty: user.faculty?.id } },
-      ];
-    } else if (user.role === "STUDENT") {
-      quizWhere.status = "Published";
-      quizWhere.course = { enrollments: { some: { student: { userId: user.id } } } };
-    }
-
     const whereClause: Prisma.QuestionWhereInput = {
+      ...(courseId ? { courseId } : {}),
       ...(quizId ? { quizId } : {}),
-      ...(Object.keys(quizWhere).length > 0 ? { quiz: quizWhere } : {}),
     };
+
+    if (user.role === "FACULTY" && user.faculty?.id) {
+      if (!courseId && !quizId) {
+        whereClause.course = { assignedFaculty: user.faculty.id };
+      }
+    }
 
     const questions = await prisma.question.findMany({
       where: whereClause,
       select: {
         id: true,
+        courseId: true,
+        type: true,
         text: true,
         options: true,
+        correctOption: true,
+        sampleAnswer: true,
+        marks: true,
         quizId: true,
-        quiz: { select: { courseId: true, title: true, course: { select: { courseCode: true } } } },
+        course: { select: { courseCode: true, courseName: true } },
+        quiz: { select: { title: true } },
+        createdAt: true,
       },
+      orderBy: { createdAt: "desc" },
     });
 
     return NextResponse.json(questions);
@@ -62,7 +61,6 @@ export async function POST(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    // Load user role and faculty info
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: { role: true, clerkId: true, faculty: { select: { id: true } } },
@@ -70,43 +68,60 @@ export async function POST(request: NextRequest) {
 
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const body = (await request.json()) as {
-      text: string;
-      options: string[];
-      correctOption: number;
-      quizId: string;
-    };
+    const rawBody = await request.json();
+    const isArray = Array.isArray(rawBody);
+    const items = isArray ? rawBody : [rawBody];
 
-    // Load parent quiz with course info
-    const quiz = await prisma.quiz.findUnique({
-      where: { id: body.quizId },
-      include: { course: { select: { assignedFaculty: true } } },
-    });
-
-    if (!quiz) {
-      return NextResponse.json({ error: "Quiz not found" }, { status: 404 });
+    if (items.length === 0) {
+      return NextResponse.json({ error: "Empty request payload" }, { status: 400 });
     }
 
-    // Verify authorization: admin or faculty assigned to course or quiz creator
-    const isAdmin = user.role === "ADMIN";
-    const isFacultyAssignedToCourse =
-      user.faculty && quiz.course?.assignedFaculty === user.faculty.id;
-    const isQuizCreator = quiz.createdBy === user.clerkId;
+    const createdQuestions = [];
+    for (const body of items) {
+      if (!body.courseId || !body.text) continue;
 
-    if (!isAdmin && !isFacultyAssignedToCourse && !isQuizCreator) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      const course = await prisma.course.findUnique({
+        where: { id: body.courseId },
+        select: { assignedFaculty: true },
+      });
+
+      if (!course) continue;
+
+      const isAdmin = user.role === "ADMIN";
+      const isFacultyAssignedToCourse =
+        user.faculty && (course.assignedFaculty === null || course.assignedFaculty === user.faculty.id);
+
+      if (!isAdmin && !isFacultyAssignedToCourse) continue;
+
+      const q = await prisma.question.create({
+        data: {
+          courseId: body.courseId,
+          type: body.type ?? "MCQ",
+          text: body.text,
+          options: body.options ?? [],
+          correctOption: body.correctOption ?? null,
+          sampleAnswer: body.sampleAnswer ?? null,
+          marks: body.marks ?? 1,
+          quizId: body.quizId ?? null,
+        },
+        select: {
+          id: true,
+          courseId: true,
+          type: true,
+          text: true,
+          options: true,
+          correctOption: true,
+          sampleAnswer: true,
+          marks: true,
+          quizId: true,
+          course: { select: { courseCode: true, courseName: true } },
+          createdAt: true,
+        },
+      });
+      createdQuestions.push(q);
     }
 
-    const question = await prisma.question.create({
-      data: {
-        text: body.text,
-        options: body.options,
-        correctOption: body.correctOption,
-        quizId: body.quizId,
-      },
-    });
-
-    return NextResponse.json(question, { status: 201 });
+    return NextResponse.json(isArray ? createdQuestions : createdQuestions[0], { status: 201 });
   } catch (error) {
     console.error("POST /api/questions error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

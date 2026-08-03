@@ -40,7 +40,13 @@ export async function GET(
     const course = await prisma.course.findUnique({
       where: { id },
       include: {
-        faculty: { include: { user: { select: { name: true } } } },
+        faculty: {
+          select: {
+            id: true,
+            department: true,
+            user: { select: { name: true } }
+          }
+        },
         ...(canSeeEnrollments
           ? { enrollments: { include: { student: { include: { user: { select: { name: true } } } } } } }
           : {}),
@@ -72,6 +78,7 @@ export async function PATCH(
       department?: string;
       semester?: number;
       assignedFaculty?: string | null;
+      shift?: string;
     };
 
     const course = await prisma.course.update({
@@ -83,9 +90,16 @@ export async function PATCH(
         ...(body.department !== undefined ? { department: body.department } : {}),
         ...(body.semester !== undefined ? { semester: body.semester } : {}),
         ...(body.assignedFaculty !== undefined ? { assignedFaculty: body.assignedFaculty } : {}),
+        ...(body.shift !== undefined ? { shift: body.shift } : {}),
       },
       include: {
-        faculty: { include: { user: { select: { name: true } } } },
+        faculty: {
+          select: {
+            id: true,
+            department: true,
+            user: { select: { name: true } }
+          }
+        },
         _count: { select: { enrollments: true } },
       },
     });
@@ -93,11 +107,19 @@ export async function PATCH(
     if (userId) {
       try {
         const adminName = await getAdminName(userId);
+        let auditDesc = `Updated course ${course.courseCode} — ${course.courseName}`;
+        if (body.assignedFaculty !== undefined) {
+          if (course.faculty?.user?.name) {
+            auditDesc = `Faculty "${course.faculty.user.name}" assigned to course ${course.courseCode}`;
+          } else {
+            auditDesc = `Faculty assigned to course ${course.courseCode}`;
+          }
+        }
         await logAuditAction({
           action: "UPDATED",
           entity: "Course",
           entityId: id,
-          description: `Updated course ${course.courseCode} — ${course.courseName}`,
+          description: auditDesc,
           adminClerkId: userId,
           adminName,
         });

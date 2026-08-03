@@ -19,6 +19,7 @@ export async function GET(
             id: true,
             text: true,
             options: true,
+            correctOption: true,
             quizId: true,
           },
         },

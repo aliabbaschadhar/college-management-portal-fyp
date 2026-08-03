@@ -20,11 +20,18 @@ export function DashboardShell({ children, role, roleLabel }: DashboardShellProp
   const [mobileOpen, setMobileOpen] = useState(false);
   const [prevRole, setPrevRole] = useState(role);
   const [navItems, setNavItems] = useState(() => getNavItems(role));
+  const [isNavigating, setIsNavigating] = useState(false);
   const pathname = usePathname();
+  const [prevPathname, setPrevPathname] = useState(pathname);
 
   if (role !== prevRole) {
     setPrevRole(role);
     setNavItems(getNavItems(role));
+  }
+
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    setIsNavigating(false);
   }
 
   useEffect(() => {
@@ -40,7 +47,7 @@ export function DashboardShell({ children, role, roleLabel }: DashboardShellProp
 
     const fetchPendingCounts = async () => {
       try {
-        const [admissionsRes, onboardingRes, feedbackRes] = await Promise.all([
+        const [admissionsRes, onboardingRes, feedbackRes] = await Promise.allSettled([
           api.get<unknown[]>("/api/admissions?status=Pending&limit=100"),
           api.get<unknown[]>("/api/onboarding?status=Pending"),
           api.get<{ date: string }[]>("/api/feedback"),
@@ -48,15 +55,28 @@ export function DashboardShell({ children, role, roleLabel }: DashboardShellProp
 
         if (!isMounted) return;
 
-        const admissionsCount = Array.isArray(admissionsRes.data) ? admissionsRes.data.length : 0;
-        const onboardingCount = Array.isArray(onboardingRes.data) ? onboardingRes.data.length : 0;
+        const admissionsData =
+          admissionsRes.status === "fulfilled" && Array.isArray(admissionsRes.value.data)
+            ? admissionsRes.value.data
+            : [];
+        const onboardingData =
+          onboardingRes.status === "fulfilled" && Array.isArray(onboardingRes.value.data)
+            ? onboardingRes.value.data
+            : [];
+        const feedbackData =
+          feedbackRes.status === "fulfilled" && Array.isArray(feedbackRes.value.data)
+            ? feedbackRes.value.data
+            : [];
+
+        const admissionsCount = admissionsData.length;
+        const onboardingCount = onboardingData.length;
         const totalAdmissionsCount = admissionsCount + onboardingCount;
         
         let feedbackCount = 0;
-        if (Array.isArray(feedbackRes.data) && pathname !== "/dashboard/feedback") {
+        if (feedbackData.length > 0 && pathname !== "/dashboard/feedback") {
           const lastViewed = localStorage.getItem("lastViewedFeedback");
           const lastViewedTime = lastViewed ? parseInt(lastViewed) : 0;
-          feedbackCount = feedbackRes.data.filter(
+          feedbackCount = feedbackData.filter(
             (f) => new Date(f.date).getTime() > lastViewedTime
           ).length;
         }
@@ -88,11 +108,29 @@ export function DashboardShell({ children, role, roleLabel }: DashboardShellProp
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
+      {isNavigating && (
+        <>
+          <style>{`
+            @keyframes routeProgress {
+              0% { width: 0%; }
+              50% { width: 70%; }
+              100% { width: 90%; }
+            }
+            .animate-route-progress {
+              animation: routeProgress 2.5s ease-out forwards;
+            }
+          `}</style>
+          <div className="fixed top-0 left-0 right-0 z-[9999] h-[3px] bg-muted/20">
+            <div className="h-full bg-brand-primary animate-route-progress shadow-[0_0_8px_var(--color-brand-primary)]" />
+          </div>
+        </>
+      )}
       <Sidebar
         navItems={navItems}
         roleLabel={roleLabel}
         isMobileOpen={mobileOpen}
         onMobileClose={() => setMobileOpen(false)}
+        onNavigate={() => setIsNavigating(true)}
       />
 
       <div className="flex flex-1 flex-col overflow-hidden">

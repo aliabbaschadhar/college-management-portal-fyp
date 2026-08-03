@@ -1,7 +1,7 @@
 "use client"
 
 import { motion, AnimatePresence } from "framer-motion"
-import { TopiLoader } from "./topi-loader"
+import Image from "next/image"
 import { cn } from "@/lib/utils"
 
 interface FullPageLoaderProps {
@@ -13,11 +13,17 @@ interface FullPageLoaderProps {
   overlay?: boolean
 }
 
+const logoSizes = {
+  sm: "h-14 w-14",
+  md: "h-20 w-20",
+  lg: "h-28 w-28",
+  xl: "h-36 w-36",
+}
+
 export function FullPageLoader({
   loading = true,
   label = "Loading...",
   size = "lg",
-  variant = "primary",
   className,
   overlay = false,
 }: FullPageLoaderProps) {
@@ -45,14 +51,30 @@ export function FullPageLoader({
               duration: 0.4,
               ease: [0.4, 0, 0.2, 1],
             }}
-            className="flex flex-col items-center gap-4 rounded-xl bg-card p-8 shadow-lg"
+            className="flex flex-col items-center gap-5 p-4"
           >
-            <TopiLoader size={size} variant={variant} />
+            <div className="relative flex items-center justify-center">
+              <motion.div
+                animate={{ opacity: [0.4, 1, 0.4], scale: [0.98, 1.04, 0.98] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                className={cn("relative shrink-0 overflow-hidden", logoSizes[size])}
+              >
+                <Image
+                  src="/collegelogo.png"
+                  alt="College Logo Loading"
+                  width={146}
+                  height={108}
+                  className="h-full w-full object-contain drop-shadow-md"
+                  priority
+                />
+              </motion.div>
+            </div>
+
             {label && (
               <motion.p
-                className="text-sm font-medium text-foreground"
-                animate={{ opacity: [0.6, 1, 0.6] }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                className="text-sm font-extrabold tracking-wider text-foreground"
+                animate={{ opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
               >
                 {label}
               </motion.p>

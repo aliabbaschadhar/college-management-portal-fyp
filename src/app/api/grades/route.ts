@@ -10,6 +10,7 @@ interface GradeCreateBody {
   assignmentMarks: number;
   midMarks: number;
   finalMarks: number;
+  cgpa?: number;
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -150,7 +151,7 @@ export async function GET(request: NextRequest) {
         student: {
           include: { user: { select: { name: true } } },
         },
-        course: { select: { courseCode: true } },
+        course: { select: { courseCode: true, courseName: true } },
       },
     });
 
@@ -198,8 +199,8 @@ export async function POST(request: NextRequest) {
     }
 
     const total = body.quizMarks + body.assignmentMarks + body.midMarks + body.finalMarks;
-    // Max marks: quiz(25) + assignment(25) + mid(50) + final(50) = 150
-    const MAX_MARKS = 150;
+    // Max marks: updated to 40 (25 mid + 15 sessional/final)
+    const MAX_MARKS = 40;
     const gpa = +Math.min(4.0, (total / MAX_MARKS) * 4.0).toFixed(2);
 
     const data = {
@@ -210,6 +211,14 @@ export async function POST(request: NextRequest) {
       total,
       gpa,
     };
+
+    // Update student's CGPA in parallel if provided
+    if (body.cgpa !== undefined && typeof body.cgpa === "number") {
+      await prisma.student.update({
+        where: { id: body.studentId },
+        data: { cgpa: body.cgpa },
+      });
+    }
 
     const grade = existing
       ? await prisma.grade.update({ where: { id: existing.id }, data })

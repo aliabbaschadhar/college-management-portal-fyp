@@ -49,25 +49,18 @@ export async function GET() {
     const whereClause: Prisma.CourseWhereInput = {};
 
     if (user.role === "FACULTY" && user.faculty) {
-      // Faculty only see courses assigned to them
       whereClause.assignedFaculty = user.faculty.id;
     } else if (user.role === "STUDENT") {
       if (user.student) {
-        // Self-healing enrollments sync
         await ensureStudentEnrollments(user.student.id, user.student.department, user.student.semester);
-
-        // Students only see courses they are enrolled in for their current semester
         whereClause.semester = user.student.semester;
         whereClause.enrollments = {
           some: { studentId: user.student.id },
         };
       }
-      // If no student profile exists, they are onboarding.
-      // Do not filter by enrollment (allows listing all courses in the catalog).
     }
-    // Admin sees all courses (no filter)
 
-    const courses = await prisma.course.findMany({
+    let courses = await prisma.course.findMany({
       where: whereClause,
       include: {
         faculty: {
@@ -77,6 +70,18 @@ export async function GET() {
       },
     });
 
+    // Fallback for faculty if no specific course is assigned yet
+    if (user.role === "FACULTY" && courses.length === 0) {
+      courses = await prisma.course.findMany({
+        include: {
+          faculty: {
+            include: { user: { select: { name: true } } },
+          },
+          _count: { select: { enrollments: true } },
+        },
+      });
+    }
+
     const result = courses.map((c) => ({
       id: c.id,
       courseCode: c.courseCode,
@@ -85,7 +90,13 @@ export async function GET() {
       department: c.department,
       semester: c.semester,
       assignedFaculty: c.assignedFaculty,
-      faculty: c.faculty ? { user: { name: c.faculty.user.name } } : null,
+      shift: c.shift,
+      faculty: c.faculty
+        ? {
+            user: { name: c.faculty.user.name },
+            department: c.faculty.department,
+          }
+        : null,
       _count: { enrollments: c._count.enrollments },
     }));
 
@@ -149,6 +160,26 @@ export async function POST(request: NextRequest) {
         _count: { select: { enrollments: true } },
       },
     });
+
+    // Automatically fetch and enroll all students belonging to this semester and department
+    const matchingStudents = await prisma.student.findMany({
+      where: {
+        department: course.department,
+        semester: course.semester,
+      },
+      select: { id: true },
+    });
+
+    if (matchingStudents.length > 0) {
+      await prisma.enrollment.createMany({
+        data: matchingStudents.map((st) => ({
+          studentId: st.id,
+          courseId: course.id,
+          semester: course.semester,
+        })),
+        skipDuplicates: true,
+      });
+    }
 
     return NextResponse.json(course, { status: 201 });
   } catch (error) {

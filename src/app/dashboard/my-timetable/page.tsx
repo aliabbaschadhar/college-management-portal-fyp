@@ -1,11 +1,19 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { api } from "@/lib/axios";
-import { Clock } from "lucide-react";
+import { Clock, RefreshCw, Calendar } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion } from "framer-motion";
 import { TableSkeleton } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 interface TimetableEntry {
   id: string;
@@ -82,36 +90,52 @@ export default function MyTimetablePage() {
   const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
   const [studentProfile, setStudentProfile] = useState<StudentProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedSlotModal, setSelectedSlotModal] = useState<TimetableEntry | null>(null);
 
   // Dynamic grid configuration states
   const [gridStart, setGridStart] = useState("07:45");
   const [gridDuration, setGridDuration] = useState(45);
   const [gridSlotsCount, setGridSlotsCount] = useState(7);
 
-  useEffect(() => {
-    Promise.all([
-      api.get<TimetableEntry[]>("/api/timetable"),
-      api.get<{ studentProfile?: StudentProfile }>("/api/dashboard/student").catch(() => null)
-    ])
-      .then(([ttRes, profileRes]) => {
-        const rawTimetable = Array.isArray(ttRes.data) ? ttRes.data : [];
-        const filteredTimetable = rawTimetable.filter(
-          (t) => t.course?.courseCode?.toUpperCase() !== "CC-411"
-        );
-        setTimetable(filteredTimetable);
-        if (profileRes && profileRes.data && profileRes.data.studentProfile) {
-          setStudentProfile(profileRes.data.studentProfile);
-        }
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+  const fetchTimetableData = useCallback(async () => {
+    try {
+      const [ttRes, profileRes] = await Promise.all([
+        api.get<TimetableEntry[]>("/api/timetable"),
+        api.get<{ studentProfile?: StudentProfile }>("/api/dashboard/student").catch(() => null)
+      ]);
+      const rawTimetable = Array.isArray(ttRes.data) ? ttRes.data : [];
+      const filteredTimetable = rawTimetable.filter(
+        (t) => t.course?.courseCode?.toUpperCase() !== "CC-411"
+      );
+      setTimetable(filteredTimetable);
+      if (profileRes && profileRes.data && profileRes.data.studentProfile) {
+        setStudentProfile(profileRes.data.studentProfile);
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchTimetableData();
+  }, [fetchTimetableData]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchTimetableData();
+    setRefreshing(false);
+  };
 
   useEffect(() => {
     if (!studentProfile) return;
     const shift = studentProfile.shift || "Morning";
+    const dept = studentProfile.department || "";
+    const sem = studentProfile.semester || 1;
     api
-      .get(`/api/timetable/settings?shift=${shift}`)
+      .get(`/api/timetable/settings?shift=${shift}&department=${encodeURIComponent(dept)}&semester=${sem}`)
       .then((res) => {
         if (res.data) {
           setGridStart(res.data.startTime);
@@ -238,25 +262,19 @@ export default function MyTimetablePage() {
           { label: "Dashboard", href: "/dashboard" },
           { label: "Timetable" },
         ]}
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="geo-pressable flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer rounded-xl"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        }
       />
-
-      {/* Legend */}
-      <div className="flex flex-wrap gap-3">
-        {uniqueCourses.map((t) => {
-          const colors = courseColors[t.course.courseCode];
-          return (
-            <div
-              key={t.courseId}
-              className={`flex items-center gap-2 rounded-lg px-3 py-1.5 ${colors?.bg} border ${colors?.border}`}
-            >
-              <div className={`h-2.5 w-2.5 rounded-full ${colors?.bg}`} />
-              <span className={`text-xs font-medium ${colors?.text}`}>
-                {t.course.courseCode} - {t.course.courseName}
-              </span>
-            </div>
-          );
-        })}
-      </div>
 
       {/* Timetable Grid */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -311,7 +329,8 @@ export default function MyTimetablePage() {
                           className={`p-1 ${isCurrent ? "ring-2 ring-brand-primary ring-inset" : ""}`}
                         >
                           <div
-                            className={`rounded-lg p-2.5 h-full ${colors?.bg} border ${colors?.border} hover:scale-[1.02] transition-transform flex flex-col justify-between`}
+                            onClick={() => setSelectedSlotModal(cls)}
+                            className={`rounded-xl p-2.5 h-full ${colors?.bg} border ${colors?.border} hover:scale-[1.03] cursor-pointer shadow-xs transition-all flex flex-col justify-between`}
                           >
                             <div>
                               <p
@@ -356,6 +375,55 @@ export default function MyTimetablePage() {
           </table>
         </div>
       </div>
+
+      {/* Timetable Slot Details Pop-up Dialog */}
+      <Dialog open={!!selectedSlotModal} onOpenChange={(open) => { if (!open) setSelectedSlotModal(null); }}>
+        <DialogContent className="max-w-md rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-brand-primary" />
+              Class Session Details
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedSlotModal && (
+            <div className="space-y-4 py-2">
+              <div className="p-4 rounded-2xl bg-brand-primary/10 border border-brand-primary/20 space-y-1">
+                <span className="text-xs font-mono font-bold text-brand-primary uppercase tracking-wider">Course Code</span>
+                <h3 className="text-xl font-black text-foreground">{selectedSlotModal.course.courseCode}</h3>
+                <p className="text-sm font-semibold text-foreground/90">{selectedSlotModal.course.courseName}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="p-3 rounded-xl bg-card border border-border">
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Faculty Instructor</span>
+                  <span className="font-bold text-foreground text-sm">{selectedSlotModal.course.faculty?.user.name || "Unassigned"}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-card border border-border">
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Classroom / Venue</span>
+                  <span className="font-bold text-foreground text-sm">{selectedSlotModal.room}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-card border border-border">
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Day & Semester</span>
+                  <span className="font-bold text-foreground text-sm">{selectedSlotModal.day} (Sem {selectedSlotModal.course.semester})</span>
+                </div>
+                <div className="p-3 rounded-xl bg-card border border-border">
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Time Duration</span>
+                  <span className="font-mono font-bold text-foreground text-sm">
+                    {format12Hour(selectedSlotModal.startTime)} – {format12Hour(selectedSlotModal.endTime)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedSlotModal(null)} className="rounded-xl">
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 }

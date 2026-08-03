@@ -14,13 +14,13 @@ import {
   Monitor,
   Lock,
   ExternalLink,
+  Plus,
 } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { ProfileQRCode } from "@/components/dashboard/ProfileQRCode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -32,6 +32,7 @@ interface SettingsUser {
   name: string | null;
   email: string;
   role: Role;
+  avatar: string | null;
   student: { phone: string | null; department: string; rollNo: string } | null;
   faculty: { phone: string | null; department: string } | null;
 }
@@ -65,8 +66,15 @@ type SectionId =
   | "qr"
   | "admin-settings";
 
-// ─── Profile Section ─────────────────────────────────────────────────────────
-function ProfileSection({ user }: { user: SettingsUser }) {
+function ProfileSection({
+  user,
+  avatar,
+  setAvatar,
+}: {
+  user: SettingsUser;
+  avatar: string;
+  setAvatar: (val: string) => void;
+}) {
   const phone = user.student?.phone ?? user.faculty?.phone ?? "";
   const department =
     user.student?.department ?? user.faculty?.department ?? "—";
@@ -74,8 +82,66 @@ function ProfileSection({ user }: { user: SettingsUser }) {
 
   const [name, setName] = useState(user.name ?? "");
   const [phoneVal, setPhoneVal] = useState(phone);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setAvatarError(null);
+    setAvatarUploading(true);
+
+    const compressImage = (fileToCompress: File): Promise<string> => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.src = URL.createObjectURL(fileToCompress);
+        img.onload = () => {
+          const maxDim = 400;
+          let width = img.width;
+          let height = img.height;
+          if (width > height) {
+            if (width > maxDim) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            reject(new Error("Failed to create canvas context"));
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+          resolve(dataUrl);
+        };
+        img.onerror = (err) => reject(err);
+      });
+    };
+
+    try {
+      const base64String = await compressImage(file);
+      await api.patch("/api/me", { avatar: base64String });
+      setAvatar(base64String);
+      window.dispatchEvent(new Event("profile-avatar-updated"));
+    } catch (err) {
+      console.error("Failed to upload avatar:", err);
+      setAvatarError("Failed to upload profile picture. Please try another image.");
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -101,14 +167,42 @@ function ProfileSection({ user }: { user: SettingsUser }) {
         </p>
       </div>
 
+      {avatarError && (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs font-bold text-rose-600 dark:text-rose-400">
+          {avatarError}
+        </div>
+      )}
+
       {/* Avatar + identity */}
       <div className="flex items-center gap-4 p-5 rounded-2xl bg-muted/20 border border-border">
-        <div className="relative shrink-0">
-          <div className="h-20 w-20 rounded-full bg-brand-primary flex items-center justify-center text-white text-2xl font-bold shadow-lg">
-            {getInitials(name)}
-          </div>
-          <div className="absolute bottom-0 right-0 h-6 w-6 rounded-full bg-brand-primary/90 border-2 border-card flex items-center justify-center">
-            <User className="h-3 w-3 text-white" />
+        <div className="relative shrink-0 cursor-pointer group" onClick={() => !avatarUploading && document.getElementById("settings-avatar-input")?.click()}>
+          <input
+            type="file"
+            id="settings-avatar-input"
+            accept="image/*"
+            className="hidden"
+            onChange={handleAvatarChange}
+            disabled={avatarUploading}
+          />
+          {avatarUploading ? (
+            <div className="h-20 w-20 rounded-full border-2 border-brand-primary/40 bg-muted flex flex-col items-center justify-center gap-1 shadow-md">
+              <div className="h-6 w-6 animate-spin border-2 border-brand-primary border-t-transparent rounded-full" />
+              <span className="text-[9px] font-bold text-brand-primary">Uploading...</span>
+            </div>
+          ) : avatar ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={avatar}
+              alt="Avatar"
+              className="h-20 w-20 rounded-full object-cover border border-border shadow-lg group-hover:opacity-80 transition-opacity"
+            />
+          ) : (
+            <div className="h-20 w-20 rounded-full bg-brand-primary flex items-center justify-center text-white text-2xl font-bold shadow-lg group-hover:opacity-90 transition-opacity">
+              {getInitials(name)}
+            </div>
+          )}
+          <div className="absolute bottom-0 right-0 h-6 w-6 rounded-full bg-brand-primary border-2 border-card flex items-center justify-center shadow-md">
+            <Plus className="h-3.5 w-3.5 text-white" />
           </div>
         </div>
         <div>
@@ -366,6 +460,7 @@ function QRSection({ user }: { user: SettingsUser }) {
 // ─── Admin Settings Section ───────────────────────────────────────────────────
 function AdminSettingsSection() {
   const [secret, setSecret] = useState("");
+  const [expiryHoursInput, setExpiryHoursInput] = useState<number>(1);
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -386,9 +481,13 @@ function AdminSettingsSection() {
         setTimeLeft("");
         clearInterval(interval);
       } else {
-        const mins = Math.floor(remaining / 60000);
+        const hours = Math.floor(remaining / 3600000);
+        const mins = Math.floor((remaining % 3600000) / 60000);
         const secs = Math.floor((remaining % 60000) / 1000);
-        setTimeLeft(`${mins}:${String(secs).padStart(2, "0")}`);
+        const hoursStr = String(hours).padStart(2, "0");
+        const minsStr = String(mins).padStart(2, "0");
+        const secsStr = String(secs).padStart(2, "0");
+        setTimeLeft(`${hoursStr}:${minsStr}:${secsStr}`);
       }
     }, 1000);
 
@@ -399,7 +498,9 @@ function AdminSettingsSection() {
     setLoading(true);
     setErrorMsg("");
     try {
-      const res = await api.post("/api/settings/admin-secret");
+      const res = await api.post("/api/settings/admin-secret", {
+        expiryHours: Number(expiryHoursInput) || 1,
+      });
       setSecret(res.data.secret || "");
       if (res.data.expiresAt) {
         setExpiresAt(res.data.expiresAt);
@@ -443,43 +544,73 @@ function AdminSettingsSection() {
       </div>
 
       <div className="p-5 rounded-2xl border border-border bg-card space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="admin-secret-key" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            Admin Onboarding Secret Key
-          </Label>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            This secret key is required when a new user requests the ADMIN role during portal onboarding. It is valid for 5 minutes after generation.
-          </p>
-          <div className="relative">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="admin-secret-expiry" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Key Expiry Duration (Hours)
+            </Label>
             <Input
-              id="admin-secret-key"
-              type="text"
-              value={secret}
-              readOnly
-              className="h-11 rounded-xl pr-28 font-mono bg-muted/30"
-              placeholder="No active secret key generated"
+              id="admin-secret-expiry"
+              type="number"
+              min="0.1"
+              max="72"
+              step="0.5"
+              value={expiryHoursInput}
+              onChange={(e) => setExpiryHoursInput(Number(e.target.value))}
+              disabled={loading || !!timeLeft}
+              className="h-11 rounded-xl font-mono"
+              placeholder="e.g. 1"
             />
-            {timeLeft && (
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md animate-pulse">
-                Expires in {timeLeft}
-              </span>
-            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="admin-secret-key" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Admin Secret Key
+            </Label>
+            <div className="relative">
+              <Input
+                id="admin-secret-key"
+                type="text"
+                value={secret}
+                readOnly
+                className="h-11 rounded-xl pr-32 font-mono bg-muted/30"
+                placeholder="No active secret key"
+              />
+              {timeLeft && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold font-mono text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md animate-pulse">
+                  Expires in {timeLeft}
+                </span>
+              )}
+            </div>
           </div>
         </div>
+
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          This secret key is required when a new user requests the ADMIN role during portal onboarding.
+        </p>
 
         {errorMsg && (
           <p className="text-xs text-rose-500 font-semibold">{errorMsg}</p>
         )}
 
-        <div className="flex justify-end pt-2">
+        <div className="flex items-center justify-between pt-2">
+          {timeLeft ? (
+            <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
+              Active key generated. Button is locked until key expires.
+            </p>
+          ) : (
+            <span />
+          )}
           <Button
             onClick={handleGenerate}
-            disabled={loading}
+            disabled={loading || !!timeLeft}
             className={cn(
-              "h-11 px-8 rounded-xl gap-2 transition-all duration-200",
+              "h-11 px-8 rounded-xl gap-2 transition-all duration-200 font-medium",
               saved
-                ? "bg-emerald-600 text-white hover:bg-emerald-600"
-                : "bg-brand-primary text-white hover:opacity-90",
+                ? "bg-emerald-600 text-white hover:bg-emerald-600 shadow-sm"
+                : !!timeLeft
+                  ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400 border border-blue-200 dark:border-blue-800/60 opacity-80 cursor-not-allowed"
+                  : "bg-blue-600 text-white hover:bg-blue-700 shadow-md active:scale-[0.98]",
             )}
           >
             {loading ? (
@@ -491,6 +622,8 @@ function AdminSettingsSection() {
               <>
                 <Check className="h-4 w-4" /> Secret Key Generated!
               </>
+            ) : timeLeft ? (
+              "Key Active (Locked)"
             ) : (
               "Generate Secret Key"
             )}
@@ -504,17 +637,26 @@ function AdminSettingsSection() {
 // ─── Main Export ──────────────────────────────────────────────────────────────
 export function SettingsTabs({ user }: Props) {
   const [active, setActive] = useState<SectionId>("profile");
+  const [prevAvatar, setPrevAvatar] = useState(user.avatar);
+  const [avatar, setAvatar] = useState(user.avatar ?? "");
+
+  if (user.avatar !== prevAvatar) {
+    setPrevAvatar(user.avatar);
+    setAvatar(user.avatar ?? "");
+  }
 
   const navItems = [
     { id: "profile" as const, label: "Profile", icon: User },
     { id: "appearance" as const, label: "Appearance", icon: Palette },
     { id: "security" as const, label: "Security", icon: Shield },
-    ...(user.role === "STUDENT" ? [{ id: "qr" as const, label: "Verification QR", icon: QrCode }] : []),
+    ...(user.role === "STUDENT" || user.role === "FACULTY"
+      ? [{ id: "qr" as const, label: "Verification QR", icon: QrCode }]
+      : []),
     ...(user.role === "ADMIN" ? [{ id: "admin-settings" as const, label: "Admin Settings", icon: Lock }] : []),
   ];
 
   const contentMap: Record<SectionId, React.ReactNode> = {
-    profile: <ProfileSection user={user} />,
+    profile: <ProfileSection user={user} avatar={avatar} setAvatar={setAvatar} />,
     appearance: <AppearanceSection />,
     security: <SecuritySection />,
     qr: <QRSection user={user} />,
@@ -542,9 +684,18 @@ export function SettingsTabs({ user }: Props) {
         <aside className="w-full md:w-64 shrink-0 md:sticky md:top-6 space-y-2">
           {/* Avatar card */}
           <div className="rounded-2xl border border-border bg-card p-5 shadow-sm text-center mb-4">
-            <div className="h-20 w-20 mx-auto rounded-full bg-brand-primary flex items-center justify-center text-white text-2xl font-bold shadow-md mb-3">
-              {getInitials(user.name)}
-            </div>
+            {avatar ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={avatar}
+                alt="Avatar"
+                className="h-20 w-20 mx-auto rounded-full object-cover border border-border shadow-md mb-3"
+              />
+            ) : (
+              <div className="h-20 w-20 mx-auto rounded-full bg-brand-primary flex items-center justify-center text-white text-2xl font-bold shadow-md mb-3">
+                {getInitials(user.name)}
+              </div>
+            )}
             <p className="font-bold text-foreground truncate">
               {user.name ?? "—"}
             </p>

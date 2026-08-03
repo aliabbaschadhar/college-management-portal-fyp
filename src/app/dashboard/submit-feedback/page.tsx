@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Star, Send, MessageSquare, CheckCircle, Loader2 } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Star, Send, MessageSquare, CheckCircle, Loader2, RefreshCw, AlertCircle } from "lucide-react";
 import { api } from "@/lib/axios";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion } from "framer-motion";
@@ -52,26 +52,40 @@ export default function SubmitFeedbackPage() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+
+  const fetchFeedbackData = useCallback(async () => {
+    try {
+      const [crsRes, facRes, fbRes, meRes] = await Promise.all([
+        api.get<CourseOption[]>("/api/courses"),
+        api.get<FacultyOption[]>("/api/faculty"),
+        api.get<PastFeedback[]>("/api/feedback"),
+        api.get("/api/me").catch(() => ({ data: null })),
+      ]);
+      setCourses(crsRes.data);
+      setFacultyList(facRes.data);
+      setPastFeedback(fbRes.data);
+      if (meRes.data?.student?.blocked) {
+        setIsBlocked(true);
+      }
+    } catch (err) {
+      console.error("Error loading feedback lists:", err);
+    } finally {
+      setInitialLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     setInitialLoading(true);
-    Promise.all([
-      api.get<CourseOption[]>("/api/courses"),
-      api.get<FacultyOption[]>("/api/faculty"),
-      api.get<PastFeedback[]>("/api/feedback"),
-    ])
-      .then(([crsRes, facRes, fbRes]) => {
-        setCourses(crsRes.data);
-        setFacultyList(facRes.data);
-        setPastFeedback(fbRes.data);
-      })
-      .catch((err) => {
-        console.error("Error loading feedback lists:", err);
-      })
-      .finally(() => {
-        setInitialLoading(false);
-      });
-  }, []);
+    fetchFeedbackData();
+  }, [fetchFeedbackData]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchFeedbackData();
+    setRefreshing(false);
+  };
 
   const handleSubmit = async () => {
     if (!targetId || rating === 0) return;
@@ -145,15 +159,15 @@ export default function SubmitFeedbackPage() {
       ) : (
         <Button
           onClick={handleSubmit}
-          disabled={!targetId || rating === 0 || submitting}
-          className="w-full gap-2 cursor-pointer font-bold border-2 border-border shadow-[2px_2px_0px_0px_var(--border)] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_var(--border)] active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_var(--border)] transition-all"
+          disabled={!targetId || rating === 0 || submitting || isBlocked}
+          className="w-full gap-2 cursor-pointer font-bold border-2 border-border shadow-[2px_2px_0px_0px_var(--border)] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_var(--border)] active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_var(--border)] transition-all disabled:opacity-40"
         >
           {submitting ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <Send className="h-4 w-4" />
           )}
-          {submitting ? "Submitting..." : "Submit Feedback"}
+          {isBlocked ? "Restricted: Struck Off" : submitting ? "Submitting..." : "Submit Feedback"}
         </Button>
       )}
     </div>
@@ -165,6 +179,18 @@ export default function SubmitFeedbackPage() {
         title="Submit Feedback"
         subtitle="Share your thoughts about courses and faculty"
         breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Feedback" }]}
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="geo-pressable flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer rounded-xl"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        }
       />
 
       {initialLoading ? (
@@ -175,8 +201,14 @@ export default function SubmitFeedbackPage() {
           </p>
         </div>
       ) : (
-        <div className="max-w-2xl mx-auto">
-        <Tabs value={feedbackType} onValueChange={(v) => { setFeedbackType(v as "Faculty" | "Course"); setTargetId(""); setRating(0); setErrorMsg(""); }}>
+        <div className="max-w-2xl mx-auto space-y-4">
+          {isBlocked && (
+            <div className="rounded-xl border border-rose-500/50 bg-rose-500/10 p-4 text-xs font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              Your account is currently Struck Off due to attendance shortage. Feedback submission is restricted.
+            </div>
+          )}
+          <Tabs value={feedbackType} onValueChange={(v) => { setFeedbackType(v as "Faculty" | "Course"); setTargetId(""); setRating(0); setErrorMsg(""); }}>
           <TabsList className="w-full">
             <TabsTrigger value="Faculty" className="flex-1">Faculty Feedback</TabsTrigger>
             <TabsTrigger value="Course" className="flex-1">Course Feedback</TabsTrigger>

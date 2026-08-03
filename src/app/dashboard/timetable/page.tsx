@@ -11,6 +11,12 @@ import {
   Plus,
   Pencil,
   Trash2,
+  Sparkles,
+  AlertTriangle,
+  UserCheck,
+  Loader2,
+  Lock,
+  Unlock,
 } from "lucide-react";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { motion } from "framer-motion";
@@ -50,6 +56,12 @@ interface CourseOption {
   department: string;
   semester: number;
   facultyName: string | null;
+}
+
+interface FacultyOption {
+  id: string;
+  name: string;
+  department: string;
 }
 
 interface TimetableApiError {
@@ -108,13 +120,45 @@ export default function TimetablePage() {
   const [form, setForm] = useState<TimetableMutationInput>(EMPTY_FORM);
   const [error, setError] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const [confirmDeleteTarget, setConfirmDeleteTarget] = useState<TimetableApiEntry | "bulk" | null>(null);
+  const [pdfModalOpen, setPdfModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (mutationError) {
+      const timer = setTimeout(() => setMutationError(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [mutationError]);
 
   // Dynamic grid configuration states
   const [gridStart, setGridStart] = useState("07:45");
   const [gridDuration, setGridDuration] = useState(45);
   const [gridSlotsCount, setGridSlotsCount] = useState(7);
+  const [gridLocked, setGridLocked] = useState(true);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
+  const [deletingTimetableId, setDeletingTimetableId] = useState<string | null>(null);
+  const [selectedTimetableIds, setSelectedTimetableIds] = useState<string[]>([]);
+
+  const handleToggleSelectSlot = (id: string) => {
+    setSelectedTimetableIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkDeleteSlots = async () => {
+    if (selectedTimetableIds.length === 0) return;
+    setDeletingTimetableId("bulk");
+    try {
+      await Promise.all(selectedTimetableIds.map((id) => api.delete(`/api/timetable/${id}`)));
+      setTimetable((prev) => prev.filter((t) => !selectedTimetableIds.includes(t.id)));
+      setSelectedTimetableIds([]);
+    } catch (err) {
+      console.error("Bulk delete failed:", err);
+    } finally {
+      setDeletingTimetableId(null);
+    }
+  };
 
   const slots = useMemo(() => {
     const list = [];
@@ -223,8 +267,9 @@ export default function TimetablePage() {
             const courseName = String(row.courseName ?? "").trim();
             const department = String(row.department ?? "").trim();
             const semester = Number(row.semester ?? 0);
+            const facObj = row.faculty && typeof row.faculty === "object" ? (row.faculty as { user?: { name?: string } }) : null;
             const facultyName =
-              typeof row.facultyName === "string" ? row.facultyName : null;
+              typeof row.facultyName === "string" ? row.facultyName : facObj?.user?.name ?? null;
 
             if (
               !id ||
@@ -251,7 +296,108 @@ export default function TimetablePage() {
       })
       .catch(() => setCourses([]))
       .finally(() => setCoursesLoading(false));
+
+    api
+      .get("/api/faculty")
+      .then((r) => {
+        if (Array.isArray(r.data)) {
+          setFacultyList(
+            r.data.map((f: { id: string; user?: { name?: string; email?: string }; department: string }) => ({
+              id: f.id,
+              name: f.user?.name ?? f.user?.email ?? "Faculty Member",
+              department: f.department,
+            }))
+          );
+        }
+      })
+      .catch(() => setFacultyList([]));
   }, []);
+
+  const [facultyList, setFacultyList] = useState<FacultyOption[]>([]);
+  const [selectedTeacherToAssign, setSelectedTeacherToAssign] = useState<string>("");
+  const [assigningTeacher, setAssigningTeacher] = useState<boolean>(false);
+
+  // Batch Dialog states
+  const [batchDialogOpen, setBatchDialogOpen] = useState<boolean>(false);
+  const [batchEntries, setBatchEntries] = useState<{
+    courseId: string;
+    day: string;
+    startTime: string;
+    endTime: string;
+    room: string;
+  }[]>([]);
+  const [batchSaving, setBatchSaving] = useState<boolean>(false);
+  const [batchError, setBatchError] = useState<string | null>(null);
+
+  const handleAssignTeacher = async (courseId: string, facultyId: string) => {
+    if (!courseId || !facultyId) return;
+    setAssigningTeacher(true);
+    setMutationError(null);
+    try {
+      await api.patch(`/api/courses/${courseId}`, { assignedFaculty: facultyId });
+      const fac = facultyList.find((f) => f.id === facultyId);
+      setCourses((prev) =>
+        prev.map((c) => (c.id === courseId ? { ...c, facultyName: fac?.name ?? "Assigned" } : c))
+      );
+    } catch {
+      setMutationError("Failed to assign teacher to course");
+    } finally {
+      setAssigningTeacher(false);
+    }
+  };
+
+  const openBatchDialog = () => {
+    const semester = Number(filterSemester);
+    const semesterCourses = courses.filter(
+      (c) => c.department === filterDept && c.semester === semester
+    );
+
+    if (semesterCourses.length === 0) {
+      setMutationError(`No courses found for ${filterDept} Semester ${filterSemester}`);
+      return;
+    }
+
+    const defaultEntries = semesterCourses.map((c, idx) => {
+      const startMins = timeToMinutes(gridStart) + idx * gridDuration;
+      const startH = Math.floor(startMins / 60) % 24;
+      const startM = startMins % 60;
+      const startStr = `${String(startH).padStart(2, "0")}:${String(startM).padStart(2, "0")}`;
+      const endStr = add45Minutes(startStr, gridDuration);
+
+      return {
+        courseId: c.id,
+        day: "Monday",
+        startTime: startStr,
+        endTime: endStr,
+        room: `Room ${101 + idx}`,
+      };
+    });
+
+    setBatchEntries(defaultEntries);
+    setBatchError(null);
+    setBatchDialogOpen(true);
+  };
+
+  const handleBatchSubmit = async () => {
+    setBatchSaving(true);
+    setBatchError(null);
+    try {
+      await api.post("/api/timetable/batch", {
+        department: filterDept,
+        semester: Number(filterSemester),
+        shift: filterShift,
+        entries: batchEntries,
+      });
+      setBatchDialogOpen(false);
+      await loadTimetable();
+      router.refresh();
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } };
+      setBatchError(axiosErr.response?.data?.error ?? "Failed to create batch schedule");
+    } finally {
+      setBatchSaving(false);
+    }
+  };
 
   const filteredCourses = useMemo(() => {
     const semester = Number(filterSemester);
@@ -322,17 +468,14 @@ export default function TimetablePage() {
       setMutationError(
         axiosErr.response?.data?.error ?? "Failed to save timetable entry",
       );
+      setDialogOpen(false);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (entry: TimetableApiEntry) => {
-    const confirmed = window.confirm(
-      `Delete ${entry.course.courseCode} on ${entry.day} at ${to12HourTime(entry.startTime)}?`,
-    );
-    if (!confirmed) return;
-
+    setDeletingTimetableId(entry.id);
     setMutationError(null);
     try {
       await api.delete(`/api/timetable/${entry.id}`);
@@ -343,80 +486,14 @@ export default function TimetablePage() {
       setMutationError(
         axiosErr.response?.data?.error ?? "Failed to delete timetable entry",
       );
+    } finally {
+      setDeletingTimetableId(null);
     }
   };
 
   const handleExportPdf = () => {
     setMutationError(null);
-    const printWindow = window.open("", "_blank", "width=1200,height=900");
-    if (!printWindow) {
-      setMutationError(
-        "Unable to open print window. Please allow pop-ups and try again.",
-      );
-      return;
-    }
-
-    const generatedAt = new Date().toLocaleString();
-    const currentSlots = slots;
-
-    const rows = currentSlots.map((slot) => {
-      const daySlots = DAYS.map((day) => {
-        const slotStart = timeToMinutes(slot.start);
-        const slotEnd = timeToMinutes(slot.end);
-        const entry = timetable.find((t) => {
-          if (t.day !== day) return false;
-          const classStart = timeToMinutes(t.startTime);
-          const classEnd = timeToMinutes(t.endTime);
-          return classStart < slotEnd && classEnd > slotStart;
-        });
-
-        if (!entry) return "<td>-</td>";
-
-        return `<td><strong>${entry.course.courseCode}</strong><br/>${entry.course.courseName}<br/>${entry.room}<br/>${entry.course.faculty?.user.name ?? "Unassigned"}</td>`;
-      }).join("");
-
-      return `<tr><th>${to12HourTime(slot.start)} - ${to12HourTime(slot.end)}</th>${daySlots}</tr>`;
-    }).join("");
-
-    const html = `<!doctype html>
-<html>
-  <head>
-    <title>Timetable ${filterDept} Sem ${filterSemester} (${filterShift})</title>
-    <style>
-      body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
-      h1 { margin: 0; font-size: 24px; }
-      p { margin: 6px 0; color: #4b5563; }
-      table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-      th, td { border: 1px solid #d1d5db; padding: 8px; font-size: 12px; vertical-align: top; }
-      th { background: #f3f4f6; }
-      td { min-width: 130px; }
-    </style>
-  </head>
-  <body>
-    <h1>Department Timetable</h1>
-    <p>Department: ${filterDept}</p>
-    <p>Semester: ${filterSemester}</p>
-    <p>Shift: ${filterShift}</p>
-    <p>Generated: ${generatedAt}</p>
-    <table>
-      <thead>
-        <tr>
-          <th>Time</th>
-          ${DAYS.map((day) => `<th>${day}</th>`).join("")}
-        </tr>
-      </thead>
-      <tbody>
-        ${rows}
-      </tbody>
-    </table>
-  </body>
-</html>`;
-
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+    setPdfModalOpen(true);
   };
 
   const getClassForSlot = (day: string, slot: { start: string; end: string }) => {
@@ -457,6 +534,19 @@ export default function TimetablePage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
+      {/* Floating Top Warning/Error Toast */}
+      {mutationError && (
+        <motion.div
+          initial={{ opacity: 0, y: -20, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -20, scale: 0.95 }}
+          className="fixed top-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl bg-rose-600 text-white shadow-2xl border border-rose-400 font-bold text-sm"
+        >
+          <AlertTriangle className="h-5 w-5 shrink-0" />
+          <span>{mutationError}</span>
+        </motion.div>
+      )}
+
       <PageHeader
         title="Manage Timetable"
         subtitle="Create, edit, and export class schedules"
@@ -465,13 +555,43 @@ export default function TimetablePage() {
           { label: "Timetable" },
         ]}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {selectedTimetableIds.length > 0 && (
+              <>
+                <Button
+                  variant="destructive"
+                  className="h-9 gap-2 font-bold"
+                  onClick={() => setConfirmDeleteTarget("bulk")}
+                  disabled={deletingTimetableId === "bulk"}
+                >
+                  {deletingTimetableId === "bulk" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                  Delete Selected ({selectedTimetableIds.length})
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-9 font-semibold text-muted-foreground hover:text-foreground"
+                  onClick={() => setSelectedTimetableIds([])}
+                >
+                  Cancel Selection
+                </Button>
+              </>
+            )}
             <Button
               variant="outline"
               className="h-9 gap-2"
               onClick={handleExportPdf}
             >
-              <Download className="h-4 w-4" /> Export PDF
+              <Download className="h-4 w-4" /> View / Export PDF
+            </Button>
+            <Button
+              onClick={() => openBatchDialog()}
+              className="bg-purple-600 hover:bg-purple-700 text-white h-9 shadow-lg shadow-purple-600/20 gap-1.5"
+            >
+              <Sparkles className="h-4 w-4" /> Batch Generator
             </Button>
             <Button
               onClick={() => openCreateDialog()}
@@ -542,51 +662,70 @@ export default function TimetablePage() {
         </div>
 
         <div className="p-4 bg-card border rounded-2xl shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-2">
-            <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-              <Clock className="h-4 w-4 text-brand-primary" /> Shift Grid Settings ({filterShift})
-            </h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-2 gap-2">
+            <div className="flex items-center gap-3">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Clock className="h-4 w-4 text-brand-primary" /> Shift Grid Settings ({filterShift})
+              </h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setGridLocked(!gridLocked)}
+                className={`h-7 text-xs font-semibold gap-1.5 rounded-lg border transition-all ${
+                  gridLocked
+                    ? "border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20"
+                    : "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20"
+                }`}
+              >
+                {gridLocked ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
+                {gridLocked ? "Locked (Click to Unlock)" : "Unlocked (Editing Allowed)"}
+              </Button>
+            </div>
             <span className="text-xs text-muted-foreground">Define grid start time, slot duration, and slots count</span>
           </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-zinc-600 dark:text-zinc-400">Start Time</Label>
               <Input
                 type="time"
+                disabled={gridLocked}
                 value={gridStart}
                 onChange={(e) => setGridStart(e.target.value)}
-                className="h-9"
+                className="h-9 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-zinc-600 dark:text-zinc-400">Slot Duration (Mins)</Label>
               <Input
                 type="number"
+                disabled={gridLocked}
                 min="5"
                 max="180"
                 value={gridDuration}
                 onChange={(e) => setGridDuration(Number(e.target.value))}
-                className="h-9"
+                className="h-9 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-zinc-600 dark:text-zinc-400">Total Slots</Label>
               <Input
                 type="number"
+                disabled={gridLocked}
                 min="1"
                 max="20"
                 value={gridSlotsCount}
                 onChange={(e) => setGridSlotsCount(Number(e.target.value))}
-                className="h-9"
+                className="h-9 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
             <Button
               onClick={handleSaveSettings}
-              disabled={settingsSaving}
+              disabled={settingsSaving || gridLocked}
               size="sm"
-              className="bg-brand-primary hover:bg-brand-primary/95 text-white h-9 shadow-sm"
+              className="bg-brand-primary hover:bg-brand-primary/95 text-white h-9 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {settingsSaving ? "Saving..." : "Save Grid Config"}
+              {settingsSaving ? "Saving..." : "Save Time Table Slots"}
             </Button>
           </div>
         </div>
@@ -600,12 +739,6 @@ export default function TimetablePage() {
         {error && (
           <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {error}
-          </div>
-        )}
-
-        {mutationError && (
-          <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {mutationError}
           </div>
         )}
 
@@ -665,7 +798,14 @@ export default function TimetablePage() {
                                     </Badge>
                                   </div>
 
-                                  <div className="flex items-center gap-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedTimetableIds.includes(cls.id)}
+                                      onChange={() => handleToggleSelectSlot(cls.id)}
+                                      className="h-4 w-4 rounded accent-brand-primary cursor-pointer"
+                                      title="Select slot for bulk deletion"
+                                    />
                                     <button
                                       onClick={() => openEditDialog(cls)}
                                       className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-brand-primary/20"
@@ -674,11 +814,16 @@ export default function TimetablePage() {
                                       <Pencil className="h-3.5 w-3.5 text-brand-primary" />
                                     </button>
                                     <button
-                                      onClick={() => handleDelete(cls)}
-                                      className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-rose-100"
+                                      onClick={() => setConfirmDeleteTarget(cls)}
+                                      disabled={deletingTimetableId === cls.id}
+                                      className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-rose-100 disabled:opacity-50"
                                       title="Delete entry"
                                     >
-                                      <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+                                      {deletingTimetableId === cls.id ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-600" />
+                                      ) : (
+                                        <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+                                      )}
                                     </button>
                                   </div>
                                 </div>
@@ -757,12 +902,57 @@ export default function TimetablePage() {
                 <SelectContent>
                   {filteredCourses.map((course) => (
                     <SelectItem key={course.id} value={course.id}>
-                      {course.courseCode} - {course.courseName} (Sem{" "}
-                      {course.semester})
+                      {course.courseCode} - {course.courseName} (Sem {course.semester})
+                      {(!course.facultyName || course.facultyName === "Unassigned") && " ⚠️ [No Teacher]"}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+
+              {/* Unassigned Teacher Guard Banner */}
+              {(() => {
+                const selectedCourse = courses.find((c) => c.id === form.courseId);
+                const isUnassigned = !selectedCourse?.facultyName || selectedCourse.facultyName === "Unassigned";
+                if (!selectedCourse || !isUnassigned) return null;
+
+                return (
+                  <div className="mt-2 rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 text-xs space-y-2">
+                    <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-bold">
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                      Subject Unassigned: No teacher assigned to {selectedCourse.courseCode}
+                    </div>
+                    <p className="text-muted-foreground">
+                      Assign a teacher below before finalizing this timetable entry:
+                    </p>
+                    <div className="flex items-center gap-2 pt-1">
+                      <Select
+                        value={selectedTeacherToAssign}
+                        onValueChange={setSelectedTeacherToAssign}
+                      >
+                        <SelectTrigger className="h-9 bg-card text-xs rounded-lg">
+                          <SelectValue placeholder="Select Faculty Member..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {facultyList.map((fac) => (
+                            <SelectItem key={fac.id} value={fac.id}>
+                              {fac.name} ({fac.department})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        size="sm"
+                        disabled={!selectedTeacherToAssign || assigningTeacher}
+                        onClick={() => handleAssignTeacher(selectedCourse.id, selectedTeacherToAssign)}
+                        className="h-9 bg-amber-600 hover:bg-amber-700 text-white text-xs gap-1 rounded-lg shrink-0"
+                      >
+                        {assigningTeacher ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserCheck className="h-3.5 w-3.5" />}
+                        Assign Teacher
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="grid gap-2">
@@ -863,7 +1053,10 @@ export default function TimetablePage() {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={saving}
+              disabled={saving || (() => {
+                const c = courses.find((x) => x.id === form.courseId);
+                return !c?.facultyName || c.facultyName === "Unassigned";
+              })()}
               className="bg-brand-primary hover:bg-brand-primary/90 text-white"
             >
               {saving
@@ -873,6 +1066,299 @@ export default function TimetablePage() {
                   : "Add Entry"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Batch Schedule Generator Dialog */}
+      <Dialog open={batchDialogOpen} onOpenChange={setBatchDialogOpen}>
+        <DialogContent className="sm:max-w-[750px] max-h-[85vh] overflow-y-auto rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Sparkles className="h-6 w-6 text-purple-600" />
+              Batch Schedule Generator — {filterDept} (Sem {filterSemester})
+            </DialogTitle>
+            <DialogDescription>
+              Generate or update class timetable entries for all courses in this semester in a single action.
+            </DialogDescription>
+          </DialogHeader>
+
+          {batchError && (
+            <div className="rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs text-rose-600 dark:bg-rose-950/20 dark:border-rose-900/50 dark:text-rose-400 font-medium">
+              {batchError}
+            </div>
+          )}
+
+          <div className="space-y-4 py-2">
+            <div className="text-xs text-muted-foreground bg-muted/40 p-3 rounded-xl flex items-center justify-between">
+              <span>Target Shift: <strong className="text-foreground">{filterShift}</strong></span>
+              <span>Semester Courses: <strong className="text-foreground">{batchEntries.length}</strong></span>
+            </div>
+
+            <div className="space-y-3">
+              {batchEntries.map((entry, idx) => {
+                const course = courses.find((c) => c.id === entry.courseId);
+                const isUnassigned = !course?.facultyName || course.facultyName === "Unassigned";
+
+                return (
+                  <div key={entry.courseId} className="p-4 bg-card border border-border rounded-2xl space-y-3 shadow-xs">
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-foreground">{course?.courseCode} - {course?.courseName}</span>
+                        {isUnassigned ? (
+                          <Badge variant="destructive" className="text-[10px] py-0 px-2 uppercase font-bold">
+                            Unassigned Teacher
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] py-0 px-2 font-mono text-emerald-600 border-emerald-500/30">
+                            {course?.facultyName}
+                          </Badge>
+                        )}
+                      </div>
+
+                      {isUnassigned && (
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={selectedTeacherToAssign}
+                            onValueChange={setSelectedTeacherToAssign}
+                          >
+                            <SelectTrigger className="h-8 text-xs w-[180px] rounded-lg">
+                              <SelectValue placeholder="Assign teacher..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {facultyList.map((f) => (
+                                <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            size="sm"
+                            disabled={!selectedTeacherToAssign || assigningTeacher}
+                            onClick={() => handleAssignTeacher(entry.courseId, selectedTeacherToAssign)}
+                            className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded-lg shrink-0"
+                          >
+                            Assign
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div>
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Day</Label>
+                        <Select
+                          value={entry.day}
+                          onValueChange={(val) => {
+                            setBatchEntries((prev) =>
+                              prev.map((e) => ({ ...e, day: val }))
+                            );
+                          }}
+                        >
+                          <SelectTrigger className="h-9 text-xs rounded-xl">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {TIMETABLE_DAYS.map((d) => (
+                              <SelectItem key={d} value={d}>{d}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Start Time</Label>
+                        <Input
+                          type="time"
+                          value={entry.startTime}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setBatchEntries((prev) =>
+                              prev.map((item, i) =>
+                                i === idx
+                                  ? { ...item, startTime: val, endTime: add45Minutes(val, gridDuration) }
+                                  : item
+                              )
+                            );
+                          }}
+                          className="h-9 text-xs rounded-xl font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">End Time</Label>
+                        <Input
+                          type="time"
+                          value={entry.endTime}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setBatchEntries((prev) =>
+                              prev.map((item, i) => (i === idx ? { ...item, endTime: val } : item))
+                            );
+                          }}
+                          className="h-9 text-xs rounded-xl font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Room</Label>
+                        <Input
+                          value={entry.room}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setBatchEntries((prev) =>
+                              prev.map((item, i) => (i === idx ? { ...item, room: val } : item))
+                            );
+                          }}
+                          className="h-9 text-xs rounded-xl"
+                          placeholder="e.g. Room 101"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 pt-4">
+            <Button variant="outline" onClick={() => setBatchDialogOpen(false)} className="rounded-xl">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleBatchSubmit}
+              disabled={batchSaving}
+              className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl gap-2 shadow-lg shadow-purple-600/20"
+            >
+              {batchSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {batchSaving ? "Generating Schedule..." : "Create All Timetable Slots"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!confirmDeleteTarget} onOpenChange={(open) => { if (!open) setConfirmDeleteTarget(null); }}>
+        <DialogContent className="sm:max-w-[420px] rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-rose-600 font-bold">
+              <AlertTriangle className="h-5 w-5" />
+              Confirm Timetable Deletion
+            </DialogTitle>
+            <DialogDescription>
+              {confirmDeleteTarget === "bulk"
+                ? `Are you sure you want to delete ${selectedTimetableIds.length} selected timetable slots? This operation cannot be undone.`
+                : `Are you sure you want to delete the timetable slot for "${(confirmDeleteTarget as TimetableApiEntry)?.course?.courseName}" on ${(confirmDeleteTarget as TimetableApiEntry)?.day}?`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 pt-2">
+            <Button variant="outline" onClick={() => setConfirmDeleteTarget(null)} className="rounded-xl">
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (confirmDeleteTarget === "bulk") {
+                  handleBulkDeleteSlots();
+                } else if (confirmDeleteTarget) {
+                  handleDelete(confirmDeleteTarget);
+                }
+                setConfirmDeleteTarget(null);
+              }}
+              className="rounded-xl font-bold bg-rose-600 hover:bg-rose-700"
+            >
+              Confirm Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* In-App PDF Preview Dialog */}
+      <Dialog open={pdfModalOpen} onOpenChange={setPdfModalOpen}>
+        <DialogContent showCloseButton={false} className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto rounded-3xl p-6">
+          <DialogHeader className="flex flex-row items-center justify-between border-b pb-4">
+            <div>
+              <DialogTitle className="text-xl font-bold text-brand-primary">
+                Timetable PDF Schedule Preview
+              </DialogTitle>
+              <DialogDescription>
+                {filterDept} — Semester {filterSemester} ({filterShift} Shift)
+              </DialogDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => {
+                  const printContent = document.getElementById("printable-timetable-area");
+                  if (!printContent) return;
+                  const win = window.open("", "", "width=1200,height=900");
+                  if (!win) return;
+                  win.document.write(`<!doctype html><html><head><title>Timetable - ${filterDept} Sem ${filterSemester}</title><style>body{font-family:sans-serif;padding:24px;color:#111827;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #cbd5e1;padding:8px;font-size:11px;vertical-align:top;}th{background:#f1f5f9;}</style></head><body>${printContent.innerHTML}</body></html>`);
+                  win.document.close();
+                  win.focus();
+                  win.print();
+                }}
+                className="bg-brand-primary text-white h-9 rounded-xl gap-2 text-xs"
+              >
+                <Download className="h-4 w-4" /> Print / Export PDF
+              </Button>
+              <Button variant="outline" onClick={() => setPdfModalOpen(false)} className="h-9 rounded-xl text-xs">
+                Close
+              </Button>
+            </div>
+          </DialogHeader>
+
+          <div id="printable-timetable-area" className="p-4 bg-white dark:bg-zinc-900 rounded-2xl border text-foreground space-y-4">
+            <div className="border-b pb-3">
+              <h2 className="text-lg font-bold text-blue-900 dark:text-blue-300">College Management Portal — Timetable Schedule</h2>
+              <div className="flex flex-wrap gap-4 text-xs font-semibold text-muted-foreground mt-1">
+                <span>Department: <strong>{filterDept}</strong></span>
+                <span>Semester: <strong>{filterSemester}</strong></span>
+                <span>Shift: <strong>{filterShift}</strong></span>
+                <span>Generated: <strong>{new Date().toLocaleString()}</strong></span>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse border border-zinc-300 dark:border-zinc-700 text-xs">
+                <thead>
+                  <tr className="bg-zinc-100 dark:bg-zinc-800">
+                    <th className="border border-zinc-300 dark:border-zinc-700 p-2 text-left w-28">Time Slot</th>
+                    {DAYS.map((day) => (
+                      <th key={day} className="border border-zinc-300 dark:border-zinc-700 p-2 text-left font-bold">{day}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {slots.map((slot) => (
+                    <tr key={`${slot.start}-${slot.end}`}>
+                      <td className="border border-zinc-300 dark:border-zinc-700 p-2 font-bold whitespace-nowrap bg-zinc-50 dark:bg-zinc-800/50">
+                        {to12HourTime(slot.start)} - {to12HourTime(slot.end)}
+                      </td>
+                      {DAYS.map((day) => {
+                        const entry = timetable.find((t) => {
+                          if (t.day !== day) return false;
+                          const classStart = timeToMinutes(t.startTime);
+                          const classEnd = timeToMinutes(t.endTime);
+                          const slotStart = timeToMinutes(slot.start);
+                          const slotEnd = timeToMinutes(slot.end);
+                          return classStart < slotEnd && classEnd > slotStart;
+                        });
+
+                        if (!entry) return <td key={day} className="border border-zinc-300 dark:border-zinc-700 p-2 text-muted-foreground">—</td>;
+
+                        return (
+                          <td key={day} className="border border-zinc-300 dark:border-zinc-700 p-2 align-top bg-blue-50/50 dark:bg-blue-950/20">
+                            <div className="font-bold text-brand-primary text-xs">{entry.course?.courseCode}</div>
+                            <div className="font-medium text-foreground">{entry.course?.courseName}</div>
+                            <div className="text-[11px] text-muted-foreground">Room: {entry.room}</div>
+                            <div className="text-[11px] text-muted-foreground">Teacher: {entry.course?.faculty?.user?.name ?? "Unassigned"}</div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </motion.div>

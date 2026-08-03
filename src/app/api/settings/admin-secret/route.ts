@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-guard";
 import { handleApiError } from "@/lib/api-errors";
@@ -20,36 +20,49 @@ export async function GET() {
     const dbSettings = await prisma.systemSettings.findUnique({
       where: { key: "admin_onboarding_secret" },
     });
-    
-    if (!dbSettings) {
+
+    const dbExpiresAt = await prisma.systemSettings.findUnique({
+      where: { key: "admin_onboarding_secret_expires_at" },
+    });
+
+    if (!dbSettings || !dbSettings.value) {
       return NextResponse.json({ secret: "" });
     }
-    
+
     const now = Date.now();
-    const updatedAtTime = new Date(dbSettings.updatedAt).getTime();
-    const isExpired = now - updatedAtTime > 5 * 60 * 1000;
-    
-    if (isExpired) {
+    const expiresAtTime = dbExpiresAt?.value ? new Date(dbExpiresAt.value).getTime() : new Date(dbSettings.updatedAt).getTime() + 60 * 60 * 1000;
+
+    if (now >= expiresAtTime) {
       return NextResponse.json({ secret: "" });
     }
-    
-    const expiresAt = new Date(updatedAtTime + 5 * 60 * 1000).toISOString();
+
     return NextResponse.json({
       secret: dbSettings.value,
-      expiresAt,
+      expiresAt: new Date(expiresAtTime).toISOString(),
     });
   } catch (error) {
     return handleApiError("GET /api/settings/admin-secret", error);
   }
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   const denied = await requireRole(["ADMIN"]);
   if (denied) return denied;
 
   try {
+    let expiryHours = 1;
+    try {
+      const body = await request.json();
+      if (body && typeof body.expiryHours === "number" && body.expiryHours > 0) {
+        expiryHours = body.expiryHours;
+      }
+    } catch {
+      // Default to 1 hour
+    }
+
     const generatedSecret = generateSecretKey();
     const now = new Date();
+    const expiresAt = new Date(now.getTime() + expiryHours * 60 * 60 * 1000);
 
     const settings = await prisma.systemSettings.upsert({
       where: { key: "admin_onboarding_secret" },
@@ -57,12 +70,17 @@ export async function POST() {
       create: { key: "admin_onboarding_secret", value: generatedSecret },
     });
 
-    const expiresAt = new Date(now.getTime() + 5 * 60 * 1000).toISOString();
+    await prisma.systemSettings.upsert({
+      where: { key: "admin_onboarding_secret_expires_at" },
+      update: { value: expiresAt.toISOString(), updatedAt: now },
+      create: { key: "admin_onboarding_secret_expires_at", value: expiresAt.toISOString() },
+    });
 
     return NextResponse.json({
       success: true,
       secret: settings.value,
-      expiresAt,
+      expiresAt: expiresAt.toISOString(),
+      expiryHours,
     });
   } catch (error) {
     return handleApiError("POST /api/settings/admin-secret", error);

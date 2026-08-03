@@ -9,29 +9,55 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const denied = await requireRole(["ADMIN"]);
+  const denied = await requireRole(["ADMIN", "FACULTY"]);
   if (denied) return denied;
 
   try {
     const { userId } = await auth();
     const { id } = await params;
     const body = (await request.json()) as {
+      rollNo?: string;
       phone?: string;
       department?: string;
       semester?: number;
       avatar?: string;
       shift?: string;
+      blocked?: boolean;
+      readmitRequested?: boolean;
+    };
+
+    if (body.blocked === false) {
+      const dbUser = await prisma.user.findUnique({
+        where: { clerkId: userId ?? "" },
+        select: { role: true },
+      });
+      if (dbUser?.role === "FACULTY") {
+        return NextResponse.json(
+          { error: "Forbidden: Only admins can readmit a student." },
+          { status: 403 }
+        );
+      }
+    }
+
+    const updateData: Prisma.StudentUpdateInput = {
+      ...(body.rollNo !== undefined ? { rollNo: body.rollNo } : {}),
+      ...(body.phone !== undefined ? { phone: body.phone } : {}),
+      ...(body.department !== undefined ? { department: body.department } : {}),
+      ...(body.semester !== undefined ? { semester: body.semester } : {}),
+      ...(body.avatar !== undefined ? { avatar: body.avatar } : {}),
+      ...(body.shift !== undefined ? { shift: body.shift } : {}),
+      ...(body.blocked !== undefined
+        ? {
+            blocked: body.blocked,
+            ...(body.blocked === false ? { readmitRequested: false } : {}),
+          }
+        : {}),
+      ...(body.readmitRequested !== undefined ? { readmitRequested: body.readmitRequested } : {}),
     };
 
     const student = await prisma.student.update({
       where: { id },
-      data: {
-        ...(body.phone !== undefined ? { phone: body.phone } : {}),
-        ...(body.department !== undefined ? { department: body.department } : {}),
-        ...(body.semester !== undefined ? { semester: body.semester } : {}),
-        ...(body.avatar !== undefined ? { avatar: body.avatar } : {}),
-        ...(body.shift !== undefined ? { shift: body.shift } : {}),
-      },
+      data: updateData,
       include: { user: { select: { name: true } } },
     });
 
@@ -42,7 +68,7 @@ export async function PATCH(
           action: "UPDATED",
           entity: "Student",
           entityId: id,
-          description: `Edited student profile: ${student.user.name ?? student.rollNo}`,
+          description: `Edited student profile: ${student.user.name ?? student.rollNo} (Roll No: ${student.rollNo}, Dept: ${student.department}, Sem: ${student.semester})`,
           adminClerkId: userId,
           adminName,
         });

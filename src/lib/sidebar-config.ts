@@ -16,6 +16,7 @@ import {
   PenTool,
   User,
   Shield,
+  UserCheck,
 } from "lucide-react";
 import type { UserRole } from "@/types";
 
@@ -29,10 +30,11 @@ export interface NavItem {
 const adminNav: NavItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { title: "Manage Students", href: "/dashboard/students", icon: Users },
+  { title: "Student Attendance", href: "/dashboard/attendance", icon: ClipboardCheck },
   { title: "Manage Faculty", href: "/dashboard/faculty", icon: GraduationCap },
+  { title: "Faculty Attendance", href: "/dashboard/faculty-attendance", icon: UserCheck },
   { title: "Manage Courses", href: "/dashboard/courses", icon: BookOpen },
   { title: "Admissions", href: "/dashboard/admissions", icon: UserPlus },
-  { title: "Attendance", href: "/dashboard/attendance", icon: ClipboardCheck },
   { title: "Manage Dues", href: "/dashboard/dues", icon: CreditCard },
   { title: "Announcements", href: "/dashboard/announcements", icon: MessageSquare },
   { title: "Timetable", href: "/dashboard/timetable", icon: Calendar },
@@ -45,11 +47,11 @@ const adminNav: NavItem[] = [
 const facultyNav: NavItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { title: "My Classes", href: "/dashboard/classes", icon: BookOpen },
-  { title: "My Students", href: "/dashboard/students", icon: Users },
+  { title: "My Attendance", href: "/dashboard/faculty-attendance", icon: UserCheck },
   { title: "Mark Attendance", href: "/dashboard/mark-attendance", icon: ClipboardCheck },
   { title: "Manage Grades", href: "/dashboard/grades", icon: BarChart3 },
   { title: "Question Bank", href: "/dashboard/question-bank", icon: FileQuestion },
-  { title: "Manage Quizzes", href: "/dashboard/quizzes", icon: PenTool },
+  { title: "Quizzes & Assignments", href: "/dashboard/quizzes", icon: PenTool },
   { title: "Feedback", href: "/dashboard/feedback", icon: MessageCircle },
   { title: "Profile", href: "/dashboard/settings", icon: User },
 ];
@@ -61,7 +63,7 @@ const studentNav: NavItem[] = [
   { title: "Grades", href: "/dashboard/my-grades", icon: BarChart3 },
   { title: "Dues", href: "/dashboard/my-dues", icon: CreditCard },
   { title: "Timetable", href: "/dashboard/my-timetable", icon: Calendar },
-  { title: "Quizzes", href: "/dashboard/take-quiz", icon: PenTool },
+  { title: "Quizzes & Assignments", href: "/dashboard/take-quiz", icon: PenTool },
   { title: "Feedback", href: "/dashboard/submit-feedback", icon: MessageSquare },
   { title: "Profile", href: "/dashboard/settings", icon: User },
 ];

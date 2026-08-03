@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     // Load user role
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { role: true },
+      select: { id: true, role: true },
     });
 
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -23,12 +23,21 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = request.nextUrl;
     const department = searchParams.get("department");
+    const semester = searchParams.get("semester");
     const search = searchParams.get("search");
     const courseId = searchParams.get("courseId");
+
+    let faculty = null;
+    if (user.role === "FACULTY") {
+      faculty = await prisma.faculty.findUnique({
+        where: { userId: user.id },
+      });
+    }
 
     const students = await prisma.student.findMany({
       where: {
         ...(department ? { department } : {}),
+        ...(semester ? { semester: Number(semester) } : {}),
         ...(search
           ? {
               OR: [
@@ -38,9 +47,18 @@ export async function GET(request: NextRequest) {
             }
           : {}),
         ...(courseId ? { enrollments: { some: { courseId } } } : {}),
+        ...(user.role === "FACULTY" && faculty
+          ? {
+              OR: [
+                { department: faculty.department },
+                { enrollments: { some: { course: { assignedFaculty: faculty.id } } } },
+              ],
+            }
+          : {}),
       },
       include: {
         user: { select: { name: true, email: true } },
+        enrollments: { select: { id: true, courseId: true, blocked: true, readmitRequested: true } },
         _count: { select: { enrollments: true } },
       },
     });
@@ -53,12 +71,16 @@ export async function GET(request: NextRequest) {
       department: s.department,
       semester: s.semester,
       shift: s.shift,
+      blocked: s.blocked,
+      readmitRequested: s.readmitRequested,
       enrollmentDate: s.enrollmentDate.toISOString(),
       avatar: s.avatar,
+      approvedBy: s.approvedBy,
       user: {
         name: s.user.name,
         email: s.user.email,
       },
+      enrollments: s.enrollments,
       _count: {
         enrollments: s._count.enrollments,
       },
