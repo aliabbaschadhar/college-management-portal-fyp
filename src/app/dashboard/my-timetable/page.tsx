@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { api } from "@/lib/axios";
-import { Clock, RefreshCw, Calendar } from "lucide-react";
+import { Clock, RefreshCw, Calendar, Download, Palette, FileText } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion } from "framer-motion";
 import { TableSkeleton } from "@/components/ui";
@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 
 interface TimetableEntry {
@@ -33,37 +34,54 @@ interface TimetableEntry {
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-
 const COLOR_PALETTE = [
   {
     bg: "bg-blue-500/15",
     text: "text-blue-600 dark:text-blue-400",
     border: "border-blue-500/30",
+    hexBg: "#eff6ff",
+    hexText: "#1d4ed8",
+    hexBorder: "#93c5fd",
   },
   {
     bg: "bg-emerald-500/15",
     text: "text-emerald-600 dark:text-emerald-400",
     border: "border-emerald-500/30",
+    hexBg: "#ecfdf5",
+    hexText: "#047857",
+    hexBorder: "#6ee7b7",
   },
   {
     bg: "bg-purple-500/15",
     text: "text-purple-600 dark:text-purple-400",
     border: "border-purple-500/30",
+    hexBg: "#faf5ff",
+    hexText: "#7e22ce",
+    hexBorder: "#c084fc",
   },
   {
     bg: "bg-amber-500/15",
     text: "text-amber-600 dark:text-amber-400",
     border: "border-amber-500/30",
+    hexBg: "#fffbeb",
+    hexText: "#b45309",
+    hexBorder: "#fcd34d",
   },
   {
     bg: "bg-rose-500/15",
     text: "text-rose-600 dark:text-rose-400",
     border: "border-rose-500/30",
+    hexBg: "#fff1f2",
+    hexText: "#be123c",
+    hexBorder: "#fda4af",
   },
   {
     bg: "bg-cyan-500/15",
     text: "text-cyan-600 dark:text-cyan-400",
     border: "border-cyan-500/30",
+    hexBg: "#ecfeff",
+    hexText: "#0e7490",
+    hexBorder: "#67e8f9",
   },
 ];
 
@@ -92,6 +110,8 @@ export default function MyTimetablePage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedSlotModal, setSelectedSlotModal] = useState<TimetableEntry | null>(null);
+  const [pdfModalOpen, setPdfModalOpen] = useState<boolean>(false);
+  const [exportMode, setExportMode] = useState<"color" | "bw">("color");
 
   // Dynamic grid configuration states
   const [gridStart, setGridStart] = useState("07:45");
@@ -176,13 +196,48 @@ export default function MyTimetablePage() {
   }, [timetable]);
 
   const courseColors = useMemo(() => {
-    const map: Record<string, { bg: string; text: string; border: string }> =
-      {};
+    const map: Record<
+      string,
+      { bg: string; text: string; border: string; hexBg: string; hexText: string; hexBorder: string }
+    > = {};
     uniqueCourses.forEach((t, i) => {
       map[t.course.courseCode] = COLOR_PALETTE[i % COLOR_PALETTE.length];
     });
     return map;
   }, [uniqueCourses]);
+
+  const sequentialLecturesByDay = useMemo(() => {
+    const map: Record<string, TimetableEntry[]> = {};
+    DAYS.forEach((d) => {
+      map[d] = [];
+    });
+
+    timetable.forEach((item) => {
+      if (map[item.day]) {
+        map[item.day].push(item);
+      }
+    });
+
+    DAYS.forEach((d) => {
+      map[d].sort(
+        (a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
+      );
+    });
+
+    let maxLectures = 0;
+    DAYS.forEach((d) => {
+      if (map[d].length > maxLectures) {
+        maxLectures = map[d].length;
+      }
+    });
+
+    if (maxLectures === 0) {
+      maxLectures = 1;
+    }
+
+    const rows = Array.from({ length: maxLectures }, (_, i) => i);
+    return { map, maxLectures, rows };
+  }, [timetable]);
 
   const days = [
     "Sunday",
@@ -263,16 +318,27 @@ export default function MyTimetablePage() {
           { label: "Timetable" },
         ]}
         action={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="geo-pressable flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer rounded-xl"
-          >
-            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPdfModalOpen(true)}
+              className="geo-pressable flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer rounded-xl font-bold text-xs"
+            >
+              <Download className="h-4 w-4 text-brand-primary" />
+              Export PDF
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="geo-pressable flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-pointer rounded-xl font-bold text-xs"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
         }
       />
 
@@ -282,8 +348,8 @@ export default function MyTimetablePage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/55">
-                <th className="text-left py-3 px-4 font-semibold text-foreground w-24">
-                  <Clock className="h-4 w-4" />
+                <th className="text-center py-3 px-3 font-bold text-xs uppercase tracking-wider text-muted-foreground w-24">
+                  Lecture
                 </th>
                 {DAYS.map((day) => (
                   <th
@@ -304,56 +370,64 @@ export default function MyTimetablePage() {
               </tr>
             </thead>
             <tbody>
-              {slots.map((slot) => (
-                <tr key={`${slot.start}-${slot.end}`} className="border-b border-border/50">
-                  <td className="py-3 px-4 text-[10px] sm:text-xs font-mono text-muted-foreground whitespace-nowrap">
-                    {format12Hour(slot.start)} - {format12Hour(slot.end)}
+              {sequentialLecturesByDay.rows.map((lectureIdx) => (
+                <tr key={`lecture-${lectureIdx}`} className="border-b border-border/50">
+                  <td className="py-3 px-3 text-center text-xs font-bold text-muted-foreground whitespace-nowrap">
+                    Lecture {lectureIdx + 1}
                   </td>
                   {DAYS.map((day) => {
-                    const cls = getClassForSlot(day, slot);
-                    const isCurrent = isCurrentSlot(day, slot);
+                    const cls = sequentialLecturesByDay.map[day]?.[lectureIdx];
+                    const isCurrent = cls ? isCurrentSlot(day, { start: cls.startTime, end: cls.endTime }) : false;
                     const colors = cls
                       ? courseColors[cls.course.courseCode]
                       : null;
 
                     if (cls) {
-                      if (!isFirstSlotForClass(cls, slot, slots)) {
-                        return null;
-                      }
-                      const span = getClassRowSpan(cls, slots);
-
                       return (
                         <td
-                          key={day}
-                          rowSpan={span}
+                          key={`${day}-${cls.id}`}
                           className={`p-1 ${isCurrent ? "ring-2 ring-brand-primary ring-inset" : ""}`}
                         >
                           <div
                             onClick={() => setSelectedSlotModal(cls)}
-                            className={`rounded-xl p-2.5 h-full ${colors?.bg} border ${colors?.border} hover:scale-[1.03] cursor-pointer shadow-xs transition-all flex flex-col justify-between`}
+                            className={`rounded-xl p-3 h-full ${colors?.bg} border ${colors?.border} hover:scale-[1.02] cursor-pointer shadow-xs transition-all flex flex-col justify-between space-y-1.5`}
                           >
-                            <div>
-                              <p
-                                className={`text-xs font-bold ${colors?.text} leading-tight break-words whitespace-normal`}
-                                title={cls.course.courseCode}
-                              >
-                                {cls.course.courseCode}
-                              </p>
-                              <p
-                                className="text-[10px] text-foreground/90 font-medium break-words whitespace-normal mt-0.5"
-                                title={cls.course.courseName}
-                              >
-                                {cls.course.courseName}
-                              </p>
-                              <p className="text-[10px] text-foreground/80 mt-1 font-medium">
-                                Room: {cls.room}
-                              </p>
-                              <p className="text-[10px] text-muted-foreground font-medium">
-                                Teacher: {cls.course.faculty?.user.name || "Not assigned"}
+                            <div className="space-y-1">
+                              {/* 1. Day Badge */}
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-background/60 text-foreground/80 border border-border/40">
+                                  {day}
+                                </span>
+                                <span className="text-[9px] font-medium text-foreground/75">
+                                  {cls.room}
+                                </span>
+                              </div>
+
+                              {/* 2. Subject */}
+                              <div className="pt-0.5">
+                                <p
+                                  className={`text-xs font-bold ${colors?.text} leading-tight break-words`}
+                                  title={cls.course.courseCode}
+                                >
+                                  {cls.course.courseCode}
+                                </p>
+                                <p
+                                  className="text-[10px] text-foreground/90 font-semibold break-words mt-0.5"
+                                  title={cls.course.courseName}
+                                >
+                                  {cls.course.courseName}
+                                </p>
+                              </div>
+
+                              {/* 3. Teacher (plain text name, no icon) */}
+                              <p className="text-[10px] font-medium text-foreground/80">
+                                {cls.course.faculty?.user.name || "Not assigned"}
                               </p>
                             </div>
-                            <p className="text-[9px] text-muted-foreground/85 mt-2 font-mono">
-                              {format12Hour(cls.startTime)}–{format12Hour(cls.endTime)}
+
+                            {/* 4. Time */}
+                            <p className="text-[9px] font-mono text-muted-foreground/90 pt-1 border-t border-border/20">
+                              {format12Hour(cls.startTime)} – {format12Hour(cls.endTime)}
                             </p>
                           </div>
                         </td>
@@ -362,8 +436,8 @@ export default function MyTimetablePage() {
 
                     return (
                       <td
-                        key={day}
-                        className={`p-1 ${isCurrent ? "bg-brand-primary/5" : ""}`}
+                        key={`${day}-empty-${lectureIdx}`}
+                        className="p-1"
                       >
                         <div className="h-10" />
                       </td>
@@ -422,6 +496,184 @@ export default function MyTimetablePage() {
               Close
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Export Timetable PDF Dialog */}
+      <Dialog open={pdfModalOpen} onOpenChange={setPdfModalOpen}>
+        <DialogContent className="sm:max-w-4xl rounded-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4 gap-4">
+            <div>
+              <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                <Download className="h-5 w-5 text-brand-primary" />
+                Timetable PDF Export Preview
+              </DialogTitle>
+              <DialogDescription>
+                Preview and print your weekly timetable schedule.
+              </DialogDescription>
+
+              {/* Format Selector Toggle: Color vs Black & White */}
+              <div className="flex items-center gap-3 pt-2">
+                <span className="text-xs font-bold text-muted-foreground">Print Format:</span>
+                <div className="flex items-center bg-muted/60 p-1 rounded-xl border border-border">
+                  <button
+                    type="button"
+                    onClick={() => setExportMode("color")}
+                    className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      exportMode === "color"
+                        ? "bg-brand-primary text-white shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Palette className="h-3.5 w-3.5" /> Color
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExportMode("bw")}
+                    className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      exportMode === "bw"
+                        ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <FileText className="h-3.5 w-3.5" /> Black & White
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => {
+                  const printContent = document.getElementById("printable-my-timetable-area");
+                  if (!printContent) return;
+                  const win = window.open("", "", "width=1200,height=900");
+                  if (!win) return;
+                  win.document.write(`<!doctype html><html><head><title>My Timetable Schedule</title><style>*{ -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; } body{ font-family: system-ui, -apple-system, sans-serif; padding: 24px; color: #111827; } table{ width: 100%; border-collapse: collapse; margin-top: 12px; } th, td{ border: 1px solid ${exportMode === "bw" ? "#000000" : "#cbd5e1"}; padding: 8px 10px; font-size: 11px; vertical-align: top; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } th{ background-color: ${exportMode === "bw" ? "#e2e8f0" : "#f1f5f9"}; color: #000000; } @media print{ *{ -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }</style></head><body>${printContent.innerHTML}</body></html>`);
+                  win.document.close();
+                  win.focus();
+                  win.print();
+                }}
+                className="bg-brand-primary text-white h-9 rounded-xl gap-2 text-xs font-bold shadow-md hover:bg-brand-primary/95"
+              >
+                <Download className="h-4 w-4" /> Download / Print PDF
+              </Button>
+              <Button variant="outline" onClick={() => setPdfModalOpen(false)} className="h-9 rounded-xl text-xs">
+                Close
+              </Button>
+            </div>
+          </DialogHeader>
+
+          <div
+            id="printable-my-timetable-area"
+            className={`p-5 rounded-2xl border transition-all space-y-4 ${
+              exportMode === "bw"
+                ? "bg-white text-black border-zinc-400"
+                : "bg-white dark:bg-zinc-900 text-foreground border-border"
+            }`}
+          >
+            <div className="border-b pb-3 flex justify-between items-end">
+              <div>
+                <h2 className={`text-lg font-bold ${exportMode === "bw" ? "text-black" : "text-brand-primary"}`}>
+                  College Management Portal — Class Schedule
+                </h2>
+                <div className="flex flex-wrap gap-4 text-xs font-semibold text-muted-foreground mt-1">
+                  {studentProfile && (
+                    <>
+                      <span>Dept: <strong>{studentProfile.department}</strong></span>
+                      <span>Semester: <strong>{studentProfile.semester}</strong></span>
+                      <span>Shift: <strong>{studentProfile.shift}</strong></span>
+                    </>
+                  )}
+                  <span>Generated: <strong>{new Date().toLocaleDateString()}</strong></span>
+                </div>
+              </div>
+              <div className="text-right">
+                <span
+                  style={
+                    exportMode === "color"
+                      ? { backgroundColor: "#eff6ff", color: "#1d4ed8", borderColor: "#93c5fd" }
+                      : { backgroundColor: "#f4f4f5", color: "#000000", borderColor: "#000000" }
+                  }
+                  className="text-[11px] font-bold uppercase tracking-wider px-2 py-1 rounded border"
+                >
+                  {exportMode === "bw" ? "Black & White Format" : "Color Format"}
+                </span>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse border text-xs">
+                <thead>
+                  <tr className={exportMode === "bw" ? "bg-zinc-200 text-black" : "bg-muted/70 text-foreground"}>
+                    <th className="border p-2 text-center w-24 font-bold">Lecture</th>
+                    {DAYS.map((d) => (
+                      <th key={d} className="border p-2 text-left font-bold">{d}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sequentialLecturesByDay.rows.map((lectureIdx) => (
+                    <tr key={`student-print-lecture-${lectureIdx}`}>
+                      <td className={`border p-2 font-bold text-center whitespace-nowrap ${
+                        exportMode === "bw" ? "bg-zinc-100 text-black border-zinc-400" : "bg-muted/40 text-muted-foreground"
+                      }`}>
+                        Lecture {lectureIdx + 1}
+                      </td>
+                      {DAYS.map((day) => {
+                        const entry = sequentialLecturesByDay.map[day]?.[lectureIdx];
+
+                        if (!entry) return <td key={day} className="border p-2 text-center text-muted-foreground">—</td>;
+
+                        const colors = courseColors[entry.course.courseCode];
+
+                        return (
+                          <td
+                            key={day}
+                            style={
+                              exportMode === "color"
+                                ? {
+                                    backgroundColor: colors?.hexBg ?? "#eff6ff",
+                                    borderColor: colors?.hexBorder ?? "#93c5fd",
+                                  }
+                                : {
+                                    backgroundColor: "#ffffff",
+                                    borderColor: "#71717a",
+                                  }
+                            }
+                            className="border p-2.5 align-top transition-all"
+                          >
+                            <div
+                              style={
+                                exportMode === "color"
+                                  ? { color: colors?.hexText ?? "#1d4ed8" }
+                                  : { color: "#000000" }
+                              }
+                              className="font-bold text-xs"
+                            >
+                              {entry.course.courseCode}
+                            </div>
+                            <div className={`font-medium ${exportMode === "bw" ? "text-zinc-900" : "text-foreground"}`}>
+                              {entry.course.courseName}
+                            </div>
+                            <div className={`text-[11px] font-semibold ${exportMode === "bw" ? "text-zinc-700" : "text-muted-foreground"}`}>
+                              Room: {entry.room}
+                            </div>
+                            <div className={`text-[11px] font-semibold ${exportMode === "bw" ? "text-zinc-700" : "text-muted-foreground"}`}>
+                              Teacher: {entry.course.faculty?.user?.name ?? "Unassigned"}
+                            </div>
+                            <div className={`text-[10px] font-mono pt-1 ${exportMode === "bw" ? "text-zinc-800 font-bold" : "text-muted-foreground"}`}>
+                              {format12Hour(entry.startTime)} – {format12Hour(entry.endTime)}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </motion.div>

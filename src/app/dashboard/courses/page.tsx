@@ -31,6 +31,8 @@ import {
   CheckCircle2,
   FileText,
   Clipboard,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
@@ -66,8 +68,12 @@ interface CourseWithDetails {
   department: string;
   semester: number;
   assignedFaculty: string | null;
+  assignedFacultyMorning?: string | null;
+  assignedFacultyEvening?: string | null;
   shift: string;
   faculty: { user: { name: string | null }; department: string } | null;
+  facultyMorning?: { user: { name: string | null }; department: string } | null;
+  facultyEvening?: { user: { name: string | null }; department: string } | null;
   _count: { enrollments: number };
 }
 
@@ -381,10 +387,11 @@ export default function ManageCoursesPage() {
         setBulkResult(data);
       }
       handleRefresh();
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } };
       setBulkResult({
         imported: 0,
-        skipped: [{ row: 0, reason: err?.response?.data?.error || "Import failed" }],
+        skipped: [{ row: 0, reason: axiosErr?.response?.data?.error || "Import failed" }],
       });
     } finally {
       setImportingBulk(false);
@@ -502,13 +509,46 @@ export default function ManageCoursesPage() {
     }
   };
 
+  const openAssignModal = (course: CourseWithDetails, shift: string = "Morning") => {
+    setAssigningCourse(course);
+    setSelectedAssignShift(shift);
+    if (shift === "Morning") {
+      setSelectedFaculty(
+        course.assignedFacultyMorning ||
+          (course.shift === "Morning" ? course.assignedFaculty || "" : "")
+      );
+    } else if (shift === "Evening") {
+      setSelectedFaculty(
+        course.assignedFacultyEvening ||
+          (course.shift === "Evening" ? course.assignedFaculty || "" : "")
+      );
+    } else {
+      setSelectedFaculty(course.assignedFaculty || "");
+    }
+    setAssignDialogOpen(true);
+  };
+
   const handleAssign = async () => {
     if (!assigningCourse || !selectedFaculty) return;
     try {
       setAssigning(true);
+      const payload: Record<string, string | null> = { shift: selectedAssignShift };
+
+      if (selectedAssignShift === "Morning") {
+        payload.assignedFacultyMorning = selectedFaculty;
+        payload.assignedFaculty = selectedFaculty;
+      } else if (selectedAssignShift === "Evening") {
+        payload.assignedFacultyEvening = selectedFaculty;
+        payload.assignedFaculty = selectedFaculty;
+      } else {
+        payload.assignedFacultyMorning = selectedFaculty;
+        payload.assignedFacultyEvening = selectedFaculty;
+        payload.assignedFaculty = selectedFaculty;
+      }
+
       const { data: updated } = await api.patch<CourseWithDetails>(
         `/api/courses/${assigningCourse.id}`,
-        { assignedFaculty: selectedFaculty, shift: selectedAssignShift },
+        payload,
       );
       setCourses((prev) =>
         prev.map((c) => (c.id === updated.id ? updated : c)),
@@ -524,15 +564,28 @@ export default function ManageCoursesPage() {
     }
   };
 
-  const handleUnassign = async (courseId?: string) => {
+  const handleUnassign = async (courseId?: string, targetShift?: string) => {
     const targetId = courseId || assigningCourse?.id;
     if (!targetId) return;
     try {
       setAssigning(true);
       setUnassigningCourseId(targetId);
+      const shiftToUnassign = targetShift || selectedAssignShift;
+      const payload: Record<string, string | null> = { shift: shiftToUnassign };
+
+      if (shiftToUnassign === "Morning") {
+        payload.assignedFacultyMorning = null;
+      } else if (shiftToUnassign === "Evening") {
+        payload.assignedFacultyEvening = null;
+      } else {
+        payload.assignedFaculty = null;
+        payload.assignedFacultyMorning = null;
+        payload.assignedFacultyEvening = null;
+      }
+
       const { data: updated } = await api.patch<CourseWithDetails>(
         `/api/courses/${targetId}`,
-        { assignedFaculty: null },
+        payload,
       );
       setCourses((prev) =>
         prev.map((c) => (c.id === updated.id ? updated : c)),
@@ -577,20 +630,129 @@ export default function ManageCoursesPage() {
     },
     {
       key: "faculty",
-      header: "Faculty",
-      render: (row) =>
-        row.faculty?.user.name ? (
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold">{row.faculty.user.name}</span>
-            <span className="text-[10px] text-muted-foreground">
-              {`${row.shift || "Morning"} Shift`}
-            </span>
+      header: "Shift Assignment & Faculty",
+      render: (row) => {
+        const morningTeacher =
+          row.facultyMorning?.user?.name ||
+          (row.assignedFacultyMorning
+            ? "Assigned"
+            : row.assignedFaculty && (row.shift === "Morning" || row.shift === "Both")
+            ? row.faculty?.user?.name
+            : null);
+        const morningDept =
+          row.facultyMorning?.department ||
+          (row.assignedFaculty && (row.shift === "Morning" || row.shift === "Both")
+            ? row.faculty?.department
+            : null);
+
+        const eveningTeacher =
+          row.facultyEvening?.user?.name ||
+          (row.assignedFacultyEvening
+            ? "Assigned"
+            : row.assignedFaculty && (row.shift === "Evening" || row.shift === "Both")
+            ? row.faculty?.user?.name
+            : null);
+        const eveningDept =
+          row.facultyEvening?.department ||
+          (row.assignedFaculty && (row.shift === "Evening" || row.shift === "Both")
+            ? row.faculty?.department
+            : null);
+
+        const isMorningAssigned = Boolean(morningTeacher);
+        const isEveningAssigned = Boolean(eveningTeacher);
+
+        return (
+          <div className="flex flex-col gap-1.5 py-0.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {/* Morning Badge Button */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openAssignModal(row, "Morning");
+                }}
+                title={
+                  isMorningAssigned
+                    ? `Morning Shift: ${morningTeacher} ${morningDept ? `(${morningDept})` : ""} — Click to edit`
+                    : "Click to assign Morning Shift teacher"
+                }
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer hover:scale-105 active:scale-95 ${
+                  isMorningAssigned
+                    ? "bg-amber-500/15 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300 border border-amber-500/40 shadow-xs hover:bg-amber-500/25"
+                    : "bg-muted/40 text-muted-foreground/60 border border-dashed border-border hover:bg-amber-500/10 hover:text-amber-700"
+                }`}
+              >
+                <Sun
+                  className={`h-3.5 w-3.5 ${
+                    isMorningAssigned
+                      ? "text-amber-600 dark:text-amber-400 fill-amber-500/20"
+                      : "opacity-40"
+                  }`}
+                />
+                <span className="font-bold">M</span>
+                <span className="text-[11px]">
+                  {isMorningAssigned ? (
+                    <span className="font-semibold max-w-[120px] truncate inline-block align-bottom">
+                      {morningTeacher}
+                    </span>
+                  ) : (
+                    "Unassigned"
+                  )}
+                </span>
+              </button>
+
+              {/* Evening Badge Button */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openAssignModal(row, "Evening");
+                }}
+                title={
+                  isEveningAssigned
+                    ? `Evening Shift: ${eveningTeacher} ${eveningDept ? `(${eveningDept})` : ""} — Click to edit`
+                    : "Click to assign Evening Shift teacher"
+                }
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer hover:scale-105 active:scale-95 ${
+                  isEveningAssigned
+                    ? "bg-indigo-500/15 text-indigo-800 dark:bg-indigo-500/20 dark:text-indigo-300 border border-indigo-500/40 shadow-xs hover:bg-indigo-500/25"
+                    : "bg-muted/40 text-muted-foreground/60 border border-dashed border-border hover:bg-indigo-500/10 hover:text-indigo-700"
+                }`}
+              >
+                <Moon
+                  className={`h-3.5 w-3.5 ${
+                    isEveningAssigned
+                      ? "text-indigo-600 dark:text-indigo-400 fill-indigo-500/20"
+                      : "opacity-40"
+                  }`}
+                />
+                <span className="font-bold">E</span>
+                <span className="text-[11px]">
+                  {isEveningAssigned ? (
+                    <span className="font-semibold max-w-[120px] truncate inline-block align-bottom">
+                      {eveningTeacher}
+                    </span>
+                  ) : (
+                    "Unassigned"
+                  )}
+                </span>
+              </button>
+            </div>
+
+            {/* Cross-department badge indicators */}
+            {morningDept && morningDept !== row.department && (
+              <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20 w-fit">
+                M Cross-Dept: {morningDept}
+              </span>
+            )}
+            {eveningDept && eveningDept !== row.department && (
+              <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20 w-fit">
+                E Cross-Dept: {eveningDept}
+              </span>
+            )}
           </div>
-        ) : (
-          <span className="text-xs text-muted-foreground italic">
-            Unassigned
-          </span>
-        ),
+        );
+      },
     },
     {
       key: "_count",
@@ -612,18 +774,21 @@ export default function ManageCoursesPage() {
           >
             <Eye className="h-4 w-4 text-brand-primary" />
           </button>
-          <button
-            onClick={() => {
-              setAssigningCourse(row);
-              setSelectedFaculty(row.assignedFaculty || "");
-              setSelectedAssignShift(row.shift || "Morning");
-              setAssignDialogOpen(true);
-            }}
-            className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"
-            title="Assign Faculty"
-          >
-            <UserPlus className="h-4 w-4 text-brand-secondary" />
-          </button>
+          {/* Show Plus (+) Assign button only if both shifts are NOT fully assigned */}
+          {row.shift !== "Both" && (
+            <button
+              onClick={() => {
+                setAssigningCourse(row);
+                setSelectedFaculty(row.assignedFaculty || "");
+                setSelectedAssignShift(row.shift || "Morning");
+                setAssignDialogOpen(true);
+              }}
+              className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"
+              title="Assign Faculty"
+            >
+              <UserPlus className="h-4 w-4 text-brand-secondary" />
+            </button>
+          )}
           {row.assignedFaculty && (
             <button
               onClick={() => handleUnassign(row.id)}
@@ -1056,11 +1221,23 @@ export default function ManageCoursesPage() {
                       No faculty members available
                     </SelectItem>
                   ) : (
-                    facultyList.map((f) => (
-                      <SelectItem key={f.id} value={f.id}>
-                        {f.user.name ?? "—"} ({f.department})
-                      </SelectItem>
-                    ))
+                    facultyList.map((f) => {
+                      const isCrossDept = f.department !== assigningCourse?.department;
+                      return (
+                        <SelectItem key={f.id} value={f.id}>
+                          <div className="flex items-center justify-between gap-3 w-full">
+                            <span className="font-medium">{f.user.name ?? "—"}</span>
+                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded font-mono ${
+                              isCrossDept
+                                ? "bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30"
+                                : "bg-brand-primary/10 text-brand-primary border border-brand-primary/20"
+                            }`}>
+                              {f.department} {isCrossDept ? "(Cross-Dept)" : ""}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      );
+                    })
                   )}
                 </SelectContent>
               </Select>
@@ -1081,14 +1258,28 @@ export default function ManageCoursesPage() {
             </div>
           </div>
           <DialogFooter className="gap-2">
-            {assigningCourse?.assignedFaculty && (
+            {(selectedAssignShift === "Morning"
+              ? Boolean(
+                  assigningCourse?.assignedFacultyMorning ||
+                    (assigningCourse?.assignedFaculty && assigningCourse.shift === "Morning")
+                )
+              : selectedAssignShift === "Evening"
+              ? Boolean(
+                  assigningCourse?.assignedFacultyEvening ||
+                    (assigningCourse?.assignedFaculty && assigningCourse.shift === "Evening")
+                )
+              : Boolean(
+                  assigningCourse?.assignedFaculty ||
+                    assigningCourse?.assignedFacultyMorning ||
+                    assigningCourse?.assignedFacultyEvening
+                )) && (
               <Button
                 variant="destructive"
-                onClick={() => handleUnassign()}
+                onClick={() => handleUnassign(assigningCourse?.id, selectedAssignShift)}
                 disabled={assigning}
                 className="mr-auto"
               >
-                Unassign Faculty
+                Unassign {selectedAssignShift !== "Both" ? selectedAssignShift : ""} Faculty
               </Button>
             )}
             <Button

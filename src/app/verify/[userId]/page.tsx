@@ -179,9 +179,11 @@ export default async function VerifyPage({ params }: VerifyPageProps) {
   }
 
   // Compute student attendance rate
-  let attendanceRate: number | null = null;
+  let attendanceRate: number = 0;
+  let totalAttendanceRecords: number = 0;
   if (user.role === "STUDENT" && user.student) {
     const totalRecords = user.student.attendances.length;
+    totalAttendanceRecords = totalRecords;
     if (totalRecords > 0) {
       const presentCount = user.student.attendances.filter(
         (a) => a.status === "Present" || a.status === "Late"
@@ -242,6 +244,7 @@ export default async function VerifyPage({ params }: VerifyPageProps) {
           blocked: user.student.blocked,
           approvedBy: user.student.approvedBy,
           attendanceRate,
+          totalAttendanceRecords,
           duesStatus:
             user.student.fees.filter((f) => f.status === "Unpaid" || f.status === "Overdue").length > 0
               ? ("Outstanding" as const)

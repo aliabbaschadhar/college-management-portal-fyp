@@ -160,7 +160,7 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
   const presentCount = attendances.filter((a) => a.status === "Present" || a.status === "Late").length;
   const attendancePercent = attendances.length > 0
     ? Math.round((presentCount / attendances.length) * 100)
-    : null;
+    : 0;
 
   const pendingDues = fees
     .filter((f) => f.status !== "Paid")

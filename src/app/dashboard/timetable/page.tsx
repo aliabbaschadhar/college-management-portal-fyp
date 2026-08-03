@@ -17,6 +17,8 @@ import {
   Loader2,
   Lock,
   Unlock,
+  Palette,
+  FileText,
 } from "lucide-react";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { motion } from "framer-motion";
@@ -30,7 +32,9 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -56,6 +60,8 @@ interface CourseOption {
   department: string;
   semester: number;
   facultyName: string | null;
+  facultyMorningName?: string | null;
+  facultyEveningName?: string | null;
 }
 
 interface FacultyOption {
@@ -103,6 +109,16 @@ function add45Minutes(time: string, durationMinutes = 45): string {
   return `${String(nextHours).padStart(2, "0")}:${String(nextMinutes).padStart(2, "0")}`;
 }
 
+function getTeacherForCourseAndShift(course: CourseOption, shift: string): string {
+  if (shift === "Morning") {
+    return course.facultyMorningName || course.facultyName || "Unassigned";
+  }
+  if (shift === "Evening") {
+    return course.facultyEveningName || course.facultyName || "Unassigned";
+  }
+  return course.facultyName || course.facultyMorningName || course.facultyEveningName || "Unassigned";
+}
+
 export default function TimetablePage() {
   const router = useRouter();
   const [timetable, setTimetable] = useState<TimetableApiEntry[]>([]);
@@ -122,6 +138,7 @@ export default function TimetablePage() {
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [confirmDeleteTarget, setConfirmDeleteTarget] = useState<TimetableApiEntry | "bulk" | null>(null);
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
+  const [exportMode, setExportMode] = useState<"color" | "bw">("color");
 
   useEffect(() => {
     if (mutationError) {
@@ -179,6 +196,39 @@ export default function TimetablePage() {
     }
     return list;
   }, [gridStart, gridDuration, gridSlotsCount]);
+
+  const sequentialLecturesByDay = useMemo(() => {
+    const map: Record<string, TimetableApiEntry[]> = {};
+    DAYS.forEach((d) => {
+      map[d] = [];
+    });
+
+    timetable.forEach((item) => {
+      if (map[item.day]) {
+        map[item.day].push(item);
+      }
+    });
+
+    DAYS.forEach((d) => {
+      map[d].sort(
+        (a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
+      );
+    });
+
+    let maxLectures = 0;
+    DAYS.forEach((d) => {
+      if (map[d].length > maxLectures) {
+        maxLectures = map[d].length;
+      }
+    });
+
+    if (maxLectures === 0) {
+      maxLectures = 1;
+    }
+
+    const rows = Array.from({ length: maxLectures }, (_, i) => i);
+    return { map, maxLectures, rows };
+  }, [timetable]);
 
   const loadSettings = useCallback((shift: string) => {
     api
@@ -268,8 +318,13 @@ export default function TimetablePage() {
             const department = String(row.department ?? "").trim();
             const semester = Number(row.semester ?? 0);
             const facObj = row.faculty && typeof row.faculty === "object" ? (row.faculty as { user?: { name?: string } }) : null;
+            const facM = row.facultyMorning && typeof row.facultyMorning === "object" ? (row.facultyMorning as { user?: { name?: string } }) : null;
+            const facE = row.facultyEvening && typeof row.facultyEvening === "object" ? (row.facultyEvening as { user?: { name?: string } }) : null;
+
             const facultyName =
               typeof row.facultyName === "string" ? row.facultyName : facObj?.user?.name ?? null;
+            const facultyMorningName = facM?.user?.name ?? null;
+            const facultyEveningName = facE?.user?.name ?? null;
 
             if (
               !id ||
@@ -288,6 +343,8 @@ export default function TimetablePage() {
               department,
               semester,
               facultyName,
+              facultyMorningName,
+              facultyEveningName,
             } as CourseOption;
           })
           .filter((course): course is CourseOption => Boolean(course));
@@ -319,25 +376,78 @@ export default function TimetablePage() {
 
   // Batch Dialog states
   const [batchDialogOpen, setBatchDialogOpen] = useState<boolean>(false);
+  const [batchDurationPreset, setBatchDurationPreset] = useState<"45" | "30" | "custom">("45");
+  const [batchCustomDuration, setBatchCustomDuration] = useState<number>(60);
   const [batchEntries, setBatchEntries] = useState<{
+    id: string;
     courseId: string;
     day: string;
     startTime: string;
     endTime: string;
     room: string;
+    enabled: boolean;
   }[]>([]);
   const [batchSaving, setBatchSaving] = useState<boolean>(false);
   const [batchError, setBatchError] = useState<string | null>(null);
 
-  const handleAssignTeacher = async (courseId: string, facultyId: string) => {
+  const recalculateBatchSchedule = (
+    preset: "45" | "30" | "custom",
+    customMins?: number
+  ) => {
+    const duration =
+      preset === "45" ? 45 : preset === "30" ? 30 : customMins ?? batchCustomDuration;
+
+    setBatchEntries((prev) => {
+      if (prev.length === 0) return prev;
+      const baseStartMins = timeToMinutes(prev[0]?.startTime || gridStart || "08:00");
+      return prev.map((entry, idx) => {
+        const startM = baseStartMins + idx * duration;
+        const endM = startM + duration;
+        const startH = Math.floor(startM / 60) % 24;
+        const startMinsRem = startM % 60;
+        const endH = Math.floor(endM / 60) % 24;
+        const endMinsRem = endM % 60;
+
+        const startStr = `${String(startH).padStart(2, "0")}:${String(startMinsRem).padStart(2, "0")}`;
+        const endStr = `${String(endH).padStart(2, "0")}:${String(endMinsRem).padStart(2, "0")}`;
+
+        return {
+          ...entry,
+          startTime: startStr,
+          endTime: endStr,
+        };
+      });
+    });
+  };
+
+  const handleAssignTeacher = async (courseId: string, facultyId: string, shift: string = "Morning") => {
     if (!courseId || !facultyId) return;
     setAssigningTeacher(true);
     setMutationError(null);
     try {
-      await api.patch(`/api/courses/${courseId}`, { assignedFaculty: facultyId });
+      const payload: Record<string, string> = { shift };
+      if (shift === "Morning") {
+        payload.assignedFacultyMorning = facultyId;
+        payload.assignedFaculty = facultyId;
+      } else if (shift === "Evening") {
+        payload.assignedFacultyEvening = facultyId;
+        payload.assignedFaculty = facultyId;
+      } else {
+        payload.assignedFaculty = facultyId;
+      }
+
+      await api.patch(`/api/courses/${courseId}`, payload);
       const fac = facultyList.find((f) => f.id === facultyId);
       setCourses((prev) =>
-        prev.map((c) => (c.id === courseId ? { ...c, facultyName: fac?.name ?? "Assigned" } : c))
+        prev.map((c) => {
+          if (c.id !== courseId) return c;
+          if (shift === "Morning") {
+            return { ...c, facultyMorningName: fac?.name ?? "Assigned", facultyName: fac?.name ?? "Assigned" };
+          } else if (shift === "Evening") {
+            return { ...c, facultyEveningName: fac?.name ?? "Assigned", facultyName: fac?.name ?? "Assigned" };
+          }
+          return { ...c, facultyName: fac?.name ?? "Assigned" };
+        })
       );
     } catch {
       setMutationError("Failed to assign teacher to course");
@@ -349,15 +459,16 @@ export default function TimetablePage() {
   const openBatchDialog = () => {
     const semester = Number(filterSemester);
     const semesterCourses = courses.filter(
-      (c) => c.department === filterDept && c.semester === semester
+      (c) => c.department.trim().toLowerCase() === filterDept.trim().toLowerCase() && c.semester === semester
     );
+    const targetCourses = semesterCourses.length > 0 ? semesterCourses : courses;
 
-    if (semesterCourses.length === 0) {
-      setMutationError(`No courses found for ${filterDept} Semester ${filterSemester}`);
+    if (targetCourses.length === 0) {
+      setMutationError(`No courses available in database`);
       return;
     }
 
-    const defaultEntries = semesterCourses.map((c, idx) => {
+    const defaultEntries = targetCourses.map((c, idx) => {
       const startMins = timeToMinutes(gridStart) + idx * gridDuration;
       const startH = Math.floor(startMins / 60) % 24;
       const startM = startMins % 60;
@@ -365,11 +476,13 @@ export default function TimetablePage() {
       const endStr = add45Minutes(startStr, gridDuration);
 
       return {
+        id: `batch-${c.id}-${idx}-${Date.now()}`,
         courseId: c.id,
         day: "Monday",
         startTime: startStr,
         endTime: endStr,
         room: `Room ${101 + idx}`,
+        enabled: true,
       };
     });
 
@@ -378,7 +491,53 @@ export default function TimetablePage() {
     setBatchDialogOpen(true);
   };
 
+  const handleSyncBatchDay = (newDay: string) => {
+    setBatchEntries((prev) =>
+      prev.map((e) => ({ ...e, day: newDay }))
+    );
+  };
+
+  const handleAddBatchEntry = () => {
+    const defaultCourseId = primaryCourses[0]?.id ?? courses[0]?.id ?? "";
+    const currentBatchDay = batchEntries[0]?.day ?? "Monday";
+    const idx = batchEntries.length;
+    const startMins = timeToMinutes(gridStart) + idx * gridDuration;
+    const startH = Math.floor(startMins / 60) % 24;
+    const startM = startMins % 60;
+    const startStr = `${String(startH).padStart(2, "0")}:${String(startM).padStart(2, "0")}`;
+    const endStr = add45Minutes(startStr, gridDuration);
+
+    setBatchEntries((prev) => [
+      ...prev,
+      {
+        id: `custom-batch-${Date.now()}-${Math.random()}`,
+        courseId: defaultCourseId,
+        day: currentBatchDay,
+        startTime: startStr,
+        endTime: endStr,
+        room: `Room ${101 + idx}`,
+        enabled: true,
+      },
+    ]);
+  };
+
+  const handleRemoveBatchEntry = (idToRemove: string) => {
+    setBatchEntries((prev) => prev.filter((e) => e.id !== idToRemove));
+  };
+
+  const handleToggleBatchEntryEnabled = (idToToggle: string) => {
+    setBatchEntries((prev) =>
+      prev.map((e) => (e.id === idToToggle ? { ...e, enabled: !e.enabled } : e))
+    );
+  };
+
   const handleBatchSubmit = async () => {
+    const activeEntries = batchEntries.filter((e) => e.enabled && e.courseId);
+    if (activeEntries.length === 0) {
+      setBatchError("No active entries selected. Please enable at least one lecture to create.");
+      return;
+    }
+
     setBatchSaving(true);
     setBatchError(null);
     try {
@@ -386,7 +545,13 @@ export default function TimetablePage() {
         department: filterDept,
         semester: Number(filterSemester),
         shift: filterShift,
-        entries: batchEntries,
+        entries: activeEntries.map(({ courseId, day, startTime, endTime, room }) => ({
+          courseId,
+          day,
+          startTime,
+          endTime,
+          room,
+        })),
       });
       setBatchDialogOpen(false);
       await loadTimetable();
@@ -399,28 +564,33 @@ export default function TimetablePage() {
     }
   };
 
-  const filteredCourses = useMemo(() => {
+  const primaryCourses = useMemo(() => {
     const semester = Number(filterSemester);
-    const subset = courses.filter(
+    const targetDept = filterDept.trim().toLowerCase();
+    return courses.filter(
       (course) =>
-        course.department === filterDept && course.semester === semester,
+        course.department.trim().toLowerCase() === targetDept &&
+        course.semester === semester,
     );
-    return subset.length > 0 ? subset : courses;
   }, [courses, filterDept, filterSemester]);
 
+  const secondaryCourses = useMemo(() => {
+    const primaryIds = new Set(primaryCourses.map((c) => c.id));
+    return courses.filter((c) => !primaryIds.has(c.id));
+  }, [courses, primaryCourses]);
+
   useEffect(() => {
-    if (!form.courseId && filteredCourses.length > 0 && !editingEntry) {
-      setForm((current) => ({ ...current, courseId: filteredCourses[0].id }));
+    if (!form.courseId && primaryCourses.length > 0 && !editingEntry) {
+      setForm((current) => ({ ...current, courseId: primaryCourses[0].id }));
     }
-  }, [editingEntry, filteredCourses, form.courseId]);
+  }, [editingEntry, primaryCourses, form.courseId]);
 
   const openCreateDialog = (day?: TimetableDay, startTime?: string, endTime?: string) => {
     const defaultStart = gridStart;
     const defaultEnd = add45Minutes(gridStart, gridDuration);
     const selectedStart = startTime ?? defaultStart;
     const selectedEnd = endTime ?? (startTime ? add45Minutes(startTime, gridDuration) : defaultEnd);
-    const availableCourses =
-      filteredCourses.length > 0 ? filteredCourses : courses;
+    const defaultCourseId = primaryCourses[0]?.id ?? courses[0]?.id ?? "";
 
     setEditingEntry(null);
     setMutationError(null);
@@ -429,7 +599,7 @@ export default function TimetablePage() {
       day: day ?? "Monday",
       startTime: selectedStart,
       endTime: selectedEnd,
-      courseId: availableCourses[0]?.id ?? "",
+      courseId: defaultCourseId,
       shift: filterShift,
     });
     setDialogOpen(true);
@@ -661,81 +831,6 @@ export default function TimetablePage() {
           </div>
         </div>
 
-        <div className="p-4 bg-card border rounded-2xl shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-2 gap-2">
-            <div className="flex items-center gap-3">
-              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                <Clock className="h-4 w-4 text-brand-primary" /> Shift Grid Settings ({filterShift})
-              </h3>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setGridLocked(!gridLocked)}
-                className={`h-7 text-xs font-semibold gap-1.5 rounded-lg border transition-all ${
-                  gridLocked
-                    ? "border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20"
-                    : "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20"
-                }`}
-              >
-                {gridLocked ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
-                {gridLocked ? "Locked (Click to Unlock)" : "Unlocked (Editing Allowed)"}
-              </Button>
-            </div>
-            <span className="text-xs text-muted-foreground">Define grid start time, slot duration, and slots count</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-zinc-600 dark:text-zinc-400">Start Time</Label>
-              <Input
-                type="time"
-                disabled={gridLocked}
-                value={gridStart}
-                onChange={(e) => setGridStart(e.target.value)}
-                className="h-9 disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-zinc-600 dark:text-zinc-400">Slot Duration (Mins)</Label>
-              <Input
-                type="number"
-                disabled={gridLocked}
-                min="5"
-                max="180"
-                value={gridDuration}
-                onChange={(e) => setGridDuration(Number(e.target.value))}
-                className="h-9 disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-zinc-600 dark:text-zinc-400">Total Slots</Label>
-              <Input
-                type="number"
-                disabled={gridLocked}
-                min="1"
-                max="20"
-                value={gridSlotsCount}
-                onChange={(e) => setGridSlotsCount(Number(e.target.value))}
-                className="h-9 disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-            </div>
-            <Button
-              onClick={handleSaveSettings}
-              disabled={settingsSaving || gridLocked}
-              size="sm"
-              className="bg-brand-primary hover:bg-brand-primary/95 text-white h-9 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {settingsSaving ? "Saving..." : "Save Time Table Slots"}
-            </Button>
-          </div>
-        </div>
-
-        {settingsSuccess && (
-          <div className="rounded-lg border border-emerald-250 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 font-semibold">
-            {settingsSuccess}
-          </div>
-        )}
-
         {error && (
           <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {error}
@@ -749,8 +844,8 @@ export default function TimetablePage() {
             <table className="w-full border-separate border-spacing-2">
               <thead>
                 <tr>
-                  <th className="p-3 text-left bg-muted/30 rounded-xl w-25">
-                    <Clock className="h-4 w-4 text-muted-foreground mx-auto" />
+                  <th className="p-3 text-xs font-bold uppercase tracking-widest text-muted-foreground text-center bg-muted/30 rounded-xl w-24">
+                    Lecture
                   </th>
                   {DAYS.map((day) => (
                     <th
@@ -763,32 +858,28 @@ export default function TimetablePage() {
                 </tr>
               </thead>
               <tbody>
-                {slots.map((slot) => (
-                  <tr key={`${slot.start}-${slot.end}`}>
+                {sequentialLecturesByDay.rows.map((lectureIdx) => (
+                  <tr key={`lecture-${lectureIdx}`}>
                     <td className="p-4 text-xs font-bold text-muted-foreground text-center bg-muted/10 rounded-xl whitespace-nowrap">
-                      {to12HourTime(slot.start)} - {to12HourTime(slot.end)}
+                      Lecture {lectureIdx + 1}
                     </td>
                     {DAYS.map((day) => {
-                      const cls = getClassForSlot(day, slot);
+                      const cls = sequentialLecturesByDay.map[day]?.[lectureIdx];
                       if (cls) {
-                        if (!isFirstSlotForClass(cls, slot, slots)) {
-                          return null;
-                        }
-                        const span = getClassRowSpan(cls, slots);
-
                         return (
-                          <td key={day} rowSpan={span} className="p-0 align-top">
+                          <td key={`${day}-${cls.id}`} className="p-0 align-top">
                             <motion.div
                               initial={{ opacity: 0, scale: 0.9 }}
                               animate={{ opacity: 1, scale: 1 }}
-                              className="group p-4 bg-brand-primary/5 border-l-4 border-l-brand-primary rounded-xl m-1 hover:bg-brand-primary/10 transition-all duration-300 shadow-sm hover:shadow-md h-full min-h-25"
+                              className="group p-3.5 bg-brand-primary/5 border-l-4 border-l-brand-primary rounded-xl m-1 hover:bg-brand-primary/10 transition-all duration-300 shadow-sm hover:shadow-md h-full min-h-25"
                             >
-                              <div className="space-y-2">
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="space-y-1">
-                                    <span className="text-[10px] font-bold text-brand-primary uppercase tracking-tighter block break-words whitespace-normal">
-                                      {cls.course.courseCode}
-                                    </span>
+                              <div className="space-y-1.5">
+                                {/* 1. Day Badge & Actions */}
+                                <div className="flex items-center justify-between gap-1.5">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-brand-primary/10 text-brand-primary border border-brand-primary/20">
+                                    {day}
+                                  </span>
+                                  <div className="flex items-center gap-1">
                                     <Badge
                                       variant="outline"
                                       className="text-[9px] h-4 bg-white/50 backdrop-blur-sm px-1 py-0 border-brand-primary/20"
@@ -796,51 +887,57 @@ export default function TimetablePage() {
                                       <MapPin className="h-2 w-2 mr-1" />{" "}
                                       {cls.room}
                                     </Badge>
-                                  </div>
-
-                                  <div className="flex items-center gap-1.5">
                                     <input
                                       type="checkbox"
                                       checked={selectedTimetableIds.includes(cls.id)}
                                       onChange={() => handleToggleSelectSlot(cls.id)}
-                                      className="h-4 w-4 rounded accent-brand-primary cursor-pointer"
+                                      className="h-3.5 w-3.5 rounded accent-brand-primary cursor-pointer"
                                       title="Select slot for bulk deletion"
                                     />
                                     <button
                                       onClick={() => openEditDialog(cls)}
-                                      className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-brand-primary/20"
+                                      className="inline-flex h-6 w-6 items-center justify-center rounded-md hover:bg-brand-primary/20"
                                       title="Edit entry"
                                     >
-                                      <Pencil className="h-3.5 w-3.5 text-brand-primary" />
+                                      <Pencil className="h-3 w-3 text-brand-primary" />
                                     </button>
                                     <button
                                       onClick={() => setConfirmDeleteTarget(cls)}
                                       disabled={deletingTimetableId === cls.id}
-                                      className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-rose-100 disabled:opacity-50"
+                                      className="inline-flex h-6 w-6 items-center justify-center rounded-md hover:bg-rose-100 disabled:opacity-50"
                                       title="Delete entry"
                                     >
                                       {deletingTimetableId === cls.id ? (
-                                        <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-600" />
+                                        <Loader2 className="h-3 w-3 animate-spin text-rose-600" />
                                       ) : (
-                                        <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+                                        <Trash2 className="h-3 w-3 text-rose-600" />
                                       )}
                                     </button>
                                   </div>
                                 </div>
 
-                                <h4 className="text-sm font-bold text-foreground leading-tight break-words whitespace-normal">
-                                  {cls.course.courseName}
-                                </h4>
-
-                                <div className="flex items-center text-[10px] text-muted-foreground font-medium pt-1">
-                                  <User className="h-2.5 w-2.5 mr-1" />
-                                  {cls.course.faculty?.user.name ??
-                                    "Unassigned"}
+                                {/* 2. Subject */}
+                                <div className="pt-0.5">
+                                  <span className="text-[10px] font-bold text-brand-primary uppercase tracking-tighter block break-words">
+                                    {cls.course.courseCode}
+                                  </span>
+                                  <h4 className="text-xs font-bold text-foreground leading-tight break-words">
+                                    {cls.course.courseName}
+                                  </h4>
                                 </div>
 
-                                <div className="text-[10px] text-muted-foreground">
-                                  {to12HourTime(cls.startTime)} -{" "}
-                                  {to12HourTime(cls.endTime)}
+                                {/* 3. Teacher (plain text name, no icon) */}
+                                <div className="text-[11px] font-semibold text-foreground/90">
+                                  {cls.shift === "Morning"
+                                    ? cls.course.facultyMorning?.user?.name || cls.course.faculty?.user?.name || "Unassigned"
+                                    : cls.shift === "Evening"
+                                    ? cls.course.facultyEvening?.user?.name || cls.course.faculty?.user?.name || "Unassigned"
+                                    : cls.course.faculty?.user?.name || cls.course.facultyMorning?.user?.name || cls.course.facultyEvening?.user?.name || "Unassigned"}
+                                </div>
+
+                                {/* 4. Time */}
+                                <div className="text-[10px] font-mono text-muted-foreground pt-0.5">
+                                  {to12HourTime(cls.startTime)} - {to12HourTime(cls.endTime)}
                                 </div>
                                 <AuditBadgeInline
                                   entity="Timetable"
@@ -852,16 +949,25 @@ export default function TimetablePage() {
                         );
                       }
 
+                      const fallbackSlot = slots[lectureIdx] || {
+                        start: "08:00",
+                        end: "08:45",
+                      };
+
                       return (
-                        <td key={`${day}-${slot.start}`} className="p-0 align-top">
+                        <td key={`${day}-empty-${lectureIdx}`} className="p-0 align-top">
                           <div className="h-full min-h-25 m-1 rounded-xl bg-accent/20 border border-dotted border-muted-foreground/10 flex items-center justify-center group">
                             <button
                               onClick={() =>
-                                openCreateDialog(day as TimetableDay, slot.start, slot.end)
+                                openCreateDialog(
+                                  day as TimetableDay,
+                                  fallbackSlot.start,
+                                  fallbackSlot.end
+                                )
                               }
-                              className="text-[10px] text-muted-foreground/50 hover:text-brand-primary transition-colors"
+                              className="text-[10px] font-medium text-muted-foreground/60 hover:text-brand-primary transition-colors py-2 px-3"
                             >
-                              + Add Slot
+                              + Add Lecture
                             </button>
                           </div>
                         </td>
@@ -899,27 +1005,66 @@ export default function TimetablePage() {
                 <SelectTrigger>
                   <SelectValue placeholder="Select course" />
                 </SelectTrigger>
-                <SelectContent>
-                  {filteredCourses.map((course) => (
-                    <SelectItem key={course.id} value={course.id}>
-                      {course.courseCode} - {course.courseName} (Sem {course.semester})
-                      {(!course.facultyName || course.facultyName === "Unassigned") && " ⚠️ [No Teacher]"}
-                    </SelectItem>
-                  ))}
+                <SelectContent className="max-h-80">
+                  {primaryCourses.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel className="text-xs font-bold text-brand-primary uppercase tracking-wider px-2 py-1 bg-brand-primary/5 rounded-md mb-1">
+                        {filterDept} — Semester {filterSemester}
+                      </SelectLabel>
+                      {primaryCourses.map((c) => {
+                        const teacher = getTeacherForCourseAndShift(c, form.shift);
+                        const hasNoTeacher = !teacher || teacher === "Unassigned";
+                        return (
+                          <SelectItem key={c.id} value={c.id}>
+                            <div className="flex items-center justify-between gap-2 w-full text-xs">
+                              <span className="font-bold">{c.courseCode} — {c.courseName}</span>
+                              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded font-mono ${hasNoTeacher ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"}`}>
+                                {hasNoTeacher ? "⚠️ Unassigned" : teacher}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectGroup>
+                  )}
+
+                  {secondaryCourses.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-2 py-1 bg-muted/40 rounded-md mt-2 mb-1">
+                        Other Courses ({secondaryCourses.length})
+                      </SelectLabel>
+                      {secondaryCourses.map((c) => {
+                        const teacher = getTeacherForCourseAndShift(c, form.shift);
+                        const hasNoTeacher = !teacher || teacher === "Unassigned";
+                        return (
+                          <SelectItem key={c.id} value={c.id}>
+                            <div className="flex items-center justify-between gap-2 w-full text-xs">
+                              <span className="font-semibold">{c.courseCode} — {c.courseName} <span className="text-[10px] text-muted-foreground font-normal">({c.department} • Sem {c.semester})</span></span>
+                              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded font-mono ${hasNoTeacher ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"}`}>
+                                {hasNoTeacher ? "⚠️ Unassigned" : teacher}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectGroup>
+                  )}
                 </SelectContent>
               </Select>
 
               {/* Unassigned Teacher Guard Banner */}
               {(() => {
                 const selectedCourse = courses.find((c) => c.id === form.courseId);
-                const isUnassigned = !selectedCourse?.facultyName || selectedCourse.facultyName === "Unassigned";
-                if (!selectedCourse || !isUnassigned) return null;
+                if (!selectedCourse) return null;
+                const teacherName = getTeacherForCourseAndShift(selectedCourse, form.shift);
+                const isUnassigned = !teacherName || teacherName === "Unassigned";
+                if (!isUnassigned) return null;
 
                 return (
                   <div className="mt-2 rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 text-xs space-y-2">
                     <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-bold">
                       <AlertTriangle className="h-4 w-4 shrink-0" />
-                      Subject Unassigned: No teacher assigned to {selectedCourse.courseCode}
+                      Subject Unassigned: No teacher assigned to {selectedCourse.courseCode} ({form.shift} Shift)
                     </div>
                     <p className="text-muted-foreground">
                       Assign a teacher below before finalizing this timetable entry:
@@ -943,11 +1088,11 @@ export default function TimetablePage() {
                       <Button
                         size="sm"
                         disabled={!selectedTeacherToAssign || assigningTeacher}
-                        onClick={() => handleAssignTeacher(selectedCourse.id, selectedTeacherToAssign)}
+                        onClick={() => handleAssignTeacher(selectedCourse.id, selectedTeacherToAssign, form.shift)}
                         className="h-9 bg-amber-600 hover:bg-amber-700 text-white text-xs gap-1 rounded-lg shrink-0"
                       >
                         {assigningTeacher ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserCheck className="h-3.5 w-3.5" />}
-                        Assign Teacher
+                        Assign {form.shift} Teacher
                       </Button>
                     </div>
                   </div>
@@ -1089,71 +1234,232 @@ export default function TimetablePage() {
           )}
 
           <div className="space-y-4 py-2">
-            <div className="text-xs text-muted-foreground bg-muted/40 p-3 rounded-xl flex items-center justify-between">
+            <div className="text-xs text-muted-foreground bg-muted/40 p-3 rounded-xl flex items-center justify-between flex-wrap gap-2">
               <span>Target Shift: <strong className="text-foreground">{filterShift}</strong></span>
-              <span>Semester Courses: <strong className="text-foreground">{batchEntries.length}</strong></span>
+              
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-foreground">Batch Day:</span>
+                <Select
+                  value={batchEntries[0]?.day ?? "Monday"}
+                  onValueChange={handleSyncBatchDay}
+                >
+                  <SelectTrigger className="h-7 text-xs font-bold w-[125px] rounded-lg bg-background border border-border">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIMETABLE_DAYS.map((d) => (
+                      <SelectItem key={d} value={d}>{d}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <span>Total Entries: <strong className="text-foreground">{batchEntries.length}</strong></span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-bold">Active: {batchEntries.filter(e => e.enabled).length}</span>
+            </div>
+
+            {/* Lecture Duration Radio Group Selection */}
+            <div className="p-3.5 bg-card rounded-2xl border border-border space-y-2 shadow-xs">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5 text-brand-primary" />
+                  Lecture Length (All Slots):
+                </span>
+                <div className="flex items-center gap-4 text-xs font-semibold">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="batchDuration"
+                      value="45"
+                      checked={batchDurationPreset === "45"}
+                      onChange={() => {
+                        setBatchDurationPreset("45");
+                        recalculateBatchSchedule("45");
+                      }}
+                      className="h-3.5 w-3.5 accent-brand-primary cursor-pointer"
+                    />
+                    <span>45 mins</span>
+                  </label>
+
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="batchDuration"
+                      value="30"
+                      checked={batchDurationPreset === "30"}
+                      onChange={() => {
+                        setBatchDurationPreset("30");
+                        recalculateBatchSchedule("30");
+                      }}
+                      className="h-3.5 w-3.5 accent-brand-primary cursor-pointer"
+                    />
+                    <span>30 mins</span>
+                  </label>
+
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="batchDuration"
+                      value="custom"
+                      checked={batchDurationPreset === "custom"}
+                      onChange={() => {
+                        setBatchDurationPreset("custom");
+                        recalculateBatchSchedule("custom", batchCustomDuration);
+                      }}
+                      className="h-3.5 w-3.5 accent-brand-primary cursor-pointer"
+                    />
+                    <span>Custom</span>
+                  </label>
+                </div>
+              </div>
+
+              {batchDurationPreset === "custom" && (
+                <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+                  <span className="text-xs text-muted-foreground font-medium">Custom Duration:</span>
+                  <Input
+                    type="number"
+                    min="5"
+                    max="180"
+                    value={batchCustomDuration}
+                    onChange={(e) => {
+                      const val = Math.max(5, Math.min(180, Number(e.target.value) || 30));
+                      setBatchCustomDuration(val);
+                      recalculateBatchSchedule("custom", val);
+                    }}
+                    className="w-20 h-7 text-xs font-mono rounded-lg"
+                  />
+                  <span className="text-xs text-muted-foreground font-medium">minutes per lecture</span>
+                </div>
+              )}
             </div>
 
             <div className="space-y-3">
               {batchEntries.map((entry, idx) => {
                 const course = courses.find((c) => c.id === entry.courseId);
-                const isUnassigned = !course?.facultyName || course.facultyName === "Unassigned";
+                const teacherName = course ? getTeacherForCourseAndShift(course, filterShift) : null;
+                const isUnassigned = !teacherName || teacherName === "Unassigned";
 
                 return (
-                  <div key={entry.courseId} className="p-4 bg-card border border-border rounded-2xl space-y-3 shadow-xs">
-                    <div className="flex items-center justify-between gap-4 flex-wrap">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm text-foreground">{course?.courseCode} - {course?.courseName}</span>
-                        {isUnassigned ? (
-                          <Badge variant="destructive" className="text-[10px] py-0 px-2 uppercase font-bold">
-                            Unassigned Teacher
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-[10px] py-0 px-2 font-mono text-emerald-600 border-emerald-500/30">
-                            {course?.facultyName}
-                          </Badge>
-                        )}
-                      </div>
+                  <div
+                    key={entry.id || `batch-${idx}`}
+                    className={`p-4 border rounded-2xl space-y-3 shadow-xs transition-all ${
+                      entry.enabled
+                        ? "bg-card border-border"
+                        : "bg-muted/30 border-dashed border-border/60 opacity-60"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3 flex-wrap border-b pb-2">
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={entry.enabled}
+                            onChange={() => handleToggleBatchEntryEnabled(entry.id)}
+                            className="h-4 w-4 rounded accent-brand-primary cursor-pointer"
+                          />
+                          <span className={`text-xs font-bold ${entry.enabled ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-400"}`}>
+                            {entry.enabled ? "Include" : "Skipped"}
+                          </span>
+                        </label>
 
-                      {isUnassigned && (
                         <div className="flex items-center gap-2">
                           <Select
-                            value={selectedTeacherToAssign}
-                            onValueChange={setSelectedTeacherToAssign}
+                            value={entry.courseId}
+                            onValueChange={(val) => {
+                              setBatchEntries((prev) =>
+                                prev.map((item) => (item.id === entry.id ? { ...item, courseId: val } : item))
+                              );
+                            }}
                           >
-                            <SelectTrigger className="h-8 text-xs w-[180px] rounded-lg">
-                              <SelectValue placeholder="Assign teacher..." />
+                            <SelectTrigger className="h-8 text-xs font-bold border-none bg-transparent hover:bg-accent p-1">
+                              <SelectValue placeholder="Select Course..." />
                             </SelectTrigger>
-                            <SelectContent>
-                              {facultyList.map((f) => (
-                                <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                              ))}
+                            <SelectContent className="max-h-80">
+                              {primaryCourses.length > 0 && (
+                                <SelectGroup>
+                                  <SelectLabel className="text-[11px] font-bold text-brand-primary uppercase tracking-wider px-2 py-0.5">
+                                    {filterDept} — Sem {filterSemester}
+                                  </SelectLabel>
+                                  {primaryCourses.map((c) => (
+                                    <SelectItem key={c.id} value={c.id}>
+                                      {c.courseCode} - {c.courseName}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              )}
+                              {secondaryCourses.length > 0 && (
+                                <SelectGroup>
+                                  <SelectLabel className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-0.5 mt-1">
+                                    Other Courses ({secondaryCourses.length})
+                                  </SelectLabel>
+                                  {secondaryCourses.map((c) => (
+                                    <SelectItem key={c.id} value={c.id}>
+                                      {c.courseCode} - {c.courseName} ({c.department} Sem {c.semester})
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              )}
                             </SelectContent>
                           </Select>
-                          <Button
-                            size="sm"
-                            disabled={!selectedTeacherToAssign || assigningTeacher}
-                            onClick={() => handleAssignTeacher(entry.courseId, selectedTeacherToAssign)}
-                            className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded-lg shrink-0"
-                          >
-                            Assign
-                          </Button>
+
+                          {isUnassigned ? (
+                            <Badge variant="destructive" className="text-[10px] py-0 px-2 uppercase font-bold">
+                              Unassigned Teacher
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] py-0 px-2 font-mono text-emerald-600 border-emerald-500/30">
+                              {teacherName}
+                            </Badge>
+                          )}
                         </div>
-                      )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {isUnassigned && (
+                          <div className="flex items-center gap-1">
+                            <Select
+                              value={selectedTeacherToAssign}
+                              onValueChange={setSelectedTeacherToAssign}
+                            >
+                              <SelectTrigger className="h-7 text-[11px] w-[140px] rounded-lg">
+                                <SelectValue placeholder="Assign teacher..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {facultyList.map((f) => (
+                                  <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              size="sm"
+                              disabled={!selectedTeacherToAssign || assigningTeacher}
+                              onClick={() => handleAssignTeacher(entry.courseId, selectedTeacherToAssign, filterShift)}
+                              className="h-7 text-[11px] px-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg shrink-0"
+                            >
+                              Assign
+                            </Button>
+                          </div>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveBatchEntry(entry.id)}
+                          className="p-1.5 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-950/40 text-rose-600 transition-colors"
+                          title="Remove entry from batch"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       <div>
-                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Day</Label>
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Day (All Entries)</Label>
                         <Select
                           value={entry.day}
-                          onValueChange={(val) => {
-                            setBatchEntries((prev) =>
-                              prev.map((e) => ({ ...e, day: val }))
-                            );
-                          }}
+                          onValueChange={(val) => handleSyncBatchDay(val)}
                         >
-                          <SelectTrigger className="h-9 text-xs rounded-xl">
+                          <SelectTrigger className="h-9 text-xs rounded-xl font-bold">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1172,8 +1478,8 @@ export default function TimetablePage() {
                           onChange={(e) => {
                             const val = e.target.value;
                             setBatchEntries((prev) =>
-                              prev.map((item, i) =>
-                                i === idx
+                              prev.map((item) =>
+                                item.id === entry.id
                                   ? { ...item, startTime: val, endTime: add45Minutes(val, gridDuration) }
                                   : item
                               )
@@ -1191,7 +1497,7 @@ export default function TimetablePage() {
                           onChange={(e) => {
                             const val = e.target.value;
                             setBatchEntries((prev) =>
-                              prev.map((item, i) => (i === idx ? { ...item, endTime: val } : item))
+                              prev.map((item) => (item.id === entry.id ? { ...item, endTime: val } : item))
                             );
                           }}
                           className="h-9 text-xs rounded-xl font-mono"
@@ -1205,7 +1511,7 @@ export default function TimetablePage() {
                           onChange={(e) => {
                             const val = e.target.value;
                             setBatchEntries((prev) =>
-                              prev.map((item, i) => (i === idx ? { ...item, room: val } : item))
+                              prev.map((item) => (item.id === entry.id ? { ...item, room: val } : item))
                             );
                           }}
                           className="h-9 text-xs rounded-xl"
@@ -1217,6 +1523,16 @@ export default function TimetablePage() {
                 );
               })}
             </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleAddBatchEntry}
+              className="w-full h-10 border-dashed border-2 border-brand-primary/40 text-brand-primary hover:bg-brand-primary/10 rounded-2xl gap-2 font-bold text-xs"
+            >
+              <Plus className="h-4 w-4" />
+              Add Custom Lecture Entry
+            </Button>
           </div>
 
           <DialogFooter className="gap-2 pt-4">
@@ -1274,15 +1590,46 @@ export default function TimetablePage() {
       {/* In-App PDF Preview Dialog */}
       <Dialog open={pdfModalOpen} onOpenChange={setPdfModalOpen}>
         <DialogContent showCloseButton={false} className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto rounded-3xl p-6">
-          <DialogHeader className="flex flex-row items-center justify-between border-b pb-4">
+          <DialogHeader className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4 gap-4">
             <div>
-              <DialogTitle className="text-xl font-bold text-brand-primary">
+              <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                <Download className="h-5 w-5 text-brand-primary" />
                 Timetable PDF Schedule Preview
               </DialogTitle>
               <DialogDescription>
                 {filterDept} — Semester {filterSemester} ({filterShift} Shift)
               </DialogDescription>
+
+              {/* Format Selector Toggle: Color vs Black & White */}
+              <div className="flex items-center gap-3 pt-2">
+                <span className="text-xs font-bold text-muted-foreground">Print Format:</span>
+                <div className="flex items-center bg-muted/60 p-1 rounded-xl border border-border">
+                  <button
+                    type="button"
+                    onClick={() => setExportMode("color")}
+                    className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      exportMode === "color"
+                        ? "bg-brand-primary text-white shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Palette className="h-3.5 w-3.5" /> Color
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExportMode("bw")}
+                    className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      exportMode === "bw"
+                        ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <FileText className="h-3.5 w-3.5" /> Black & White
+                  </button>
+                </div>
+              </div>
             </div>
+
             <div className="flex items-center gap-2">
               <Button
                 onClick={() => {
@@ -1290,14 +1637,14 @@ export default function TimetablePage() {
                   if (!printContent) return;
                   const win = window.open("", "", "width=1200,height=900");
                   if (!win) return;
-                  win.document.write(`<!doctype html><html><head><title>Timetable - ${filterDept} Sem ${filterSemester}</title><style>body{font-family:sans-serif;padding:24px;color:#111827;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #cbd5e1;padding:8px;font-size:11px;vertical-align:top;}th{background:#f1f5f9;}</style></head><body>${printContent.innerHTML}</body></html>`);
+                  win.document.write(`<!doctype html><html><head><title>Timetable - ${filterDept} Sem ${filterSemester}</title><style>*{ -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; } body{ font-family: system-ui, -apple-system, sans-serif; padding: 24px; color: #111827; } table{ width: 100%; border-collapse: collapse; margin-top: 12px; } th, td{ border: 1px solid ${exportMode === "bw" ? "#000000" : "#cbd5e1"}; padding: 8px 10px; font-size: 11px; vertical-align: top; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } th{ background-color: ${exportMode === "bw" ? "#e2e8f0" : "#f1f5f9"}; color: #000000; } @media print{ *{ -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }</style></head><body>${printContent.innerHTML}</body></html>`);
                   win.document.close();
                   win.focus();
                   win.print();
                 }}
-                className="bg-brand-primary text-white h-9 rounded-xl gap-2 text-xs"
+                className="bg-brand-primary text-white h-9 rounded-xl gap-2 text-xs font-bold shadow-md hover:bg-brand-primary/95"
               >
-                <Download className="h-4 w-4" /> Print / Export PDF
+                <Download className="h-4 w-4" /> Download / Print PDF
               </Button>
               <Button variant="outline" onClick={() => setPdfModalOpen(false)} className="h-9 rounded-xl text-xs">
                 Close
@@ -1305,51 +1652,101 @@ export default function TimetablePage() {
             </div>
           </DialogHeader>
 
-          <div id="printable-timetable-area" className="p-4 bg-white dark:bg-zinc-900 rounded-2xl border text-foreground space-y-4">
-            <div className="border-b pb-3">
-              <h2 className="text-lg font-bold text-blue-900 dark:text-blue-300">College Management Portal — Timetable Schedule</h2>
-              <div className="flex flex-wrap gap-4 text-xs font-semibold text-muted-foreground mt-1">
-                <span>Department: <strong>{filterDept}</strong></span>
-                <span>Semester: <strong>{filterSemester}</strong></span>
-                <span>Shift: <strong>{filterShift}</strong></span>
-                <span>Generated: <strong>{new Date().toLocaleString()}</strong></span>
+          <div
+            id="printable-timetable-area"
+            className={`p-5 rounded-2xl border transition-all space-y-4 ${
+              exportMode === "bw"
+                ? "bg-white text-black border-zinc-400"
+                : "bg-white dark:bg-zinc-900 text-foreground border-border"
+            }`}
+          >
+            <div className="border-b pb-3 flex justify-between items-end">
+              <div>
+                <h2 className={`text-lg font-bold ${exportMode === "bw" ? "text-black" : "text-brand-primary"}`}>
+                  College Management Portal — Timetable Schedule
+                </h2>
+                <div className="flex flex-wrap gap-4 text-xs font-semibold text-muted-foreground mt-1">
+                  <span>Department: <strong>{filterDept}</strong></span>
+                  <span>Semester: <strong>{filterSemester}</strong></span>
+                  <span>Shift: <strong>{filterShift}</strong></span>
+                  <span>Generated: <strong>{new Date().toLocaleString()}</strong></span>
+                </div>
+              </div>
+              <div className="text-right">
+                <span
+                  style={
+                    exportMode === "color"
+                      ? { backgroundColor: "#eff6ff", color: "#1d4ed8", borderColor: "#93c5fd" }
+                      : { backgroundColor: "#f4f4f5", color: "#000000", borderColor: "#000000" }
+                  }
+                  className="text-[11px] font-bold uppercase tracking-wider px-2 py-1 rounded border"
+                >
+                  {exportMode === "bw" ? "Black & White Format" : "Color Format"}
+                </span>
               </div>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse border border-zinc-300 dark:border-zinc-700 text-xs">
+              <table className="w-full border-collapse border text-xs">
                 <thead>
-                  <tr className="bg-zinc-100 dark:bg-zinc-800">
-                    <th className="border border-zinc-300 dark:border-zinc-700 p-2 text-left w-28">Time Slot</th>
+                  <tr className={exportMode === "bw" ? "bg-zinc-200 text-black" : "bg-muted/70 text-foreground"}>
+                    <th className="border p-2 text-center w-24 font-bold">Lecture</th>
                     {DAYS.map((day) => (
-                      <th key={day} className="border border-zinc-300 dark:border-zinc-700 p-2 text-left font-bold">{day}</th>
+                      <th key={day} className="border p-2 text-left font-bold">{day}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {slots.map((slot) => (
-                    <tr key={`${slot.start}-${slot.end}`}>
-                      <td className="border border-zinc-300 dark:border-zinc-700 p-2 font-bold whitespace-nowrap bg-zinc-50 dark:bg-zinc-800/50">
-                        {to12HourTime(slot.start)} - {to12HourTime(slot.end)}
+                  {sequentialLecturesByDay.rows.map((lectureIdx) => (
+                    <tr key={`print-lecture-${lectureIdx}`}>
+                      <td className={`border p-2 font-bold text-center whitespace-nowrap ${
+                        exportMode === "bw" ? "bg-zinc-100 text-black border-zinc-400" : "bg-muted/40 text-muted-foreground"
+                      }`}>
+                        Lecture {lectureIdx + 1}
                       </td>
                       {DAYS.map((day) => {
-                        const entry = timetable.find((t) => {
-                          if (t.day !== day) return false;
-                          const classStart = timeToMinutes(t.startTime);
-                          const classEnd = timeToMinutes(t.endTime);
-                          const slotStart = timeToMinutes(slot.start);
-                          const slotEnd = timeToMinutes(slot.end);
-                          return classStart < slotEnd && classEnd > slotStart;
-                        });
+                        const entry = sequentialLecturesByDay.map[day]?.[lectureIdx];
 
-                        if (!entry) return <td key={day} className="border border-zinc-300 dark:border-zinc-700 p-2 text-muted-foreground">—</td>;
+                        if (!entry) return <td key={day} className="border p-2 text-center text-muted-foreground">—</td>;
 
                         return (
-                          <td key={day} className="border border-zinc-300 dark:border-zinc-700 p-2 align-top bg-blue-50/50 dark:bg-blue-950/20">
-                            <div className="font-bold text-brand-primary text-xs">{entry.course?.courseCode}</div>
-                            <div className="font-medium text-foreground">{entry.course?.courseName}</div>
-                            <div className="text-[11px] text-muted-foreground">Room: {entry.room}</div>
-                            <div className="text-[11px] text-muted-foreground">Teacher: {entry.course?.faculty?.user?.name ?? "Unassigned"}</div>
+                          <td
+                            key={day}
+                            style={
+                              exportMode === "color"
+                                ? {
+                                    backgroundColor: "#eff6ff",
+                                    borderColor: "#bfdbfe",
+                                  }
+                                : {
+                                    backgroundColor: "#ffffff",
+                                    borderColor: "#71717a",
+                                  }
+                            }
+                            className="border p-2.5 align-top transition-all"
+                          >
+                            <div
+                              style={
+                                exportMode === "color"
+                                  ? { color: "#1d4ed8" }
+                                  : { color: "#000000" }
+                              }
+                              className="font-bold text-xs"
+                            >
+                              {entry.course?.courseCode}
+                            </div>
+                            <div className={`font-medium ${exportMode === "bw" ? "text-zinc-900" : "text-foreground"}`}>
+                              {entry.course?.courseName}
+                            </div>
+                            <div className={`text-[11px] font-semibold ${exportMode === "bw" ? "text-zinc-700" : "text-muted-foreground"}`}>
+                              Room: {entry.room}
+                            </div>
+                            <div className={`text-[11px] font-semibold ${exportMode === "bw" ? "text-zinc-700" : "text-muted-foreground"}`}>
+                              Teacher: {entry.course?.faculty?.user?.name ?? "Unassigned"}
+                            </div>
+                            <div className={`text-[10px] font-mono pt-1 ${exportMode === "bw" ? "text-zinc-800 font-bold" : "text-muted-foreground"}`}>
+                              {to12HourTime(entry.startTime)} – {to12HourTime(entry.endTime)}
+                            </div>
                           </td>
                         );
                       })}

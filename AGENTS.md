@@ -13,7 +13,7 @@ Co-Authored-By: Claude Sonnet 4 <noreply@example.com>
 | Task | Command |
 |------|---------|
 | Typecheck | `bunx tsc --noEmit` |
-| Lint | `bunx next lint` |
+| Lint | `bunx run lint` |
 
 ## Key Conventions
 - **Framework:** Next.js (App Router), React Server Components first.
@@ -24,7 +24,6 @@ Co-Authored-By: Claude Sonnet 4 <noreply@example.com>
 - **Typing:** Strict typing mandatory. Never use `any`.
 
 ## Domain Context (Read Before Modifying Scope)
-- `docs/plans/` -> Active implementation plans
 - `.agent/prd.md` -> Feature requirements
 - `.agent/architecture.md` -> System boundaries, RBAC, DB schemas
 - `.agent/design.md` -> UI/UX tokens and specifications
@@ -36,3 +35,10 @@ Co-Authored-By: Claude Sonnet 4 <noreply@example.com>
 | `bunx prisma studio` | Open Prisma Studio |
 | `bunx prisma generate` | Generate Prisma Client |
 | `bunx prisma migrate dev` | Run migrations |
+
+## Domain Guidelines & Invariants
+- **PDF Export / Print Styling**: Print pop-ups (`window.open`) must include `* { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }` and use explicit HEX styles (`#ffffff`, `#1d4ed8`) for backgrounds, text, and borders so browsers preserve colors when saving to PDF.
+- **Dynamic Grid Scaling**: Timetable grids must scale dynamically to the actual maximum entries across all active days (`Math.max(0, ...map[d].length)`) to prevent empty trailing rows.
+- **Parent-Child Relation Cloning & Tab Invariants**:
+  - When attaching existing child records (e.g. `Question`) to a new parent entity (`Quiz`), clone the child record if `quizId` is single-parent so past closed records maintain full history.
+  - Never classify entity types or active tabs based on dynamic child counts (e.g., `_count.questions === 0`). Use explicit type/title metadata.

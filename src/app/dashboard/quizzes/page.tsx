@@ -94,9 +94,9 @@ export default function ManageQuizzesPage() {
 
   const filteredByTabQuizzes = useMemo(() => {
     if (activeSubTab === "assignments") {
-      return quizzes.filter((q) => q.title.toLowerCase().includes("assignment") || q._count.questions === 0);
+      return quizzes.filter((q) => q.title.toLowerCase().includes("assignment"));
     }
-    return quizzes.filter((q) => !q.title.toLowerCase().includes("assignment") && q._count.questions > 0);
+    return quizzes.filter((q) => !q.title.toLowerCase().includes("assignment"));
   }, [quizzes, activeSubTab]);
   const quizIdCounter = useRef(0);
 

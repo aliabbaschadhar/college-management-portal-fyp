@@ -52,7 +52,9 @@ model Faculty {
   specialization String
   joinDate       DateTime            @default(now())
   avatar         String?
-  teaches        Course[]
+  teaches        Course[]            @relation("FacultyCourse")
+  teachesMorning Course[]            @relation("FacultyCourseMorning")
+  teachesEvening Course[]            @relation("FacultyCourseEvening")
   attendances    FacultyAttendance[]
   user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -64,16 +66,20 @@ model Admin {
 }
 
 model Course {
-  id              String       @id @default(uuid())
-  courseCode      String
-  courseName      String
-  creditHours     Int
-  department      String
-  semester        Int          @default(1)
-  assignedFaculty String?
-  shift           String       @default("Morning")
-  attendances     Attendance[]
-  faculty         Faculty?     @relation(fields: [assignedFaculty], references: [id])
+  id                     String       @id @default(uuid())
+  courseCode             String
+  courseName             String
+  creditHours            Int
+  department             String
+  semester               Int          @default(1)
+  assignedFaculty        String?
+  assignedFacultyMorning String?
+  assignedFacultyEvening String?
+  shift                  String       @default("Morning")
+  attendances            Attendance[]
+  faculty                Faculty?     @relation("FacultyCourse", fields: [assignedFaculty], references: [id])
+  facultyMorning         Faculty?     @relation("FacultyCourseMorning", fields: [assignedFacultyMorning], references: [id])
+  facultyEvening         Faculty?     @relation("FacultyCourseEvening", fields: [assignedFacultyEvening], references: [id])
   enrollments     Enrollment[]
   grades          Grade[]
   quizzes         Quiz[]

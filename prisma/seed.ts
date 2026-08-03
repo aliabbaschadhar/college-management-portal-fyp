@@ -185,7 +185,7 @@ for (const student of STUDENT_DATA) {
 // ─── 6. Student Attendance ──────────────────────────────
 function generateClassDates(numDates: number): string[] {
   const dates: string[] = [];
-  let cur = new Date("2026-02-02");
+  const cur = new Date("2026-02-02");
   while (dates.length < numDates) {
     const day = cur.getDay();
     if (day !== 0 && day !== 6) {
@@ -208,7 +208,7 @@ function getAttendanceStatus(index: number): "Present" | "Absent" | "Late" {
 // ─── 7. Faculty Attendance (60 working days) ───────────
 function generateWorkingDays(numDays: number): string[] {
   const dates: string[] = [];
-  let cur = new Date("2026-01-05");
+  const cur = new Date("2026-01-05");
   while (dates.length < numDays) {
     const day = cur.getDay();
     if (day !== 0 && day !== 6) {

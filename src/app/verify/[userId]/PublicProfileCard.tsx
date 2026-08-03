@@ -52,6 +52,7 @@ export interface ProfileData {
   blocked?: boolean;
   approvedBy?: string | null;
   attendanceRate?: number | null;
+  totalAttendanceRecords?: number;
   duesStatus?: "Outstanding" | "Clear";
   outstandingFees?: number;
   enrolledCourses?: CourseInfo[];
@@ -148,8 +149,9 @@ export function PublicProfileCard({ profile }: { profile: ProfileData }) {
   const RoleIcon = config.icon;
 
   const isBlocked = profile.role === "STUDENT" && profile.blocked;
-  const attendanceRate = profile.attendanceRate ?? 100;
-  const isEligible = attendanceRate >= 75;
+  const attendanceRate = profile.attendanceRate ?? 0;
+  const totalRecords = profile.totalAttendanceRecords ?? 0;
+  const isEligible = totalRecords === 0 ? true : attendanceRate >= 75;
 
   return (
     <motion.div

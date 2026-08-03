@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/axios";
-import { BookOpen, Users, ChevronDown, ChevronUp, RefreshCw, Eye, Calendar } from "lucide-react";
+import { BookOpen, Users, ChevronDown, ChevronUp, RefreshCw, Eye, Calendar, Clock, MapPin } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +36,15 @@ interface StudentInCourse {
   user: { name: string | null; email: string };
 }
 
+interface TimetableSlot {
+  id: string;
+  day: string;
+  startTime: string;
+  endTime: string;
+  room: string;
+  shift?: string;
+}
+
 interface CourseWithEnrollments {
   id: string;
   courseCode: string;
@@ -45,6 +54,7 @@ interface CourseWithEnrollments {
   semester: number;
   shift?: string;
   enrollments: { student: StudentInCourse }[];
+  timetables?: TimetableSlot[];
 }
 
 export default function ClassesPage() {
@@ -211,6 +221,37 @@ export default function ClassesPage() {
                   <p className="text-xs text-muted-foreground mt-0.5 font-medium">
                     {course.courseCode} • {course.department} • Semester {course.semester}
                   </p>
+
+                  {/* Lecture Timetable & Location Schedule Badges */}
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    {course.timetables && course.timetables.length > 0 ? (
+                      course.timetables.map((slot) => (
+                        <div
+                          key={slot.id}
+                          className="inline-flex items-center gap-1.5 py-1 px-2.5 rounded-lg bg-accent/40 border border-border/70 text-xs text-foreground font-normal"
+                        >
+                          <span className="inline-flex items-center gap-1 font-medium text-brand-primary">
+                            <Calendar className="h-3 w-3" />
+                            {slot.day}
+                          </span>
+                          <span className="text-muted-foreground/60">•</span>
+                          <span className="inline-flex items-center gap-1 text-muted-foreground">
+                            <Clock className="h-3 w-3 text-amber-500" />
+                            {slot.startTime} - {slot.endTime}
+                          </span>
+                          <span className="text-muted-foreground/60">•</span>
+                          <span className="inline-flex items-center gap-1 text-muted-foreground">
+                            <MapPin className="h-3 w-3 text-emerald-500" />
+                            {slot.room}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 py-0.5 px-2 rounded-md bg-muted/30 border border-dashed border-border/80 text-[11px] text-muted-foreground font-normal">
+                        <Clock className="h-3 w-3 opacity-60" /> No Schedule Assigned
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <Badge variant="secondary" className="gap-1 rounded-lg">

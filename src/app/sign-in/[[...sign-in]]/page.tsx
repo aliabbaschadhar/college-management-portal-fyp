@@ -73,7 +73,7 @@ export default function SignInPage() {
       await signIn.authenticateWithRedirect({
         strategy,
         redirectUrl: "/sso-callback",
-        redirectUrlComplete: "/dashboard",
+        redirectUrlComplete: "/onboarding",
       });
     } catch (err) {
       if (isClerkAPIResponseError(err)) {

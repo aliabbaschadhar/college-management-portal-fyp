@@ -139,6 +139,8 @@ export async function GET(request: NextRequest) {
         course: {
           include: {
             faculty: { include: { user: { select: { name: true } } } },
+            facultyMorning: { include: { user: { select: { name: true } } } },
+            facultyEvening: { include: { user: { select: { name: true } } } },
           },
         },
       },

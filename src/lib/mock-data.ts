@@ -543,7 +543,7 @@ export function getStudentDashboardStats(studentId: string) {
   const presentCount = attendance.filter((a) => a.status === "Present" || a.status === "Late").length;
   const attendancePercent = attendance.length > 0
     ? Math.round((presentCount / attendance.length) * 100)
-    : 100;
+    : 0;
 
   const pendingDues = fees.filter((f) => f.status !== "Paid").reduce((sum, f) => sum + f.amount, 0);
 

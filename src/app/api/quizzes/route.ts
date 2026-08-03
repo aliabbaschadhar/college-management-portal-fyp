@@ -106,12 +106,23 @@ export async function POST(request: NextRequest) {
     }
 
     let calculatedMarks = body.totalMarks ?? 0;
+    let selectedQuestionsFull: Array<{
+      id: string;
+      courseId: string;
+      type: string;
+      text: string;
+      options: string[];
+      correctOption: number | null;
+      sampleAnswer: string | null;
+      marks: number;
+      quizId: string | null;
+    }> = [];
+
     if (body.questionIds && body.questionIds.length > 0) {
-      const selectedQuestions = await prisma.question.findMany({
+      selectedQuestionsFull = await prisma.question.findMany({
         where: { id: { in: body.questionIds } },
-        select: { marks: true },
       });
-      calculatedMarks = selectedQuestions.reduce((acc, q) => acc + (q.marks || 1), 0);
+      calculatedMarks = selectedQuestionsFull.reduce((acc, q) => acc + (q.marks || 1), 0);
     }
 
     const quiz = await prisma.quiz.create({
@@ -123,9 +134,6 @@ export async function POST(request: NextRequest) {
         totalMarks: calculatedMarks || 10,
         dueDate: new Date(body.dueDate.includes("T") ? body.dueDate : `${body.dueDate}T23:59:59`),
         status: body.status,
-        ...(body.questionIds && body.questionIds.length > 0
-          ? { questions: { connect: body.questionIds.map((id) => ({ id })) } }
-          : {}),
       },
       include: {
         course: { select: { courseCode: true, courseName: true } },
@@ -133,7 +141,41 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(quiz, { status: 201 });
+    if (selectedQuestionsFull.length > 0) {
+      for (const q of selectedQuestionsFull) {
+        if (!q.quizId) {
+          // Link unassigned question to this quiz
+          await prisma.question.update({
+            where: { id: q.id },
+            data: { quizId: quiz.id },
+          });
+        } else {
+          // Duplicate question for new quiz so past quiz retains its question intact
+          await prisma.question.create({
+            data: {
+              courseId: q.courseId,
+              type: q.type,
+              text: q.text,
+              options: q.options,
+              correctOption: q.correctOption,
+              sampleAnswer: q.sampleAnswer,
+              marks: q.marks,
+              quizId: quiz.id,
+            },
+          });
+        }
+      }
+    }
+
+    const updatedQuiz = await prisma.quiz.findUnique({
+      where: { id: quiz.id },
+      include: {
+        course: { select: { courseCode: true, courseName: true } },
+        questions: true,
+      },
+    });
+
+    return NextResponse.json(updatedQuiz, { status: 201 });
   } catch (error) {
     console.error("POST /api/quizzes error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

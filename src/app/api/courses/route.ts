@@ -51,7 +51,11 @@ export async function GET() {
 
     if (user.role === "FACULTY" && user.faculty) {
       // Faculty see strictly courses explicitly assigned to them by an admin
-      whereClause.assignedFaculty = user.faculty.id;
+      whereClause.OR = [
+        { assignedFaculty: user.faculty.id },
+        { assignedFacultyMorning: user.faculty.id },
+        { assignedFacultyEvening: user.faculty.id },
+      ];
     } else if (user.role === "STUDENT") {
       if (user.student) {
         await ensureStudentEnrollments(user.student.id, user.student.department, user.student.semester);
@@ -68,6 +72,12 @@ export async function GET() {
         faculty: {
           include: { user: { select: { name: true } } },
         },
+        facultyMorning: {
+          include: { user: { select: { name: true } } },
+        },
+        facultyEvening: {
+          include: { user: { select: { name: true } } },
+        },
         _count: { select: { enrollments: true } },
       },
     });
@@ -80,11 +90,25 @@ export async function GET() {
       department: c.department,
       semester: c.semester,
       assignedFaculty: c.assignedFaculty,
+      assignedFacultyMorning: c.assignedFacultyMorning,
+      assignedFacultyEvening: c.assignedFacultyEvening,
       shift: c.shift,
       faculty: c.faculty
         ? {
             user: { name: c.faculty.user.name },
             department: c.faculty.department,
+          }
+        : null,
+      facultyMorning: c.facultyMorning
+        ? {
+            user: { name: c.facultyMorning.user.name },
+            department: c.facultyMorning.department,
+          }
+        : null,
+      facultyEvening: c.facultyEvening
+        ? {
+            user: { name: c.facultyEvening.user.name },
+            department: c.facultyEvening.department,
           }
         : null,
       _count: { enrollments: c._count.enrollments },

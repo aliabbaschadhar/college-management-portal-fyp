@@ -122,6 +122,8 @@ export interface TimetableCourseSummary {
   department: string;
   semester: number;
   faculty: { user: { name: string | null } } | null;
+  facultyMorning?: { user: { name: string | null } } | null;
+  facultyEvening?: { user: { name: string | null } } | null;
 }
 
 export interface TimetableApiEntry {

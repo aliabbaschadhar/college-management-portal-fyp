@@ -37,6 +37,20 @@ export async function getFacultyDashboardData(
               quizzes: { where: { status: "Published" } },
             },
           },
+          teachesMorning: {
+            include: {
+              enrollments: { select: { studentId: true } },
+              timetables: true,
+              quizzes: { where: { status: "Published" } },
+            },
+          },
+          teachesEvening: {
+            include: {
+              enrollments: { select: { studentId: true } },
+              timetables: true,
+              quizzes: { where: { status: "Published" } },
+            },
+          },
         },
       },
     },
@@ -47,7 +61,11 @@ export async function getFacultyDashboardData(
   }
 
   const faculty = user.faculty;
-  const courses = faculty.teaches;
+  const courseMap = new Map<string, (typeof faculty.teaches)[number]>();
+  for (const c of [...faculty.teaches, ...faculty.teachesMorning, ...faculty.teachesEvening]) {
+    courseMap.set(c.id, c);
+  }
+  const courses = Array.from(courseMap.values());
 
   const courseIds = courses.map((c) => c.id);
 

@@ -170,11 +170,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if we need to auto-approve the admin (all admins are auto-approved upon providing the correct secret key)
-    let isAutoApproveAdmin = false;
-    if (role === "ADMIN") {
-      isAutoApproveAdmin = true;
-    }
+    // Only auto-approve admin if this is the very first admin system setup (0 admins exist)
+    const isAutoApproveAdmin = role === "ADMIN" && isFirstAdmin;
 
     let dbUser;
     // Update or create the base User and provision the Admin profile immediately if auto-approved
@@ -182,10 +179,10 @@ export async function POST(request: NextRequest) {
       dbUser = await prisma.user.update({
         where: { id: existingUser.id },
         data: {
-          role,
           clerkId: userId, // Ensure clerkId is synchronized
           ...(isAutoApproveAdmin
             ? {
+                role: "ADMIN",
                 admin: {
                   create: {},
                 },
@@ -199,7 +196,7 @@ export async function POST(request: NextRequest) {
           clerkId: userId,
           email,
           name,
-          role,
+          role: isAutoApproveAdmin ? "ADMIN" : "STUDENT",
           ...(isAutoApproveAdmin
             ? {
                 admin: {

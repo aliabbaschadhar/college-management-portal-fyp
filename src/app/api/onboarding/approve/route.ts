@@ -72,8 +72,10 @@ export async function PATCH(request: NextRequest) {
             },
           });
         } else if (req.role === "ADMIN") {
-          await tx.admin.create({
-            data: {
+          await tx.admin.upsert({
+            where: { userId: targetUser.id },
+            update: {},
+            create: {
               userId: targetUser.id,
             },
           });

@@ -125,7 +125,7 @@ export default function MyAttendancePage() {
   const attendancePercent =
     totalCount > 0
       ? Math.round(((presentCount + lateCount) / totalCount) * 100)
-      : 100;
+      : 0;
 
   const chartData = courses.map((c) => {
     const courseAtt = allAttendance.filter((a) => a.courseId === c.id);

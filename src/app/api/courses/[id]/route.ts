@@ -32,9 +32,12 @@ export async function GET(
     if (isFaculty && user.faculty) {
       const courseCheck = await prisma.course.findUnique({
         where: { id },
-        select: { assignedFaculty: true },
+        select: { assignedFaculty: true, assignedFacultyMorning: true, assignedFacultyEvening: true },
       });
-      canSeeEnrollments = courseCheck?.assignedFaculty === user.faculty.id;
+      canSeeEnrollments =
+        courseCheck?.assignedFaculty === user.faculty.id ||
+        courseCheck?.assignedFacultyMorning === user.faculty.id ||
+        courseCheck?.assignedFacultyEvening === user.faculty.id;
     }
 
     const course = await prisma.course.findUnique({
@@ -47,6 +50,21 @@ export async function GET(
             user: { select: { name: true } }
           }
         },
+        facultyMorning: {
+          select: {
+            id: true,
+            department: true,
+            user: { select: { name: true } }
+          }
+        },
+        facultyEvening: {
+          select: {
+            id: true,
+            department: true,
+            user: { select: { name: true } }
+          }
+        },
+        timetables: true,
         ...(canSeeEnrollments
           ? { enrollments: { include: { student: { include: { user: { select: { name: true } } } } } } }
           : {}),
@@ -78,22 +96,76 @@ export async function PATCH(
       department?: string;
       semester?: number;
       assignedFaculty?: string | null;
+      assignedFacultyMorning?: string | null;
+      assignedFacultyEvening?: string | null;
       shift?: string;
     };
 
+    const updateData: Prisma.CourseUpdateInput = {
+      ...(body.courseCode !== undefined ? { courseCode: body.courseCode } : {}),
+      ...(body.courseName !== undefined ? { courseName: body.courseName } : {}),
+      ...(body.creditHours !== undefined ? { creditHours: body.creditHours } : {}),
+      ...(body.department !== undefined ? { department: body.department } : {}),
+      ...(body.semester !== undefined ? { semester: body.semester } : {}),
+      ...(body.shift !== undefined ? { shift: body.shift } : {}),
+    };
+
+    if (body.assignedFacultyMorning !== undefined) {
+      updateData.facultyMorning = body.assignedFacultyMorning
+        ? { connect: { id: body.assignedFacultyMorning } }
+        : { disconnect: true };
+    }
+
+    if (body.assignedFacultyEvening !== undefined) {
+      updateData.facultyEvening = body.assignedFacultyEvening
+        ? { connect: { id: body.assignedFacultyEvening } }
+        : { disconnect: true };
+    }
+
+    if (body.assignedFaculty !== undefined) {
+      if (body.assignedFaculty === null) {
+        // If assignedFaculty is null and shift is specified, unassign only that shift
+        if (body.shift === "Morning") {
+          updateData.facultyMorning = { disconnect: true };
+        } else if (body.shift === "Evening") {
+          updateData.facultyEvening = { disconnect: true };
+        } else {
+          updateData.faculty = { disconnect: true };
+          updateData.facultyMorning = { disconnect: true };
+          updateData.facultyEvening = { disconnect: true };
+        }
+      } else {
+        updateData.faculty = { connect: { id: body.assignedFaculty } };
+        if (body.shift === "Morning") {
+          updateData.facultyMorning = { connect: { id: body.assignedFaculty } };
+        } else if (body.shift === "Evening") {
+          updateData.facultyEvening = { connect: { id: body.assignedFaculty } };
+        } else if (body.shift === "Both") {
+          updateData.facultyMorning = { connect: { id: body.assignedFaculty } };
+          updateData.facultyEvening = { connect: { id: body.assignedFaculty } };
+        }
+      }
+    }
+
     const course = await prisma.course.update({
       where: { id },
-      data: {
-        ...(body.courseCode !== undefined ? { courseCode: body.courseCode } : {}),
-        ...(body.courseName !== undefined ? { courseName: body.courseName } : {}),
-        ...(body.creditHours !== undefined ? { creditHours: body.creditHours } : {}),
-        ...(body.department !== undefined ? { department: body.department } : {}),
-        ...(body.semester !== undefined ? { semester: body.semester } : {}),
-        ...(body.assignedFaculty !== undefined ? { assignedFaculty: body.assignedFaculty } : {}),
-        ...(body.shift !== undefined ? { shift: body.shift } : {}),
-      },
+      data: updateData,
       include: {
         faculty: {
+          select: {
+            id: true,
+            department: true,
+            user: { select: { name: true } }
+          }
+        },
+        facultyMorning: {
+          select: {
+            id: true,
+            department: true,
+            user: { select: { name: true } }
+          }
+        },
+        facultyEvening: {
           select: {
             id: true,
             department: true,

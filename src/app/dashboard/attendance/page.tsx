@@ -347,7 +347,7 @@ export default function ManageAttendancePage() {
       const present = studentLogs.filter((a) => a.status === "Present").length;
       const absent = studentLogs.filter((a) => a.status === "Absent").length;
       const late = studentLogs.filter((a) => a.status === "Late").length;
-      const rate = total > 0 ? Math.round(((present + late) / total) * 100) : 100;
+      const rate = total > 0 ? Math.round(((present + late) / total) * 100) : 0;
 
       return {
         ...student,
@@ -449,7 +449,7 @@ export default function ManageAttendancePage() {
       header: "Student",
       sortable: true,
       render: (row) => {
-        const pct = row.stats.total > 0 ? Math.round(((row.stats.present + row.stats.late) / row.stats.total) * 100) : 100;
+        const pct = row.stats.total > 0 ? Math.round(((row.stats.present + row.stats.late) / row.stats.total) * 100) : 0;
         return (
           <div>
             <div className="flex items-center gap-2">
@@ -978,7 +978,7 @@ export default function ManageAttendancePage() {
               const activeCourseId = selectedStudentLogs[0]?.courseId;
               const totalLogs = selectedStudentLogs.length;
               const presentLogs = selectedStudentLogs.filter(l => l.status === "Present" || l.status === "Late").length;
-              const coursePct = totalLogs > 0 ? Math.round((presentLogs / totalLogs) * 100) : 100;
+              const coursePct = totalLogs > 0 ? Math.round((presentLogs / totalLogs) * 100) : 0;
 
               const enrollment = selectedStudent.enrollments?.find(e => e.courseId === activeCourseId);
               const isStruckOffCourse = enrollment ? enrollment.blocked : selectedStudent.blocked;
