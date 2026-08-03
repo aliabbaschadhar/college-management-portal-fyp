@@ -190,6 +190,38 @@ export default async function VerifyPage({ params }: VerifyPageProps) {
     }
   }
 
+  // Compute faculty today detailed class schedule
+  let facultyTodayClasses: {
+    courseName: string;
+    department: string;
+    semester: number;
+    room: string;
+    startTime: string;
+    endTime: string;
+  }[] = [];
+
+  if (user.role === "FACULTY" && user.faculty) {
+    const todayEntries = await prisma.timetable.findMany({
+      where: {
+        course: { assignedFaculty: user.faculty.id },
+        day: currentDay,
+      },
+      include: {
+        course: { select: { courseName: true, department: true, semester: true } },
+      },
+      orderBy: { startTime: "asc" },
+    });
+
+    facultyTodayClasses = todayEntries.map((entry) => ({
+      courseName: entry.course.courseName,
+      department: entry.course.department,
+      semester: entry.course.semester,
+      room: entry.room,
+      startTime: entry.startTime,
+      endTime: entry.endTime,
+    }));
+  }
+
   // Assemble safe, display-ready profile data
   const profileData = {
     name: user.name ?? "Unknown",
@@ -242,13 +274,14 @@ export default async function VerifyPage({ params }: VerifyPageProps) {
                 checkOutTime: user.faculty.attendances[0].checkOutTime?.toISOString() ?? null,
               }
             : null,
+          todayClasses: facultyTodayClasses,
         }
       : {}),
     ...(user.role === "ADMIN" ? { designation: "System Administrator" } : {}),
   };
 
   return (
-    <main className="min-h-screen bg-brand-light flex flex-col items-center justify-center p-4 gap-6">
+    <main className="min-h-screen bg-slate-200 dark:bg-zinc-950 text-foreground flex flex-col items-center justify-center p-4 gap-6 transition-colors">
       <PublicProfileCard profile={profileData} />
     </main>
   );

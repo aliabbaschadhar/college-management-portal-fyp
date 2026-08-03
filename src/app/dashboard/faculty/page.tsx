@@ -389,7 +389,7 @@ export default function ManageFacultyPage() {
 
       {/* View Faculty Details Dialog */}
       <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
-        <DialogContent showCloseButton={false} className="sm:max-w-[640px] p-0 overflow-hidden rounded-2xl border border-brand-light bg-brand-white shadow-xl">
+        <DialogContent showCloseButton={false} className="sm:max-w-[640px] p-0 overflow-hidden rounded-3xl border border-border bg-card shadow-2xl">
           <DialogHeader className="sr-only">
             <DialogTitle>Faculty Member Profile</DialogTitle>
             <DialogDescription>
@@ -397,20 +397,20 @@ export default function ManageFacultyPage() {
             </DialogDescription>
           </DialogHeader>
           {viewingFaculty && (
-            <div className="grid grid-cols-1 md:grid-cols-12 rounded-2xl overflow-hidden border border-border">
-              {/* Left Column: Header Information */}
-              <div className="md:col-span-5 bg-gradient-to-br from-[#A78BFA] to-brand-primary p-6 text-center relative flex flex-col justify-between items-center text-white">
+            <div className="grid grid-cols-1 md:grid-cols-12 rounded-3xl overflow-hidden border border-border">
+              {/* Left Column: Columnar Picture + Profile/Academic Details */}
+              <div className="md:col-span-5 bg-gradient-to-br from-[#A78BFA] to-brand-primary p-6 text-center flex flex-col justify-between items-center text-white space-y-4">
                 <div className="w-full flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold border backdrop-blur-sm bg-white/20 text-white border-white/20">
                     ✓ Faculty Instructor
                   </div>
                   <div className="flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-2.5 py-1 text-[10px] text-white font-semibold">
-                    <BadgeCheck className="w-3.5 h-3.5" /> Official Verified
+                    <BadgeCheck className="w-3.5 h-3.5" /> Verified
                   </div>
                 </div>
 
-                <div className="my-auto py-4">
-                  <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm mx-auto flex items-center justify-center mb-3 border-2 border-white/30 overflow-hidden ring-4 ring-white/10 shadow-lg">
+                <div className="flex flex-col items-center text-center w-full py-1">
+                  <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm mx-auto flex items-center justify-center mb-2 border-2 border-white/30 overflow-hidden ring-4 ring-white/10 shadow-lg shrink-0">
                     {viewingFaculty.avatar ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img
@@ -423,27 +423,47 @@ export default function ManageFacultyPage() {
                     )}
                   </div>
 
-                  <h2 className="text-xl font-black text-white mb-2">
+                  <h2 className="text-xl font-black text-white mb-0.5 leading-snug">
                     {viewingFaculty.user.name}
                   </h2>
 
-                  <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                    <span className="inline-flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 text-xs text-white font-bold">
-                      <Briefcase className="w-3.5 h-3.5" /> Faculty
-                    </span>
-                    <span className="inline-flex items-center bg-white/15 backdrop-blur-sm rounded-full px-2.5 py-1 text-xs text-white/90 font-medium">
-                      {viewingFaculty.department}
-                    </span>
-                  </div>
+                  <span className="inline-flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-3 py-0.5 text-[11px] text-white font-bold">
+                    <Briefcase className="w-3.5 h-3.5" /> Faculty
+                  </span>
                 </div>
 
-                <p className="text-[10px] text-white/60 font-mono">Dept: {viewingFaculty.department}</p>
+                {/* Profile & Academic Stack */}
+                <div className="w-full space-y-2 pt-3 border-t border-white/20 text-left text-xs text-white/90">
+                  <div>
+                    <p className="text-white/60 text-[10px] uppercase font-bold tracking-wider">Department</p>
+                    <p className="font-semibold text-white truncate">{viewingFaculty.department}</p>
+                  </div>
+                  {viewingFaculty.specialization && (
+                    <div>
+                      <p className="text-white/60 text-[10px] uppercase font-bold tracking-wider">Specialization</p>
+                      <p className="font-semibold text-white truncate">{viewingFaculty.specialization}</p>
+                    </div>
+                  )}
+                  {viewingFaculty.phone && (
+                    <div>
+                      <p className="text-white/60 text-[10px] uppercase font-bold tracking-wider">Phone</p>
+                      <p className="font-semibold text-white">{viewingFaculty.phone}</p>
+                    </div>
+                  )}
+                  {viewingFaculty.user.email && (
+                    <div>
+                      <p className="text-white/60 text-[10px] uppercase font-bold tracking-wider">Email</p>
+                      <p className="font-semibold text-white font-mono truncate">{viewingFaculty.user.email}</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Right Column: Related Data */}
-              <div className="md:col-span-7 p-6 space-y-3.5 bg-card">
-                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Contact & Academic Details</p>
-                <div className="space-y-3 text-sm">
+              {/* Right Column: Dynamic & Institutional Details */}
+              <div className="md:col-span-7 p-6 space-y-4 bg-card flex flex-col justify-between">
+                <div className="space-y-3.5 text-sm">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Academic &amp; System Info</p>
+
                   {/* Institution */}
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
@@ -452,50 +472,6 @@ export default function ManageFacultyPage() {
                     <div>
                       <p className="text-muted-foreground text-xs">Institution</p>
                       <p className="font-semibold text-foreground">Govt. Graduate College, Hafizabad</p>
-                    </div>
-                  </div>
-
-                  {/* Email */}
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
-                      <Mail className="w-4 h-4 text-brand-primary" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-muted-foreground text-xs">Email Address</p>
-                      <p className="font-semibold text-foreground truncate font-mono">{viewingFaculty.user.email}</p>
-                    </div>
-                  </div>
-
-                  {/* Phone */}
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
-                      <PhoneIcon className="w-4 h-4 text-brand-primary" />
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs">Phone Number</p>
-                      <p className="font-semibold text-foreground">{viewingFaculty.phone ?? "—"}</p>
-                    </div>
-                  </div>
-
-                  {/* Department */}
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
-                      <GraduationCap className="w-4 h-4 text-brand-primary" />
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs">Department</p>
-                      <p className="font-semibold text-foreground">{viewingFaculty.department}</p>
-                    </div>
-                  </div>
-
-                  {/* Specialization */}
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
-                      <Briefcase className="w-4 h-4 text-brand-primary" />
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs">Specialization</p>
-                      <p className="font-semibold text-foreground">{viewingFaculty.specialization ?? "—"}</p>
                     </div>
                   </div>
 
@@ -515,9 +491,10 @@ export default function ManageFacultyPage() {
                       </p>
                     </div>
                   </div>
+
                   {/* System Audit */}
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
+                  <div className="flex items-center gap-3 pt-2">
+                    <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
                       <Shield className="w-4 h-4 text-brand-primary" />
                     </div>
                     <div>
@@ -528,19 +505,20 @@ export default function ManageFacultyPage() {
                     </div>
                   </div>
                 </div>
-              </div>
-              {/* Card Footer */}
-              <div className="px-6 py-4 bg-brand-light/60 border-t border-brand-light flex items-center justify-between">
-                <p className="text-xs text-muted-foreground">
-                  Verified Faculty Record
-                </p>
-                <Button
-                  onClick={() => setDetailsDialogOpen(false)}
-                  variant="outline"
-                  className="rounded-xl h-8 px-4 text-xs font-medium"
-                >
-                  Close
-                </Button>
+
+                {/* Card Footer */}
+                <div className="pt-3 border-t border-border flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    Verified Faculty Record
+                  </p>
+                  <Button
+                    onClick={() => setDetailsDialogOpen(false)}
+                    variant="outline"
+                    className="rounded-xl h-8 px-4 text-xs font-medium"
+                  >
+                    Close
+                  </Button>
+                </div>
               </div>
             </div>
           )}

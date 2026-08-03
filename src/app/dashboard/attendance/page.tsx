@@ -101,11 +101,19 @@ const departmentIcons: Record<string, string> = {
   "Islamic Studies": "🕌",
 };
 
+interface TimetableItem {
+  id: string;
+  courseId: string;
+  day: string;
+  shift?: string;
+}
+
 export default function ManageAttendancePage() {
   const { user, isLoaded } = useUser();
   const [students, setStudents] = useState<StudentItem[]>([]);
   const [attendance, setAttendance] = useState<AttendanceWithDetails[]>([]);
   const [courses, setCourses] = useState<CourseType[]>([]);
+  const [timetables, setTimetables] = useState<TimetableItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Drill-down states with sessionStorage persistence
@@ -368,24 +376,25 @@ export default function ManageAttendancePage() {
   // Unique courses for selected student
   const studentCourses = useMemo(() => {
     if (!selectedStudent) return [];
-    const studentLogCourseIds = new Set(
-      attendance.filter((a) => a.studentId === selectedStudent.id).map((a) => a.courseId)
+    if (selectedStudent.enrollments && selectedStudent.enrollments.length > 0) {
+      const enrolledCourseIds = new Set(selectedStudent.enrollments.map((e) => e.courseId));
+      const enrolled = courses.filter((c) => enrolledCourseIds.has(c.id));
+      if (enrolled.length > 0) return enrolled;
+    }
+    return courses.filter(
+      (c) => c.department === selectedStudent.department && c.semester === selectedStudent.semester
     );
-    return courses.filter((c) => studentLogCourseIds.has(c.id));
-  }, [selectedStudent, attendance, courses]);
+  }, [selectedStudent, courses]);
 
   // Fetch present day attendance for all enrolled courses, or 90-day detailed logs for a selected course
   const selectedStudentTodayStatusList = useMemo(() => {
     if (!selectedStudent || selectedLogCourseId !== "all") return [];
     const todayStr = new Date().toISOString().split("T")[0];
+    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const todayDayName = days[new Date().getDay()];
     const isSunday = new Date().getDay() === 0;
 
-    // Relevant courses for student class
-    const relevantCourses = courses.filter(
-      (c) => c.department === selectedStudent.department && c.semester === selectedStudent.semester
-    );
-
-    return relevantCourses.map((c) => {
+    return studentCourses.map((c) => {
       const log = attendance.find(
         (a) =>
           a.studentId === selectedStudent.id &&
@@ -393,21 +402,35 @@ export default function ManageAttendancePage() {
           new Date(a.date).toISOString().split("T")[0] === todayStr
       );
 
+      const hasClassToday = !isSunday && timetables.some((t) => {
+        const matchCourse = t.courseId === c.id;
+        const matchDay = t.day.toLowerCase() === todayDayName.toLowerCase();
+        const matchShift = !t.shift || t.shift.toLowerCase() === selectedStudent.shift?.toLowerCase();
+        return matchCourse && matchDay && matchShift;
+      });
+
+      let calculatedStatus = "Not Marked Yet";
+      if (log) {
+        calculatedStatus = log.status;
+      } else if (isSunday || (timetables.length > 0 && !hasClassToday)) {
+        calculatedStatus = "No Class Today";
+      }
+
       return {
         courseId: c.id,
         courseCode: c.courseCode,
         courseName: c.courseName,
         logId: log?.id ?? null,
-        status: log ? log.status : isSunday ? "No Class Today" : "Not Marked Yet",
+        status: calculatedStatus,
         date: todayStr,
       };
     });
-  }, [selectedStudent, attendance, courses, selectedLogCourseId]);
+  }, [selectedStudent, attendance, studentCourses, timetables, selectedLogCourseId]);
 
   const selectedStudentLogs = useMemo(() => {
     if (!selectedStudent || selectedLogCourseId === "all") return [];
 
-    // Specific course selected: 90 days history
+    // Specific course selected: 90 days history regardless of date filter
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
     return attendance
@@ -415,14 +438,10 @@ export default function ManageAttendancePage() {
         if (a.studentId !== selectedStudent.id) return false;
         if (a.courseId !== selectedLogCourseId) return false;
         if (new Date(a.date) < ninetyDaysAgo) return false;
-        if (filterDate) {
-          const logDateStr = new Date(a.date).toISOString().split("T")[0];
-          if (logDateStr !== filterDate) return false;
-        }
         return true;
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [selectedStudent, attendance, selectedLogCourseId, filterDate]);
+  }, [selectedStudent, attendance, selectedLogCourseId]);
 
   const columns: Column<StudentStatsItem>[] = [
     {
@@ -919,11 +938,11 @@ export default function ManageAttendancePage() {
               {/* Course & Date Filters */}
               <div className="flex items-center gap-2 shrink-0 flex-wrap">
                 <Select value={selectedLogCourseId} onValueChange={setSelectedLogCourseId}>
-                  <SelectTrigger className="h-9 w-40 text-xs rounded-xl bg-card">
-                    <SelectValue placeholder="All Courses" />
+                  <SelectTrigger className="h-9 w-44 text-xs rounded-xl bg-card">
+                    <SelectValue placeholder="Current day attendance" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Courses</SelectItem>
+                    <SelectItem value="all">Current day attendance</SelectItem>
                     {studentCourses.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.courseCode} — {c.courseName}
@@ -1103,9 +1122,56 @@ export default function ManageAttendancePage() {
               );
             })()}
 
-            {selectedStudentLogs.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">No attendance records found for this selection.</p>
-            ) : selectedLogCourseId !== "all" ? (
+            {selectedLogCourseId === "all" ? (
+              /* Today's Present Day Attendance list across enrolled courses */
+              <div className="space-y-3">
+                <div className="p-2.5 rounded-xl bg-brand-primary/10 border border-brand-primary/20 text-xs text-brand-primary font-semibold flex items-center justify-between">
+                  <span>Today&apos;s Enrolled Courses Attendance</span>
+                  <span className="font-mono">{new Date().toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</span>
+                </div>
+                {selectedStudentTodayStatusList.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-6">No enrolled courses found for this student class.</p>
+                ) : (
+                  selectedStudentTodayStatusList.map((item) => (
+                    <div key={item.courseId} className="p-4 bg-accent/40 border border-border rounded-2xl flex items-center justify-between gap-4">
+                      <div>
+                        <p className="font-semibold text-sm text-foreground">
+                          {item.courseCode}{item.courseName ? ` - ${item.courseName}` : ""}
+                        </p>
+                        <p className="text-xs text-muted-foreground font-mono flex items-center gap-1.5 mt-1">
+                          <Calendar className="h-3 w-3" />
+                          {new Date().toLocaleDateString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <Badge
+                          className={
+                            item.status === "Present"
+                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-bold"
+                              : item.status === "Late"
+                              ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 font-bold"
+                              : item.status === "Absent"
+                              ? "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 font-bold"
+                              : item.status === "No Class Today"
+                              ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 font-bold"
+                              : "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border border-zinc-500/20 font-semibold"
+                          }
+                        >
+                          {item.status}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : selectedStudentLogs.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No attendance records found for this course.</p>
+            ) : (
               <div className="space-y-3">
                 {/* 90-Day Compact P, A, L Grid View */}
                 {(() => {
@@ -1162,74 +1228,6 @@ export default function ManageAttendancePage() {
                     );
                   })}
                 </div>
-              </div>
-            ) : (
-              /* Today's Present Day Attendance list across enrolled courses */
-              <div className="space-y-3">
-                <div className="p-2.5 rounded-xl bg-brand-primary/10 border border-brand-primary/20 text-xs text-brand-primary font-semibold flex items-center justify-between">
-                  <span>Today&apos;s Enrolled Courses Attendance</span>
-                  <span className="font-mono">{new Date().toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</span>
-                </div>
-                {selectedStudentTodayStatusList.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-6">No enrolled courses found for this student class.</p>
-                ) : (
-                  selectedStudentTodayStatusList.map((item) => (
-                    <div key={item.courseId} className="p-4 bg-accent/40 border border-border rounded-2xl flex items-center justify-between gap-4">
-                      <div>
-                        <p className="font-semibold text-sm text-foreground">
-                          {item.courseCode}{item.courseName ? ` - ${item.courseName}` : ""}
-                        </p>
-                        <p className="text-xs text-muted-foreground font-mono flex items-center gap-1.5 mt-1">
-                          <Calendar className="h-3 w-3" />
-                          {new Date().toLocaleDateString(undefined, {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <Badge
-                          className={
-                            item.status === "Present"
-                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-bold"
-                              : item.status === "Late"
-                              ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 font-bold"
-                              : item.status === "Absent"
-                              ? "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 font-bold"
-                              : item.status === "No Class Today"
-                              ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 font-bold"
-                              : "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border border-zinc-500/20 font-semibold"
-                          }
-                        >
-                          {item.status}
-                        </Badge>
-
-                        {item.logId && (
-                          <Select
-                            value={item.status as "Present" | "Absent" | "Late"}
-                            disabled={updatingLogId === item.logId}
-                            onValueChange={(v) => handleStatusChange(item.logId!, v as "Present" | "Absent" | "Late")}
-                          >
-                            <SelectTrigger className="h-8 w-8 p-0 border-none bg-transparent hover:bg-accent/80 flex items-center justify-center rounded-lg">
-                              {updatingLogId === item.logId ? (
-                                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                              ) : (
-                                <Filter className="h-3.5 w-3.5 text-muted-foreground" />
-                              )}
-                            </SelectTrigger>
-                            <SelectContent align="end">
-                              <SelectItem value="Present">Mark Present</SelectItem>
-                              <SelectItem value="Absent">Mark Absent</SelectItem>
-                              <SelectItem value="Late">Mark Late</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
               </div>
             )}
           </div>

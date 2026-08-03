@@ -10,7 +10,6 @@ import {
   Calendar,
   Award,
   Search,
-  ExternalLink,
   UserCheck
 } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
@@ -209,64 +208,22 @@ export default function MyCoursesPage() {
                   </p>
                 </div>
 
-                {/* Progress Bar */}
-                <div className="space-y-1.5 mb-5 p-3 rounded-2xl bg-card/60 border border-border/40 backdrop-blur-xs">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-muted-foreground">Term Completion</span>
-                    <span className="text-brand-primary font-bold">{progressPercent}%</span>
-                  </div>
-                  <div className="h-2 w-full bg-muted/60 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-brand-primary to-brand-secondary rounded-full transition-all duration-500"
-                      style={{ width: `${progressPercent}%` }}
-                    />
-                  </div>
-                </div>
-
                 {/* Metadata Row */}
-                <div className="space-y-2 text-xs border-t border-border/40 pt-4 mb-4">
-                  <button
-                    onClick={() => setSelectedFacultyModal(course)}
-                    className="w-full flex items-center justify-between p-2 rounded-xl bg-accent/30 hover:bg-accent/60 transition-colors text-left group/fac cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <GraduationCap className="h-4 w-4 text-brand-primary shrink-0" />
-                      <span className="font-semibold text-foreground truncate">
-                        Instructor: <strong className="text-brand-primary">{facultyName}</strong>
-                      </span>
-                    </div>
-                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-60 group-hover/fac:opacity-100 transition-opacity" />
-                  </button>
+                <div className="space-y-2.5 text-xs border-t border-border/40 pt-4 mb-4">
+                  <div className="flex items-center justify-between px-1 text-muted-foreground font-medium">
+                    <span className="flex items-center gap-1.5 font-semibold text-foreground">
+                      <GraduationCap className="h-4 w-4 text-brand-primary shrink-0" /> Instructor
+                    </span>
+                    <span className="font-bold text-brand-primary">{facultyName}</span>
+                  </div>
 
-                  <div className="flex items-center justify-between px-2 text-muted-foreground font-medium">
+                  <div className="flex items-center justify-between px-1 text-muted-foreground font-medium">
                     <span className="flex items-center gap-1.5">
-                      <Users className="h-3.5 w-3.5 text-brand-secondary" /> Enrolled Classmate Count
+                      <Users className="h-3.5 w-3.5 text-brand-secondary" /> Classmates Enrolled
                     </span>
                     <span className="font-bold text-foreground font-mono">{studentCount} Students</span>
                   </div>
                 </div>
-              </div>
-
-              {/* Action Shortcuts */}
-              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border/40">
-                <Link
-                  href="/dashboard/my-attendance"
-                  className="flex items-center justify-center gap-1 p-2 rounded-xl bg-card/80 border border-border text-[11px] font-bold text-foreground hover:bg-brand-primary hover:text-white transition-all text-center shadow-2xs"
-                >
-                  <UserCheck className="h-3 w-3" /> Attendance
-                </Link>
-                <Link
-                  href="/dashboard/my-grades"
-                  className="flex items-center justify-center gap-1 p-2 rounded-xl bg-card/80 border border-border text-[11px] font-bold text-foreground hover:bg-brand-primary hover:text-white transition-all text-center shadow-2xs"
-                >
-                  <Award className="h-3 w-3" /> Grades
-                </Link>
-                <Link
-                  href="/dashboard/take-quiz"
-                  className="flex items-center justify-center gap-1 p-2 rounded-xl bg-card/80 border border-border text-[11px] font-bold text-foreground hover:bg-brand-primary hover:text-white transition-all text-center shadow-2xs"
-                >
-                  <Calendar className="h-3 w-3" /> Quizzes
-                </Link>
               </div>
             </motion.div>
           );

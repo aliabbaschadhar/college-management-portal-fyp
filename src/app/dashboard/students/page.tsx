@@ -925,7 +925,7 @@ export default function ManageStudentsPage() {
 
       {/* Detail View Dialog */}
       <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <DialogContent showCloseButton={false} className="sm:max-w-[640px] p-0 overflow-hidden rounded-2xl border border-brand-light bg-brand-white shadow-xl">
+        <DialogContent showCloseButton={false} className="sm:max-w-[640px] p-0 overflow-hidden rounded-3xl border border-border bg-card shadow-2xl">
           <DialogHeader className="sr-only">
             <DialogTitle>Student Profile Details</DialogTitle>
             <DialogDescription>
@@ -933,20 +933,20 @@ export default function ManageStudentsPage() {
             </DialogDescription>
           </DialogHeader>
           {detailStudent && (
-            <div className="grid grid-cols-1 md:grid-cols-12 rounded-2xl overflow-hidden border border-border">
-              {/* Left Column: Header Information */}
-              <div className="md:col-span-5 bg-gradient-to-br from-brand-primary to-brand-secondary p-6 text-center relative flex flex-col justify-between items-center text-white">
+            <div className="grid grid-cols-1 md:grid-cols-12 rounded-3xl overflow-hidden border border-border">
+              {/* Left Column: Columnar Picture + Profile/Academic Details */}
+              <div className="md:col-span-5 bg-gradient-to-br from-brand-primary to-brand-secondary p-6 text-center flex flex-col justify-between items-center text-white space-y-4">
                 <div className="w-full flex items-center justify-between gap-2">
                   <div className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold border backdrop-blur-sm ${detailStudent.blocked ? "bg-red-500/20 text-red-100 border-red-400/30" : "bg-white/20 text-white border-white/20"}`}>
                     {detailStudent.blocked ? "⛔ Suspended" : "✓ Active Student"}
                   </div>
                   <div className="flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-2.5 py-1 text-[10px] text-white font-semibold">
-                    <BadgeCheck className="w-3.5 h-3.5" /> Official Verified
+                    <BadgeCheck className="w-3.5 h-3.5" /> Verified
                   </div>
                 </div>
 
-                <div className="my-auto py-4">
-                  <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm mx-auto flex items-center justify-center mb-3 border-2 border-white/30 overflow-hidden ring-4 ring-white/10 shadow-lg">
+                <div className="flex flex-col items-center text-center w-full py-1">
+                  <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm mx-auto flex items-center justify-center mb-2 border-2 border-white/30 overflow-hidden ring-4 ring-white/10 shadow-lg shrink-0">
                     {detailStudent.avatar ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img src={detailStudent.avatar} alt={detailStudent.user.name ?? "Avatar"} className="object-cover h-full w-full" />
@@ -955,31 +955,46 @@ export default function ManageStudentsPage() {
                     )}
                   </div>
 
-                  <h2 className="text-xl font-black text-white mb-1">
+                  <h2 className="text-xl font-black text-white mb-0.5 leading-snug">
                     {detailStudent.user.name ?? "—"}
                   </h2>
-                  <p className="text-sm text-white/80 font-mono font-semibold mb-3">{detailStudent.rollNo}</p>
+                  <p className="text-xs text-white/80 font-mono font-semibold mb-2">{detailStudent.rollNo}</p>
 
-                  <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                    <span className="inline-flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 text-xs text-white font-bold">
-                      <GraduationCap className="w-3.5 h-3.5" /> Student
-                    </span>
-                    <span className="inline-flex items-center bg-white/15 backdrop-blur-sm rounded-full px-2.5 py-1 text-xs text-white/90 font-medium">
-                      {detailStudent.department}
-                    </span>
-                    <span className="inline-flex items-center bg-white/15 backdrop-blur-sm rounded-full px-2.5 py-1 text-xs text-white/90 font-medium">
-                      Sem {detailStudent.semester}
-                    </span>
-                  </div>
+                  <span className="inline-flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-3 py-0.5 text-[11px] text-white font-bold">
+                    <GraduationCap className="w-3.5 h-3.5" /> Student
+                  </span>
                 </div>
 
-                <p className="text-[10px] text-white/60 font-mono">Roll: {detailStudent.rollNo}</p>
+                {/* Profile & Academic Stack */}
+                <div className="w-full space-y-2 pt-3 border-t border-white/20 text-left text-xs text-white/90">
+                  <div>
+                    <p className="text-white/60 text-[10px] uppercase font-bold tracking-wider">Department</p>
+                    <p className="font-semibold text-white truncate">{detailStudent.department}</p>
+                  </div>
+                  <div>
+                    <p className="text-white/60 text-[10px] uppercase font-bold tracking-wider">Semester &amp; Shift</p>
+                    <p className="font-semibold text-white">Semester {detailStudent.semester} ({detailStudent.shift ?? "Morning"})</p>
+                  </div>
+                  {detailStudent.phone && (
+                    <div>
+                      <p className="text-white/60 text-[10px] uppercase font-bold tracking-wider">Phone</p>
+                      <p className="font-semibold text-white">{detailStudent.phone}</p>
+                    </div>
+                  )}
+                  {detailStudent.user.email && (
+                    <div>
+                      <p className="text-white/60 text-[10px] uppercase font-bold tracking-wider">Email</p>
+                      <p className="font-semibold text-white font-mono truncate">{detailStudent.user.email}</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Right Column: Related Data */}
-              <div className="md:col-span-7 p-6 space-y-3.5 bg-card">
-                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Contact & Academic Details</p>
-                <div className="space-y-3 text-sm">
+              {/* Right Column: Dynamic & Institutional Details */}
+              <div className="md:col-span-7 p-6 space-y-4 bg-card flex flex-col justify-between">
+                <div className="space-y-3.5 text-sm">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Academic &amp; System Info</p>
+
                   {/* Institution */}
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
@@ -988,39 +1003,6 @@ export default function ManageStudentsPage() {
                     <div>
                       <p className="text-muted-foreground text-xs">Institution</p>
                       <p className="font-semibold text-foreground">Govt. Graduate College, Hafizabad</p>
-                    </div>
-                  </div>
-
-                  {/* Email */}
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
-                      <Mail className="w-4 h-4 text-brand-primary" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-muted-foreground text-xs">Email Address</p>
-                      <p className="font-semibold text-foreground truncate font-mono">{detailStudent.user.email ?? "—"}</p>
-                    </div>
-                  </div>
-
-                  {/* Phone */}
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
-                      <Phone className="w-4 h-4 text-brand-primary" />
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs">Phone Number</p>
-                      <p className="font-semibold text-foreground">{detailStudent.phone ?? "—"}</p>
-                    </div>
-                  </div>
-
-                  {/* Shift */}
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
-                      <Clock className="w-4 h-4 text-brand-primary" />
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs">Semester & Shift</p>
-                      <p className="font-semibold text-foreground">Semester {detailStudent.semester} ({detailStudent.shift ?? "Morning"})</p>
                     </div>
                   </div>
 
@@ -1034,8 +1016,8 @@ export default function ManageStudentsPage() {
                       <p className="font-semibold text-foreground">
                         {detailStudent.enrollmentDate
                           ? new Date(detailStudent.enrollmentDate).toLocaleDateString("en-PK", {
-                              year: "numeric", month: "long", day: "numeric",
-                            })
+                            year: "numeric", month: "long", day: "numeric",
+                          })
                           : "—"}
                       </p>
                     </div>
@@ -1053,34 +1035,34 @@ export default function ManageStudentsPage() {
                       </div>
                     </div>
                   )}
-                </div>
 
-                {/* System Audit */}
-                <div className="flex items-center gap-3 text-sm pt-1">
-                  <div className="w-9 h-9 rounded-lg bg-brand-light flex items-center justify-center shrink-0">
-                    <Shield className="w-[18px] h-[18px] text-brand-primary" />
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground text-xs">System Audit Details</p>
-                    <div className="mt-0.5">
-                      <AuditBadgeInline entity="Student" entityId={detailStudent.id} />
+                  {/* System Audit */}
+                  <div className="flex items-center gap-3 pt-2">
+                    <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                      <Shield className="w-4 h-4 text-brand-primary" />
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">System Audit Details</p>
+                      <div className="mt-0.5">
+                        <AuditBadgeInline entity="Student" entityId={detailStudent.id} />
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Card Footer */}
-              <div className="px-6 py-4 bg-brand-light/60 border-t border-brand-light flex items-center justify-between">
-                <p className="text-xs text-muted-foreground">
-                  Verified Student Record
-                </p>
-                <Button
-                  onClick={() => setDetailDialogOpen(false)}
-                  variant="outline"
-                  className="rounded-xl h-8 px-4 text-xs font-medium"
-                >
-                  Close
-                </Button>
+                {/* Card Footer */}
+                <div className="pt-3 border-t border-border flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    Verified Student Record
+                  </p>
+                  <Button
+                    onClick={() => setDetailDialogOpen(false)}
+                    variant="outline"
+                    className="rounded-xl h-8 px-4 text-xs font-medium"
+                  >
+                    Close
+                  </Button>
+                </div>
               </div>
             </div>
           )}

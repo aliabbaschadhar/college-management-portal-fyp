@@ -81,7 +81,7 @@ export default function MarkAttendancePage() {
   const [selectedDate, setSelectedDate] = useState(getLocalTodayString());
   const [attendanceData, setAttendanceData] = useState<StudentAttendance[]>([]);
   const [savedSnapshot, setSavedSnapshot] = useState<StudentAttendance[]>([]);
-  const [timetableDays, setTimetableDays] = useState<string[]>([]);
+  const [timetableEntries, setTimetableEntries] = useState<{ day: string; shift?: string }[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -182,7 +182,7 @@ export default function MarkAttendancePage() {
   const fetchCourseDetails = useCallback(async (courseId: string, dateStr: string) => {
     if (!courseId) {
       setAttendanceData([]);
-      setTimetableDays([]);
+      setTimetableEntries([]);
       return;
     }
     setLoadingStudents(true);
@@ -194,7 +194,7 @@ export default function MarkAttendancePage() {
         api.get<{ studentId: string; status: AttendanceStatus }[]>(
           `/api/attendance?courseId=${courseId}&date=${dateStr}`
         ).catch(() => ({ data: [] })),
-        api.get<{ day: string }[]>(`/api/timetable?courseId=${courseId}`).catch(() => ({ data: [] })),
+        api.get<{ day: string; shift?: string }[]>(`/api/timetable?courseId=${courseId}`).catch(() => ({ data: [] })),
       ]);
 
       const enrollments = courseRes.data.enrollments || [];
@@ -214,7 +214,7 @@ export default function MarkAttendancePage() {
       const prevRecords = attendanceRes.data || [];
       const ttEntries = Array.isArray(timetableRes.data) ? timetableRes.data : [];
 
-      setTimetableDays(Array.from(new Set(ttEntries.map((t) => t.day))));
+      setTimetableEntries(ttEntries);
       const statusMap = new Map(prevRecords.map((r) => [r.studentId, r.status]));
 
       const loadedList = students.map((s) => ({
@@ -227,7 +227,7 @@ export default function MarkAttendancePage() {
       console.error("Failed to load attendance/students:", err);
       setAttendanceData([]);
       setSavedSnapshot([]);
-      setTimetableDays([]);
+      setTimetableEntries([]);
     } finally {
       setLoadingStudents(false);
     }
@@ -278,9 +278,14 @@ export default function MarkAttendancePage() {
 
   const hasScheduledClass = useMemo(() => {
     if (isSunday) return false;
-    if (timetableDays.length === 0) return true; // If no timetable defined yet, allow marking
-    return timetableDays.some((d) => d.toLowerCase() === selectedDayName.toLowerCase());
-  }, [timetableDays, selectedDayName, isSunday]);
+    if (timetableEntries.length === 0) return false; // Strictly block marking when no timetable entry exists
+    return timetableEntries.some((entry) => {
+      const matchDay = entry.day.toLowerCase() === selectedDayName.toLowerCase();
+      const matchShift =
+        !entry.shift || selectedShift === "all" || entry.shift.toLowerCase() === selectedShift.toLowerCase();
+      return matchDay && matchShift;
+    });
+  }, [timetableEntries, selectedDayName, selectedShift, isSunday]);
 
   const handleStudentClick = async (student: StudentOption) => {
     setHistoryStudent(student);
@@ -490,14 +495,14 @@ export default function MarkAttendancePage() {
           </div>
         </div>
       ) : !hasScheduledClass && selectedCourse ? (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 flex items-center gap-3">
-          <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 flex items-center gap-3">
+          <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0" />
           <div>
-            <p className="text-sm font-bold text-amber-700 dark:text-amber-400">
-              No Class Scheduled Today ({selectedDayName})
+            <p className="text-sm font-bold text-rose-700 dark:text-rose-400">
+              No class scheduled for this dept, sem, and shift, so no attendance can be marked.
             </p>
-            <p className="text-xs text-amber-600 dark:text-amber-400/80 mt-0.5">
-              According to the created timetable, this course does not have a class scheduled on {selectedDayName}s.
+            <p className="text-xs text-rose-600/80 dark:text-rose-400/80 mt-0.5">
+              According to the timetable, no lecture is scheduled for this course, department, semester, and shift on {selectedDayName}s.
             </p>
           </div>
         </div>
