@@ -161,11 +161,11 @@ export default function SignUpPage() {
           <div className="relative group">
             <div className="absolute inset-0 rounded-2xl bg-brand-primary/20 blur-md transition-all group-hover:bg-brand-primary/30" />
             <Image
-              src="/logo.svg"
+              src="/collegelogo.png"
               alt="Govt. Graduate College logo"
               width={56}
               height={56}
-              className="relative z-10 drop-shadow-[0_0_15px_rgba(61,94,225,0.3)] transition-transform duration-500 group-hover:rotate-6"
+              className="relative z-10 drop-shadow-[0_0_15px_rgba(61,94,225,0.3)] transition-transform duration-500 group-hover:rotate-6 object-contain"
               priority
             />
           </div>
@@ -244,11 +244,11 @@ export default function SignUpPage() {
           {/* Mobile Branding Header */}
           <div className="flex flex-col items-center text-center lg:hidden mb-6">
             <Image
-              src="/logo.svg"
+              src="/collegelogo.png"
               alt="Govt. Graduate College logo"
               width={64}
               height={64}
-              className="mb-3 drop-shadow-[0_0_15px_rgba(61,94,225,0.2)]"
+              className="mb-3 drop-shadow-[0_0_15px_rgba(61,94,225,0.2)] object-contain"
               priority
             />
             <h1 className="text-2xl font-black text-brand-dark dark:text-white">

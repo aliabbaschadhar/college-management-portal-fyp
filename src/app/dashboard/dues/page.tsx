@@ -508,7 +508,6 @@ export default function ManageDuesPage() {
                 data={studentDues}
                 columns={columns}
                 searchPlaceholder="Search by student name or roll no..."
-                searchKeys={["rollNo"]}
               />
             </div>
           </>

@@ -355,8 +355,7 @@ export default function MyAttendancePage() {
         <DataTable
           data={filtered as unknown as Record<string, unknown>[]}
           columns={columns as unknown as Column<Record<string, unknown>>[]}
-          searchPlaceholder="Search by course..."
-          searchKeys={["courseId"]}
+          searchPlaceholder="Search by course code, name, or date..."
         />
       </div>
 

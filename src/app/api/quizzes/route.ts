@@ -96,11 +96,12 @@ export async function POST(request: NextRequest) {
       if (!course) {
         return NextResponse.json({ error: "Course not found" }, { status: 404 });
       }
-      const isAllowed =
-        course.department === user.faculty.department ||
-        course.assignedFaculty === user.faculty.id;
+      const isAllowed = course.assignedFaculty === user.faculty.id;
       if (!isAllowed) {
-        return NextResponse.json({ error: "Forbidden: You can only create quizzes for courses in your department or assigned to you" }, { status: 403 });
+        return NextResponse.json(
+          { error: "Forbidden: You can only create quizzes for courses explicitly assigned to you" },
+          { status: 403 }
+        );
       }
     }
 

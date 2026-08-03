@@ -38,6 +38,15 @@ interface FacultyWithUser {
   joinDate: string;
   avatar: string | null;
   user: { name: string | null; email: string };
+  teaches?: { id: string; courseCode: string; courseName: string }[];
+}
+
+interface CourseOption {
+  id: string;
+  courseCode: string;
+  courseName: string;
+  department: string;
+  semester: number;
 }
 
 interface FacultyForm {
@@ -70,14 +79,20 @@ const emptyForm: FacultyForm = {
 
 export default function ManageFacultyPage() {
   const [faculty, setFaculty] = useState<FacultyWithUser[]>([]);
+  const [allCourses, setAllCourses] = useState<CourseOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [assignSubjectsDialogOpen, setAssignSubjectsDialogOpen] = useState(false);
   const [editingFaculty, setEditingFaculty] = useState<FacultyWithUser | null>(
     null,
   );
   const [deletingFaculty, setDeletingFaculty] =
     useState<FacultyWithUser | null>(null);
+  const [assigningFaculty, setAssigningFaculty] =
+    useState<FacultyWithUser | null>(null);
+  const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
+  const [savingAssignments, setSavingAssignments] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [viewingFaculty, setViewingFaculty] = useState<FacultyWithUser | null>(null);
   const [form, setForm] = useState<FacultyForm>(emptyForm);
@@ -86,10 +101,13 @@ export default function ManageFacultyPage() {
 
   const handleRefresh = () => {
     setLoading(true);
-    api
-      .get<FacultyWithUser[]>("/api/faculty")
-      .then((r) => {
-        setFaculty(Array.isArray(r.data) ? r.data : []);
+    Promise.all([
+      api.get<FacultyWithUser[]>("/api/faculty"),
+      api.get<CourseOption[]>("/api/courses"),
+    ])
+      .then(([fRes, cRes]) => {
+        setFaculty(Array.isArray(fRes.data) ? fRes.data : []);
+        setAllCourses(Array.isArray(cRes.data) ? cRes.data : []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -112,6 +130,33 @@ export default function ManageFacultyPage() {
       specialization: f.specialization ?? "",
     });
     setDialogOpen(true);
+  };
+
+  const openAssignSubjects = (f: FacultyWithUser) => {
+    setAssigningFaculty(f);
+    setSelectedCourseIds(f.teaches?.map((c) => c.id) || []);
+    setAssignSubjectsDialogOpen(true);
+  };
+
+  const handleSaveAssignments = async () => {
+    if (!assigningFaculty) return;
+    setSavingAssignments(true);
+    try {
+      const { data: updated } = await api.patch<FacultyWithUser>(
+        `/api/faculty/${assigningFaculty.id}`,
+        { assignedCourseIds: selectedCourseIds }
+      );
+      setFaculty((prev) =>
+        prev.map((f) =>
+          f.id === assigningFaculty.id ? { ...f, teaches: updated.teaches } : f
+        )
+      );
+      setAssignSubjectsDialogOpen(false);
+    } catch (err) {
+      console.error("Failed to assign subjects:", err);
+    } finally {
+      setSavingAssignments(false);
+    }
   };
 
   const handleSave = async () => {
@@ -181,6 +226,27 @@ export default function ManageFacultyPage() {
       ),
     },
     {
+      key: "teaches",
+      header: "Assigned Subjects",
+      sortable: false,
+      render: (row) =>
+        row.teaches && row.teaches.length > 0 ? (
+          <div className="flex flex-wrap gap-1 max-w-[220px]">
+            {row.teaches.map((c) => (
+              <Badge
+                key={c.id}
+                variant="outline"
+                className="text-[10px] bg-brand-primary/5 border-brand-primary/20 text-brand-primary font-mono font-semibold"
+              >
+                {c.courseCode}
+              </Badge>
+            ))}
+          </div>
+        ) : (
+          <span className="text-xs text-muted-foreground italic">No subjects assigned</span>
+        ),
+    },
+    {
       key: "specialization",
       header: "Specialization",
       sortable: false,
@@ -204,6 +270,13 @@ export default function ManageFacultyPage() {
       header: "Actions",
       render: (row) => (
         <div className="flex items-center gap-1">
+          <button
+            onClick={() => openAssignSubjects(row)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-brand-primary/10 transition-colors"
+            title="Assign / Manage Subjects"
+          >
+            <BookOpen className="h-4 w-4 text-brand-primary" />
+          </button>
           <button
             onClick={() => {
               setViewingFaculty(row);
@@ -296,7 +369,6 @@ export default function ManageFacultyPage() {
         data={filtered as unknown as Record<string, unknown>[]}
         columns={columns as unknown as Column<Record<string, unknown>>[]}
         searchPlaceholder="Search by name, email, or specialization..."
-        searchKeys={["userId"]}
       />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -383,6 +455,102 @@ export default function ManageFacultyPage() {
             <Button variant="destructive" disabled={saving} onClick={handleDelete} className="min-w-[100px]">
               {saving ? "Deleting..." : <><Trash2 className="h-4 w-4 mr-2" /> Delete</>}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign Subjects Dialog */}
+      <Dialog open={assignSubjectsDialogOpen} onOpenChange={setAssignSubjectsDialogOpen}>
+        <DialogContent className="sm:max-w-[550px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GraduationCap className="h-5 w-5 text-brand-primary" />
+              Assign Subjects to Faculty
+            </DialogTitle>
+            <DialogDescription>
+              Select the courses/subjects assigned to{" "}
+              <strong className="text-foreground">{assigningFaculty?.user.name}</strong> (
+              {assigningFaculty?.department}). Unassigned subjects will not be visible to this teacher.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-3 space-y-3 max-h-[350px] overflow-y-auto pr-1">
+            {allCourses.length === 0 ? (
+              <p className="text-sm text-muted-foreground italic text-center py-4">
+                No courses available. Please add courses in Course Management first.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {allCourses.map((c) => {
+                  const isChecked = selectedCourseIds.includes(c.id);
+                  const isSameDept = c.department === assigningFaculty?.department;
+
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => {
+                        setSelectedCourseIds((prev) =>
+                          isChecked ? prev.filter((id) => id !== c.id) : [...prev, c.id]
+                        );
+                      }}
+                      className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
+                        isChecked
+                          ? "bg-brand-primary/10 border-brand-primary/40 dark:bg-brand-primary/20"
+                          : "bg-card border-border hover:bg-accent/50"
+                      }`}
+                    >
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-bold text-brand-primary">
+                            {c.courseCode}
+                          </span>
+                          <span className="font-semibold text-sm text-foreground">
+                            {c.courseName}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{c.department}</span>
+                          <span>•</span>
+                          <span>Semester {c.semester}</span>
+                        </div>
+                      </div>
+
+                      <div
+                        className={`h-5 w-5 rounded-md border flex items-center justify-center text-xs font-bold transition-all ${
+                          isChecked
+                            ? "bg-brand-primary text-white border-brand-primary"
+                            : "border-muted-foreground/30 bg-background"
+                        }`}
+                      >
+                        {isChecked && "✓"}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground font-medium">
+              {selectedCourseIds.length} course(s) selected
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                disabled={savingAssignments}
+                onClick={() => setAssignSubjectsDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveAssignments}
+                disabled={savingAssignments}
+                className="bg-brand-primary hover:bg-brand-primary/90 text-white min-w-[140px]"
+              >
+                {savingAssignments ? "Saving..." : "Save Assignments"}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

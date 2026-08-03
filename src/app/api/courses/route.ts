@@ -50,20 +50,8 @@ export async function GET() {
     const whereClause: Prisma.CourseWhereInput = {};
 
     if (user.role === "FACULTY" && user.faculty) {
-      // Faculty see: courses in their own department OR courses explicitly assigned to them
-      const faculty = await prisma.faculty.findUnique({
-        where: { id: user.faculty.id },
-        select: { department: true },
-      });
-      if (faculty) {
-        whereClause.OR = [
-          { department: faculty.department },
-          { assignedFaculty: user.faculty.id },
-        ];
-      } else {
-        // Fallback: only explicitly assigned courses
-        whereClause.assignedFaculty = user.faculty.id;
-      }
+      // Faculty see strictly courses explicitly assigned to them by an admin
+      whereClause.assignedFaculty = user.faculty.id;
     } else if (user.role === "STUDENT") {
       if (user.student) {
         await ensureStudentEnrollments(user.student.id, user.student.department, user.student.semester);

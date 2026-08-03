@@ -912,8 +912,7 @@ export default function ManageCoursesPage() {
             <DataTable
               data={filteredCourses as unknown as Record<string, unknown>[]}
               columns={columns as unknown as Column<Record<string, unknown>>[]}
-              searchPlaceholder="Search by code or name..."
-              searchKeys={["courseCode", "courseName"]}
+              searchPlaceholder="Search by code, name, department, or instructor..."
             />
           </motion.div>
         )}

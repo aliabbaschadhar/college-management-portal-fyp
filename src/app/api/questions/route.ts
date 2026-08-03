@@ -24,13 +24,10 @@ export async function GET(request: NextRequest) {
       ...(quizId ? { quizId } : {}),
     };
 
-    // Faculty: always restrict to courses in their own department OR explicitly assigned to them
+    // Faculty: strictly restrict to courses explicitly assigned to them
     if (user.role === "FACULTY" && user.faculty) {
       whereClause.course = {
-        OR: [
-          { department: user.faculty.department },
-          { assignedFaculty: user.faculty.id },
-        ],
+        assignedFaculty: user.faculty.id,
       };
     }
 
@@ -92,11 +89,9 @@ export async function POST(request: NextRequest) {
       if (!course) continue;
 
       const isAdmin = user.role === "ADMIN";
-      // Faculty can add questions to courses in their own department OR courses explicitly assigned to them
+      // Faculty can only add questions to courses explicitly assigned to them
       const isFacultyAllowed =
-        user.faculty &&
-        (course.department === user.faculty.department ||
-          course.assignedFaculty === user.faculty.id);
+        user.faculty && course.assignedFaculty === user.faculty.id;
 
       if (!isAdmin && !isFacultyAllowed) continue;
 

@@ -43,6 +43,20 @@ const actionIcons: Record<string, React.ReactNode> = {
   DELETED: <Trash2 className="h-3 w-3" />,
 };
 
+function safeFormatDate(dateStr: string | null | undefined): { date: string; time: string } {
+  if (!dateStr) return { date: "—", time: "" };
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return { date: "—", time: "" };
+    return {
+      date: d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      time: d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+    };
+  } catch {
+    return { date: "—", time: "" };
+  }
+}
+
 export default function AuditLogPage() {
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,23 +81,20 @@ export default function AuditLogPage() {
   }, [loadLogs]);
 
   const filteredLogs = logs.filter((log) => {
+    if (!log) return false;
     if (filterEntity !== "all" && log.entity !== filterEntity) return false;
     if (filterAction !== "all" && log.action !== filterAction) return false;
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      return (
-        log.description.toLowerCase().includes(q) ||
-        log.adminName.toLowerCase().includes(q) ||
-        log.entity.toLowerCase().includes(q)
-      );
-    }
-    return true;
+    if (!searchQuery.trim()) return true;
+
+    const tokens = searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    const combined = `${log.description ?? ""} ${log.adminName ?? ""} ${log.entity ?? ""} ${log.action ?? ""} ${log.entityId ?? ""}`.toLowerCase();
+    return tokens.every((token) => combined.includes(token));
   });
 
   const ALL_POSSIBLE_ENTITIES = ["Admission", "Fee", "Course", "Student", "Faculty", "Timetable", "Attendance", "Announcement", "Feedback", "Quiz"];
-  const entities = Array.from(new Set([...ALL_POSSIBLE_ENTITIES, ...logs.map((l) => l.entity)])).sort();
+  const entities = Array.from(new Set([...ALL_POSSIBLE_ENTITIES, ...logs.map((l) => l?.entity).filter(Boolean)])).sort();
   const ALL_POSSIBLE_ACTIONS = ["CREATED", "UPDATED", "DELETED", "APPROVED", "REJECTED", "STATUS_CHANGED"];
-  const actions = Array.from(new Set([...ALL_POSSIBLE_ACTIONS, ...logs.map((l) => l.action)])).sort();
+  const actions = Array.from(new Set([...ALL_POSSIBLE_ACTIONS, ...logs.map((l) => l?.action).filter(Boolean)])).sort();
 
   if (loading) {
     return (
@@ -164,45 +175,50 @@ export default function AuditLogPage() {
         ) : (
           <AnimatePresence>
             <div className="divide-y divide-border">
-              {filteredLogs.map((log, index) => (
-                <motion.div
-                  key={log.id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.02 }}
-                  className="flex items-start gap-4 p-4 hover:bg-accent/30 transition-colors"
-                >
-                  {/* Action Badge */}
-                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${actionColors[log.action] ?? "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"}`}>
-                    {actionIcons[log.action] ?? <Pencil className="h-3 w-3" />}
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <Badge variant="outline" className="text-[10px] font-semibold px-2 py-0.5 border-brand-primary/30 text-brand-primary">
-                        {log.entity}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        by <span className="font-bold text-foreground">{log.adminName || "System / Admin"}</span>
-                      </span>
+              {filteredLogs.map((log, index) => {
+                const formatted = safeFormatDate(log.createdAt);
+                return (
+                  <motion.div
+                    key={log.id ?? index}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.02 }}
+                    className="flex items-start gap-4 p-4 hover:bg-accent/30 transition-colors"
+                  >
+                    {/* Action Badge */}
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${actionColors[log.action] ?? "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"}`}>
+                      {actionIcons[log.action] ?? <Pencil className="h-3 w-3" />}
                     </div>
-                    <p className="text-sm font-medium text-foreground leading-snug">
-                      {log.description}
-                    </p>
-                  </div>
 
-                  {/* Timestamp */}
-                  <div className="text-right shrink-0">
-                    <p className="text-xs font-semibold text-foreground">
-                      {new Date(log.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                      {new Date(log.createdAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-                    </p>
-                  </div>
-                </motion.div>
-              ))}
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <Badge variant="outline" className="text-[10px] font-semibold px-2 py-0.5 border-brand-primary/30 text-brand-primary">
+                          {log.entity ?? "System"}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          by <span className="font-bold text-foreground">{log.adminName || "System / Admin"}</span>
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium text-foreground leading-snug">
+                        {log.description ?? "—"}
+                      </p>
+                    </div>
+
+                    {/* Timestamp */}
+                    <div className="text-right shrink-0">
+                      <p className="text-xs font-semibold text-foreground">
+                        {formatted.date}
+                      </p>
+                      {formatted.time && (
+                        <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                          {formatted.time}
+                        </p>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
           </AnimatePresence>
         )}

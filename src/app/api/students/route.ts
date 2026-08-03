@@ -42,7 +42,10 @@ export async function GET(request: NextRequest) {
           ? {
               OR: [
                 { user: { name: { contains: search, mode: "insensitive" } } },
+                { user: { email: { contains: search, mode: "insensitive" } } },
                 { rollNo: { contains: search, mode: "insensitive" } },
+                { department: { contains: search, mode: "insensitive" } },
+                { phone: { contains: search, mode: "insensitive" } },
               ],
             }
           : {}),

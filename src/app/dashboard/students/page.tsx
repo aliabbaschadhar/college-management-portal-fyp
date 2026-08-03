@@ -914,8 +914,7 @@ export default function ManageStudentsPage() {
                 <DataTable
                   data={filteredStudents as unknown as Record<string, unknown>[]}
                   columns={columns as unknown as Column<Record<string, unknown>>[]}
-                  searchPlaceholder="Search by roll no..."
-                  searchKeys={["rollNo"]}
+                  searchPlaceholder="Search by name, roll no, department, email..."
                 />
               </div>
             </div>

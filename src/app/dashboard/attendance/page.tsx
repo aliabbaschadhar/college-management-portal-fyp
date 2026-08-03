@@ -910,7 +910,6 @@ export default function ManageAttendancePage() {
                 data={studentStats}
                 columns={columns}
                 searchPlaceholder="Search by student name or roll no..."
-                searchKeys={["rollNo"]}
                 onRowClick={(row) => setSelectedStudentForStatsId(row.id)}
                 selectedRowKey={(row) => activeStatsStudent?.id === row.id}
               />

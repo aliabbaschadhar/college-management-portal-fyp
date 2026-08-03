@@ -792,21 +792,18 @@ export default function ManageAdmissionsPage() {
           data={admissions as unknown as Record<string, unknown>[]}
           columns={columns as unknown as Column<Record<string, unknown>>[]}
           searchPlaceholder="Search applicants..."
-          searchKeys={["studentName", "email", "appliedDepartment"]}
         />
       ) : activeTab === "faculty" ? (
         <DataTable
           data={staffRequests.filter((r) => r.role === "FACULTY") as unknown as Record<string, unknown>[]}
           columns={staffColumns as unknown as Column<Record<string, unknown>>[]}
           searchPlaceholder="Search faculty requests..."
-          searchKeys={["name", "email", "department"]}
         />
       ) : (
         <DataTable
           data={staffRequests.filter((r) => r.role === "ADMIN") as unknown as Record<string, unknown>[]}
           columns={staffColumns as unknown as Column<Record<string, unknown>>[]}
           searchPlaceholder="Search admin requests..."
-          searchKeys={["name", "email", "specialization"]}
         />
       )}
 

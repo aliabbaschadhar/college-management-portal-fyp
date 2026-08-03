@@ -86,12 +86,12 @@ export default function MyCoursesPage() {
     setRefreshing(false);
   };
 
-  const filteredCourses = courses.filter(
-    (c) =>
-      c.courseName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.courseCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.department.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredCourses = courses.filter((c) => {
+    if (!searchQuery.trim()) return true;
+    const tokens = searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    const combined = `${c.courseName} ${c.courseCode} ${c.department} ${(c as unknown as Record<string, unknown>).facultyName ?? ""}`.toLowerCase();
+    return tokens.every((token) => combined.includes(token));
+  });
 
   if (loading) {
     return (
@@ -231,11 +231,15 @@ export default function MyCoursesPage() {
       </div>
 
       {filteredCourses.length === 0 && (
-        <div className="text-center py-16 text-muted-foreground bg-card border border-border rounded-3xl">
-          <BookOpen className="h-12 w-12 mx-auto mb-3 opacity-30 text-brand-primary" />
-          <p className="text-lg font-bold text-foreground">No matching courses found</p>
-          <p className="text-sm mt-1 text-muted-foreground">
-            Try adjusting your search query or check with administration for registration.
+        <div className="text-center py-16 px-6 text-muted-foreground bg-card border border-border rounded-3xl space-y-3">
+          <div className="w-14 h-14 rounded-2xl bg-brand-primary/10 text-brand-primary flex items-center justify-center mx-auto border border-brand-primary/20">
+            <BookOpen className="h-7 w-7" />
+          </div>
+          <h3 className="text-xl font-bold text-foreground">No subjects assigned yet</h3>
+          <p className="text-sm max-w-md mx-auto text-muted-foreground leading-relaxed">
+            {searchQuery.trim()
+              ? "No courses match your search query. Try clearing the search filter."
+              : "No subjects assigned yet. Please contact your campus administrator to get courses assigned to your account."}
           </p>
         </div>
       )}

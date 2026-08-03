@@ -39,6 +39,10 @@ export async function GET(request: NextRequest) {
       whereClause.OR = [
         { name: { contains: search, mode: "insensitive" } },
         { email: { contains: search, mode: "insensitive" } },
+        { student: { rollNo: { contains: search, mode: "insensitive" } } },
+        { student: { department: { contains: search, mode: "insensitive" } } },
+        { faculty: { department: { contains: search, mode: "insensitive" } } },
+        { faculty: { specialization: { contains: search, mode: "insensitive" } } },
       ];
     }
 

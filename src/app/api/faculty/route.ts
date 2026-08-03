@@ -10,6 +10,7 @@ export async function GET() {
     const faculty = await prisma.faculty.findMany({
       include: {
         user: { select: { name: true, email: true } },
+        teaches: { select: { id: true, courseCode: true, courseName: true } },
       },
     });
 
@@ -22,6 +23,7 @@ export async function GET() {
       specialization: f.specialization,
       joinDate: f.joinDate.toISOString(),
       avatar: f.avatar,
+      teaches: f.teaches,
     }));
 
     return NextResponse.json(result);

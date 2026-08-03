@@ -20,7 +20,23 @@ export async function PATCH(
       department?: string;
       specialization?: string;
       avatar?: string;
+      assignedCourseIds?: string[];
     };
+
+    if (body.assignedCourseIds !== undefined && Array.isArray(body.assignedCourseIds)) {
+      // 1. Unassign courses currently assigned to this faculty
+      await prisma.course.updateMany({
+        where: { assignedFaculty: id },
+        data: { assignedFaculty: null },
+      });
+      // 2. Assign selected courses to this faculty
+      if (body.assignedCourseIds.length > 0) {
+        await prisma.course.updateMany({
+          where: { id: { in: body.assignedCourseIds } },
+          data: { assignedFaculty: id },
+        });
+      }
+    }
 
     const faculty = await prisma.faculty.update({
       where: { id },
@@ -30,7 +46,10 @@ export async function PATCH(
         ...(body.specialization !== undefined ? { specialization: body.specialization } : {}),
         ...(body.avatar !== undefined ? { avatar: body.avatar } : {}),
       },
-      include: { user: { select: { name: true } } },
+      include: {
+        user: { select: { name: true } },
+        teaches: { select: { id: true, courseCode: true, courseName: true } },
+      },
     });
 
     if (!userId) throw new Error("Missing userId after requireRole");

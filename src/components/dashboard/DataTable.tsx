@@ -31,6 +31,29 @@ interface DataTableProps<T> {
   selectedRowKey?: (row: T) => boolean;
 }
 
+function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
+  return path.split(".").reduce<unknown>((acc, part) => {
+    if (acc && typeof acc === "object" && part in (acc as Record<string, unknown>)) {
+      return (acc as Record<string, unknown>)[part];
+    }
+    return undefined;
+  }, obj);
+}
+
+function extractAllStrings(val: unknown): string[] {
+  if (val == null) return [];
+  if (typeof val === "string" || typeof val === "number" || typeof val === "boolean") {
+    return [String(val).toLowerCase()];
+  }
+  if (Array.isArray(val)) {
+    return val.flatMap(extractAllStrings);
+  }
+  if (typeof val === "object") {
+    return Object.values(val as Record<string, unknown>).flatMap(extractAllStrings);
+  }
+  return [];
+}
+
 export function DataTable<T extends Record<string, unknown>>({
   data,
   columns,
@@ -49,15 +72,23 @@ export function DataTable<T extends Record<string, unknown>>({
   // Filter
   const filtered = useMemo(() => {
     if (!search.trim()) return data;
-    const q = search.toLowerCase();
+    const tokens = search.toLowerCase().trim().split(/\s+/).filter(Boolean);
+
     return data.filter((row) => {
-      const keys = searchKeys.length > 0 ? searchKeys : columns.map((c) => c.key);
-      return keys.some((k) => {
-        const val = row[k];
-        return val != null && String(val).toLowerCase().includes(q);
-      });
+      let searchableValues: string[] = [];
+      if (searchKeys.length > 0) {
+        searchableValues = searchKeys.flatMap((key) => {
+          const val = key.includes(".") ? getNestedValue(row, key) : row[key];
+          return extractAllStrings(val);
+        });
+      } else {
+        searchableValues = extractAllStrings(row);
+      }
+
+      const combinedText = searchableValues.join(" ");
+      return tokens.every((token) => combinedText.includes(token));
     });
-  }, [data, search, searchKeys, columns]);
+  }, [data, search, searchKeys]);
 
   // Sort
   const sorted = useMemo(() => {
