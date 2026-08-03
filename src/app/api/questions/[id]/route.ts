@@ -22,7 +22,7 @@ export async function PATCH(
 
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { role: true, clerkId: true, faculty: { select: { id: true } } },
+      select: { role: true, clerkId: true, faculty: { select: { id: true, department: true } } },
     });
 
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -30,7 +30,7 @@ export async function PATCH(
     const question = await prisma.question.findUnique({
       where: { id },
       include: {
-        course: { select: { assignedFaculty: true } },
+        course: { select: { assignedFaculty: true, department: true } },
         quiz: { select: { createdBy: true } },
       },
     });
@@ -40,11 +40,13 @@ export async function PATCH(
     }
 
     const isAdmin = user.role === "ADMIN";
-    const isFacultyAssignedToCourse =
-      user.faculty && question.course?.assignedFaculty === user.faculty.id;
+    const isFacultyAllowed =
+      user.faculty &&
+      (question.course?.department === user.faculty.department ||
+        question.course?.assignedFaculty === user.faculty.id);
     const isQuizCreator = question.quiz?.createdBy === user.clerkId;
 
-    if (!isAdmin && !isFacultyAssignedToCourse && !isQuizCreator) {
+    if (!isAdmin && !isFacultyAllowed && !isQuizCreator) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -91,7 +93,7 @@ export async function DELETE(
 
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { role: true, clerkId: true, faculty: { select: { id: true } } },
+      select: { role: true, clerkId: true, faculty: { select: { id: true, department: true } } },
     });
 
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -99,7 +101,7 @@ export async function DELETE(
     const question = await prisma.question.findUnique({
       where: { id },
       include: {
-        course: { select: { assignedFaculty: true } },
+        course: { select: { assignedFaculty: true, department: true } },
         quiz: { select: { createdBy: true } },
       },
     });
@@ -109,11 +111,13 @@ export async function DELETE(
     }
 
     const isAdmin = user.role === "ADMIN";
-    const isFacultyAssignedToCourse =
-      user.faculty && question.course?.assignedFaculty === user.faculty.id;
+    const isFacultyAllowed =
+      user.faculty &&
+      (question.course?.department === user.faculty.department ||
+        question.course?.assignedFaculty === user.faculty.id);
     const isQuizCreator = question.quiz?.createdBy === user.clerkId;
 
-    if (!isAdmin && !isFacultyAssignedToCourse && !isQuizCreator) {
+    if (!isAdmin && !isFacultyAllowed && !isQuizCreator) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

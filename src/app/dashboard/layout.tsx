@@ -1,6 +1,8 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
+
+export const dynamic = "force-dynamic";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { getRoleLabel } from "@/lib/sidebar-config";
 import type { UserRole } from "@/types";

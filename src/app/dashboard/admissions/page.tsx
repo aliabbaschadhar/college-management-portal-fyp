@@ -3,13 +3,14 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/axios";
-import { CheckCircle, XCircle, Clock, Eye, Trash2, Upload, Users, Shield, RefreshCw } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Eye, Trash2, Upload, Users, Shield, RefreshCw, CheckSquare } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -25,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { TableSkeleton, Spinner } from "@/components/ui";
 
 interface Admission {
@@ -78,6 +79,8 @@ interface CourseItem {
   courseName: string;
 }
 
+type BulkAction = "Approve" | "Reject" | "Delete";
+
 export default function ManageAdmissionsPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"students" | "faculty" | "admins">("students");
@@ -101,11 +104,30 @@ export default function ManageAdmissionsPage() {
   const [submittingStatus, setSubmittingStatus] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // --- Bulk selection state ---
+  const [selectedAdmissionIds, setSelectedAdmissionIds] = useState<Set<string>>(new Set());
+  const [selectedStaffIds, setSelectedStaffIds] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<BulkAction | null>(null);
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+
   useEffect(() => {
     api.get<CourseItem[]>("/api/courses")
       .then((r) => setCourses(r.data || []))
       .catch((err) => console.error("Error loading courses in admissions:", err));
   }, []);
+
+  // Reset selections when tab changes
+  useEffect(() => {
+    setSelectedAdmissionIds(new Set());
+    setSelectedStaffIds(new Set());
+  }, [activeTab]);
+
+  // Reset selections when filter changes
+  useEffect(() => {
+    setSelectedAdmissionIds(new Set());
+    setSelectedStaffIds(new Set());
+  }, [filterStatus]);
 
   const loadAdmissions = useCallback(() => {
     setLoading(true);
@@ -265,7 +287,142 @@ export default function ManageAdmissionsPage() {
     }
   };
 
+  // ── Bulk selection helpers ─────────────────────────────────────────────────
+
+  const visibleAdmissionIds = admissions.map((a) => a.id);
+  const visibleStaffIds =
+    activeTab === "faculty"
+      ? staffRequests.filter((r) => r.role === "FACULTY").map((r) => r.id)
+      : staffRequests.filter((r) => r.role === "ADMIN").map((r) => r.id);
+
+  const currentSelectedIds = activeTab === "students" ? selectedAdmissionIds : selectedStaffIds;
+  const currentVisible = activeTab === "students" ? visibleAdmissionIds : visibleStaffIds;
+
+  const allSelected = currentVisible.length > 0 && currentVisible.every((id) => currentSelectedIds.has(id));
+  const someSelected = currentVisible.some((id) => currentSelectedIds.has(id));
+
+  const toggleSelectAll = () => {
+    if (activeTab === "students") {
+      if (allSelected) {
+        setSelectedAdmissionIds(new Set());
+      } else {
+        setSelectedAdmissionIds(new Set(visibleAdmissionIds));
+      }
+    } else {
+      if (allSelected) {
+        setSelectedStaffIds(new Set());
+      } else {
+        setSelectedStaffIds(new Set(visibleStaffIds));
+      }
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    if (activeTab === "students") {
+      setSelectedAdmissionIds((prev) => {
+        const next = new Set(prev);
+        next.has(id) ? next.delete(id) : next.add(id);
+        return next;
+      });
+    } else {
+      setSelectedStaffIds((prev) => {
+        const next = new Set(prev);
+        next.has(id) ? next.delete(id) : next.add(id);
+        return next;
+      });
+    }
+  };
+
+  const openBulkConfirm = (action: BulkAction) => {
+    setBulkAction(action);
+    setBulkConfirmOpen(true);
+  };
+
+  const executeBulkAction = async () => {
+    if (!bulkAction) return;
+    setBulkProcessing(true);
+    setMutationError(null);
+    let successCount = 0;
+    let failCount = 0;
+
+    try {
+      if (activeTab === "students") {
+        const ids = Array.from(selectedAdmissionIds);
+        for (const id of ids) {
+          try {
+            if (bulkAction === "Approve") {
+              await api.patch(`/api/admissions/${id}`, { status: "Approved" });
+            } else if (bulkAction === "Reject") {
+              await api.patch(`/api/admissions/${id}`, { status: "Rejected" });
+            } else if (bulkAction === "Delete") {
+              await api.delete(`/api/admissions/${id}`);
+            }
+            successCount++;
+          } catch {
+            failCount++;
+          }
+        }
+        loadAdmissions();
+        setSelectedAdmissionIds(new Set());
+      } else {
+        // Staff requests (Faculty or Admin tabs)
+        const ids = Array.from(selectedStaffIds);
+        for (const id of ids) {
+          try {
+            if (bulkAction === "Approve") {
+              await api.patch(`/api/onboarding/approve`, { requestId: id, status: "Approved" });
+            } else if (bulkAction === "Reject") {
+              await api.patch(`/api/onboarding/approve`, { requestId: id, status: "Rejected" });
+            }
+            // Note: Delete not available for staff requests (no delete API)
+            successCount++;
+          } catch {
+            failCount++;
+          }
+        }
+        loadStaffRequests();
+        setSelectedStaffIds(new Set());
+      }
+
+      const label = bulkAction === "Approve" ? "approved" : bulkAction === "Reject" ? "rejected" : "deleted";
+      if (failCount === 0) {
+        setSuccessMessage(`✅ Bulk ${label}: ${successCount} item(s) processed successfully.`);
+      } else {
+        setSuccessMessage(`⚠️ Bulk ${label}: ${successCount} succeeded, ${failCount} failed.`);
+      }
+      setTimeout(() => setSuccessMessage(null), 6000);
+      router.refresh();
+    } finally {
+      setBulkProcessing(false);
+      setBulkConfirmOpen(false);
+      setBulkAction(null);
+    }
+  };
+
+  // ── Columns ────────────────────────────────────────────────────────────────
+
   const columns: Column<Admission>[] = [
+    {
+      key: "__select__",
+      header: (
+        <Checkbox
+          checked={allSelected}
+          data-state={someSelected && !allSelected ? "indeterminate" : allSelected ? "checked" : "unchecked"}
+          onCheckedChange={toggleSelectAll}
+          aria-label="Select all"
+          className="translate-y-[1px]"
+        />
+      ),
+      render: (row) => (
+        <Checkbox
+          checked={selectedAdmissionIds.has(row.id)}
+          onCheckedChange={() => toggleSelect(row.id)}
+          onClick={(e: React.MouseEvent) => e.stopPropagation()}
+          aria-label={`Select ${row.studentName}`}
+          className="translate-y-[1px]"
+        />
+      ),
+    },
     {
       key: "studentName",
       header: "Applicant",
@@ -367,6 +524,27 @@ export default function ManageAdmissionsPage() {
 
   const staffColumns: Column<StaffRequest>[] = [
     {
+      key: "__select__",
+      header: (
+        <Checkbox
+          checked={allSelected}
+          data-state={someSelected && !allSelected ? "indeterminate" : allSelected ? "checked" : "unchecked"}
+          onCheckedChange={toggleSelectAll}
+          aria-label="Select all"
+          className="translate-y-[1px]"
+        />
+      ),
+      render: (row) => (
+        <Checkbox
+          checked={selectedStaffIds.has(row.id)}
+          onCheckedChange={() => toggleSelect(row.id)}
+          onClick={(e: React.MouseEvent) => e.stopPropagation()}
+          aria-label={`Select ${row.name}`}
+          className="translate-y-[1px]"
+        />
+      ),
+    },
+    {
       key: "name",
       header: "Applicant",
       sortable: true,
@@ -467,6 +645,17 @@ export default function ManageAdmissionsPage() {
       ),
     },
   ];
+
+  const selectedCount = activeTab === "students" ? selectedAdmissionIds.size : selectedStaffIds.size;
+
+  // For the confirmation dialog label
+  const bulkActionLabel =
+    bulkAction === "Approve" ? "approve" : bulkAction === "Reject" ? "reject" : "delete";
+
+  const bulkTargetLabel =
+    activeTab === "students"
+      ? `${selectedCount} student admission${selectedCount !== 1 ? "s" : ""}`
+      : `${selectedCount} staff request${selectedCount !== 1 ? "s" : ""}`;
 
   return (
     <motion.div
@@ -629,9 +818,128 @@ export default function ManageAdmissionsPage() {
 
       {successMessage && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-300 mt-4 font-semibold">
-          ✅ {successMessage}
+          {successMessage}
         </div>
       )}
+
+      {/* ── Floating Bulk Action Bar ─────────────────────────────────────── */}
+      <AnimatePresence>
+        {selectedCount > 0 && (
+          <motion.div
+            key="bulk-bar"
+            initial={{ y: 80, opacity: 0, scale: 0.97 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 80, opacity: 0, scale: 0.97 }}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-2xl border border-border bg-card/95 backdrop-blur-xl shadow-2xl px-5 py-3"
+          >
+            {/* Selection info */}
+            <div className="flex items-center gap-2 pr-3 border-r border-border">
+              <CheckSquare className="h-4 w-4 text-brand-primary shrink-0" />
+              <span className="text-sm font-semibold text-foreground whitespace-nowrap">
+                {selectedCount} selected
+              </span>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={() => openBulkConfirm("Approve")}
+                disabled={bulkProcessing}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-3 text-xs font-semibold gap-1.5"
+              >
+                <CheckCircle className="h-3.5 w-3.5" />
+                Approve All
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => openBulkConfirm("Reject")}
+                disabled={bulkProcessing}
+                className="h-8 px-3 text-xs font-semibold gap-1.5"
+              >
+                <XCircle className="h-3.5 w-3.5" />
+                Reject All
+              </Button>
+              {activeTab === "students" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => openBulkConfirm("Delete")}
+                  disabled={bulkProcessing}
+                  className="h-8 px-3 text-xs font-semibold gap-1.5 border-rose-300 text-rose-600 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950/20"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete All
+                </Button>
+              )}
+            </div>
+
+            {/* Deselect */}
+            <button
+              onClick={() => {
+                setSelectedAdmissionIds(new Set());
+                setSelectedStaffIds(new Set());
+              }}
+              className="ml-1 text-xs text-muted-foreground hover:text-foreground transition-colors font-medium"
+            >
+              Clear
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Bulk Confirm Dialog ──────────────────────────────────────────── */}
+      <Dialog open={bulkConfirmOpen} onOpenChange={(open) => { if (!bulkProcessing) setBulkConfirmOpen(open); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="capitalize">
+              Bulk {bulkActionLabel} — {selectedCount} item{selectedCount !== 1 ? "s" : ""}
+            </DialogTitle>
+            <DialogDescription>
+              {bulkAction === "Delete"
+                ? `This will permanently delete ${bulkTargetLabel}. This action cannot be undone.`
+                : `This will ${bulkActionLabel} ${bulkTargetLabel}. Are you sure you want to proceed?`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="flex gap-2 sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={() => setBulkConfirmOpen(false)}
+              disabled={bulkProcessing}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={executeBulkAction}
+              disabled={bulkProcessing}
+              className={
+                bulkAction === "Approve"
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  : bulkAction === "Reject"
+                  ? "bg-rose-600 hover:bg-rose-700 text-white"
+                  : "bg-rose-700 hover:bg-rose-800 text-white"
+              }
+            >
+              {bulkProcessing ? (
+                <>
+                  <Spinner size="sm" variant="white" className="mr-2" />
+                  Processing…
+                </>
+              ) : (
+                <>
+                  {bulkAction === "Approve" && <CheckCircle className="h-4 w-4 mr-2" />}
+                  {bulkAction === "Reject" && <XCircle className="h-4 w-4 mr-2" />}
+                  {bulkAction === "Delete" && <Trash2 className="h-4 w-4 mr-2" />}
+                  Confirm {bulkAction}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Details Dialog (Students only) */}
       <Dialog open={viewDialogOpen} onOpenChange={(open) => { if (submittingId === null) setViewDialogOpen(open); }}>

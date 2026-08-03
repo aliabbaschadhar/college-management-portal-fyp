@@ -23,7 +23,14 @@ import {
   Loader2,
   Eye,
   Clock,
-  RefreshCw
+  RefreshCw,
+  FileSpreadsheet,
+  Upload,
+  Download,
+  AlertCircle,
+  CheckCircle2,
+  FileText,
+  Clipboard,
 } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
@@ -186,6 +193,212 @@ export default function ManageCoursesPage() {
   // Drill-down states
   const [selectedDept, setSelectedDept] = useState<string | null>("Computer Science");
   const [selectedSem, setSelectedSem] = useState<number | null>(1);
+
+  // Bulk Upload states
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  const [bulkFile, setBulkFile] = useState<File | null>(null);
+  const [inputMode, setInputMode] = useState<"file" | "paste">("file");
+  const [rawCsvText, setRawCsvText] = useState("");
+  const [previewRows, setPreviewRows] = useState<Array<{
+    rowNum: number;
+    courseCode: string;
+    courseName: string;
+    creditHours: number;
+    department: string;
+    semester: number;
+    shift: string;
+    status: "valid" | "missing" | "invalid_credits" | "invalid_sem" | "invalid_dept" | "duplicate";
+    reason?: string;
+  }>>([]);
+  const [importingBulk, setImportingBulk] = useState(false);
+  const [bulkResult, setBulkResult] = useState<{ imported: number; skipped: Array<{ row: number; reason: string }> } | null>(null);
+
+  // Bulk Delete states
+  const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
+  const [purgeScope, setPurgeScope] = useState<"specific" | "department" | "entire">("specific");
+  const [purgeDept, setPurgeDept] = useState<string>("Computer Science");
+  const [purgeSem, setPurgeSem] = useState<string>("1");
+  const [purgeConfirmInput, setPurgeConfirmInput] = useState("");
+
+  const targetCoursesCount = courses.filter((c) => {
+    if (purgeScope === "entire") return true;
+    if (purgeScope === "department") return c.department === purgeDept;
+    if (purgeScope === "specific") return c.department === purgeDept && c.semester === Number(purgeSem);
+    return false;
+  }).length;
+
+  const handleDeleteAllCourses = async () => {
+    setDeletingAll(true);
+    try {
+      let url = "/api/courses";
+      if (purgeScope === "entire") {
+        url += "?all=true";
+      } else if (purgeScope === "department") {
+        url += `?department=${encodeURIComponent(purgeDept)}&semester=all`;
+      } else {
+        url += `?department=${encodeURIComponent(purgeDept)}&semester=${purgeSem}`;
+      }
+
+      await api.delete(url);
+      setDeleteAllDialogOpen(false);
+      setPurgeConfirmInput("");
+      handleRefresh();
+      router.refresh();
+    } catch (err) {
+      console.error("Failed to bulk delete courses:", err);
+    } finally {
+      setDeletingAll(false);
+    }
+  };
+
+  const handleDownloadTemplate = () => {
+    const csvContent =
+      "courseCode,courseName,creditHours,department,semester,shift\n" +
+      "CS-301,Database Systems,3,Computer Science,3,Morning\n" +
+      "CS-302,Data Structures & Algorithms,4,Computer Science,3,Morning\n" +
+      "MTH-101,Calculus & Analytical Geometry,3,Mathematics,1,Morning\n" +
+      "PHY-201,Applied Physics,3,Physics,2,Morning\n";
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "courses_sample_template.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const parseAndPreviewTextContent = (text: string) => {
+    const lines = text
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+
+    if (lines.length < 2) {
+      setPreviewRows([]);
+      return;
+    }
+
+    const headers = parseCSVRow(lines[0]).map((h) => h.toLowerCase().trim());
+    const col = (name: string): number => headers.indexOf(name);
+
+    const existingSet = new Set(
+      courses.map((c) => `${c.courseCode.toUpperCase()}|${c.department.toLowerCase()}`)
+    );
+    const batchSet = new Set<string>();
+    const rows: typeof previewRows = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const cells = parseCSVRow(lines[i]);
+      const get = (name: string) => (cells[col(name)] ?? "").trim();
+
+      const code = get("coursecode");
+      const name = get("coursename");
+      const credits = Number(get("credithours"));
+      const dept = get("department");
+      const sem = Number(get("semester"));
+      const shift = get("shift") || "Morning";
+      const codeUpper = code.toUpperCase();
+      const pairKey = `${codeUpper}|${dept.toLowerCase()}`;
+
+      let status: (typeof previewRows)[number]["status"] = "valid";
+      let reason: string | undefined = undefined;
+
+      if (!code || !name || !dept) {
+        status = "missing";
+        reason = "Missing required fields";
+      } else if (!Number.isInteger(credits) || credits < 1 || credits > 6) {
+        status = "invalid_credits";
+        reason = "Credits must be 1-6";
+      } else if (!Number.isInteger(sem) || sem < 1 || sem > 8) {
+        status = "invalid_sem";
+        reason = "Semester must be 1-8";
+      } else if (!DEPARTMENTS.some((d) => d.toLowerCase() === dept.toLowerCase())) {
+        status = "invalid_dept";
+        reason = "Unknown department";
+      } else if (existingSet.has(pairKey) || batchSet.has(pairKey)) {
+        status = "duplicate";
+        reason = existingSet.has(pairKey) ? "Code exists in department" : "Duplicate code in batch";
+      }
+
+      if (status === "valid") {
+        batchSet.add(pairKey);
+      }
+
+      rows.push({
+        rowNum: i + 1,
+        courseCode: code,
+        courseName: name,
+        creditHours: credits,
+        department: dept,
+        semester: sem,
+        shift,
+        status,
+        reason,
+      });
+    }
+
+    setPreviewRows(rows);
+  };
+
+  const parseAndPreviewCSV = async (file: File) => {
+    setBulkFile(file);
+    const text = await file.text();
+    parseAndPreviewTextContent(text);
+  };
+
+  const handleRawTextChange = (text: string) => {
+    setRawCsvText(text);
+    parseAndPreviewTextContent(text);
+  };
+
+  const handleConfirmImport = async () => {
+    if (!bulkFile && previewRows.length === 0) return;
+    setImportingBulk(true);
+    setBulkResult(null);
+    try {
+      if (inputMode === "file" && bulkFile) {
+        const formData = new FormData();
+        formData.append("file", bulkFile);
+        const { data } = await api.post("/api/courses/import", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        setBulkResult(data);
+      } else {
+        const validCourses = previewRows
+          .filter((r) => r.status === "valid")
+          .map((r) => ({
+            courseCode: r.courseCode,
+            courseName: r.courseName,
+            creditHours: r.creditHours,
+            department: r.department,
+            semester: r.semester,
+            shift: r.shift,
+          }));
+
+        const { data } = await api.post("/api/courses/import", { courses: validCourses });
+        setBulkResult(data);
+      }
+      handleRefresh();
+    } catch (err: any) {
+      setBulkResult({
+        imported: 0,
+        skipped: [{ row: 0, reason: err?.response?.data?.error || "Import failed" }],
+      });
+    } finally {
+      setImportingBulk(false);
+    }
+  };
+
+  const resetBulkState = () => {
+    setBulkDialogOpen(false);
+    setBulkFile(null);
+    setInputMode("file");
+    setRawCsvText("");
+    setPreviewRows([]);
+    setBulkResult(null);
+  };
 
   const handleRefresh = useCallback(() => {
     setLoading(true);
@@ -628,6 +841,26 @@ export default function ManageCoursesPage() {
                     Refresh
                   </Button>
                   <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setBulkDialogOpen(true)}
+                    className="flex items-center gap-2 border border-border bg-card h-9 px-3.5 rounded-xl cursor-pointer hover:bg-accent hover:text-accent-foreground transition-all"
+                  >
+                    <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    Bulk Upload
+                  </Button>
+                  {courses.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setDeleteAllDialogOpen(true)}
+                      className="flex items-center gap-2 border border-rose-500/30 text-rose-600 dark:text-rose-400 bg-card h-9 px-3.5 rounded-xl cursor-pointer hover:bg-rose-500/10 transition-all"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete All
+                    </Button>
+                  )}
+                  <Button
                     onClick={openAdd}
                     className="bg-brand-primary hover:bg-brand-primary/90 text-white h-9 px-4 rounded-xl flex items-center gap-2"
                   >
@@ -750,7 +983,6 @@ export default function ManageCoursesPage() {
                 <Select
                   value={form.department}
                   onValueChange={(v) => setForm({ ...form, department: v })}
-                  disabled={!editingCourse && selectedDept !== null}
                 >
                   <SelectTrigger id="dept">
                     <SelectValue placeholder="Select" />
@@ -771,7 +1003,6 @@ export default function ManageCoursesPage() {
                   onValueChange={(v) =>
                     setForm({ ...form, semester: Number(v) })
                   }
-                  disabled={!editingCourse && selectedSem !== null}
                 >
                   <SelectTrigger id="semester">
                     <SelectValue />
@@ -970,6 +1201,433 @@ export default function ManageCoursesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Upload Courses Dialog */}
+      <Dialog open={bulkDialogOpen} onOpenChange={resetBulkState}>
+        <DialogContent className="sm:max-w-[720px] max-h-[85vh] flex flex-col overflow-hidden rounded-3xl border-border">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <FileSpreadsheet className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+              Bulk Upload Courses (CSV)
+            </DialogTitle>
+            <DialogDescription>
+              Upload a CSV file containing multiple courses across departments and semesters.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto space-y-4 py-2 pr-1">
+            {/* Step 1: Template and File Selector */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-muted/40 p-4 rounded-2xl border border-border">
+              <div className="space-y-1">
+                <h4 className="text-sm font-semibold text-foreground">CSV Format Requirements</h4>
+                <p className="text-xs text-muted-foreground">
+                  Headers: <code className="font-mono text-brand-primary">courseCode, courseName, creditHours, department, semester, shift</code>
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadTemplate}
+                className="gap-2 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-xl"
+              >
+                <Download className="h-4 w-4" /> Download Sample CSV
+              </Button>
+            </div>
+
+            {/* Input Mode Selector Tabs */}
+            <div className="flex items-center gap-2 bg-muted/60 p-1 rounded-xl w-fit text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setInputMode("file")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+                  inputMode === "file"
+                    ? "bg-card text-foreground shadow-xs font-bold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Upload className="h-3.5 w-3.5" /> Upload File
+              </button>
+              <button
+                type="button"
+                onClick={() => setInputMode("paste")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+                  inputMode === "paste"
+                    ? "bg-card text-foreground shadow-xs font-bold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Clipboard className="h-3.5 w-3.5" /> Paste Raw CSV Text
+              </button>
+            </div>
+
+            {/* Mode 1: File Dropzone Input */}
+            {inputMode === "file" && (
+              <div className="relative border-2 border-dashed border-border hover:border-brand-primary/50 bg-card rounded-2xl p-6 text-center transition-all">
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) parseAndPreviewCSV(f);
+                  }}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <div className="h-12 w-12 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary">
+                    <Upload className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">
+                      {bulkFile ? bulkFile.name : "Click or drag & drop CSV file to parse"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {bulkFile ? `${(bulkFile.size / 1024).toFixed(1)} KB` : "CSV files up to 5MB supported"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Mode 2: Paste Raw CSV Input */}
+            {inputMode === "paste" && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-muted-foreground font-medium">
+                  <span>Paste CSV contents (with headers):</span>
+                  {rawCsvText && (
+                    <button
+                      type="button"
+                      onClick={() => handleRawTextChange("")}
+                      className="text-rose-500 hover:underline cursor-pointer"
+                    >
+                      Clear Text
+                    </button>
+                  )}
+                </div>
+                <textarea
+                  value={rawCsvText}
+                  onChange={(e) => handleRawTextChange(e.target.value)}
+                  placeholder={`courseCode,courseName,creditHours,department,semester,shift\nCS-301,Database Systems,3,Computer Science,3,Morning\nCS-302,Data Structures & Algorithms,4,Computer Science,3,Morning`}
+                  rows={6}
+                  className="w-full font-mono text-xs p-3 rounded-2xl bg-card border border-border focus:outline-none focus:ring-2 focus:ring-brand-primary/20 resize-y"
+                />
+              </div>
+            )}
+
+            {/* Results / Status Callout */}
+            {bulkResult && (
+              <div
+                className={`p-4 rounded-2xl border ${
+                  bulkResult.imported > 0
+                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
+                    : "bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300"
+                }`}
+              >
+                <div className="flex items-center gap-2 font-bold text-sm">
+                  {bulkResult.imported > 0 ? (
+                    <CheckCircle2 className="h-5 w-5" />
+                  ) : (
+                    <AlertCircle className="h-5 w-5" />
+                  )}
+                  Successfully imported {bulkResult.imported} course(s)!
+                </div>
+
+                {bulkResult.skipped.length > 0 && (
+                  <div className="mt-2 text-xs space-y-1">
+                    <p className="font-semibold">Skipped Rows ({bulkResult.skipped.length}):</p>
+                    <ul className="max-h-28 overflow-y-auto pl-4 list-disc space-y-0.5">
+                      {bulkResult.skipped.map((s, idx) => (
+                        <li key={idx}>
+                          Row {s.row}: {s.reason}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Live Preview Table */}
+            {previewRows.length > 0 && !bulkResult && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs text-muted-foreground font-semibold px-1">
+                  <span>Found {previewRows.length} rows in CSV</span>
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                      ● {previewRows.filter((r) => r.status === "valid").length} Valid
+                    </span>
+                    <span className="flex items-center gap-1 text-rose-500">
+                      ● {previewRows.filter((r) => r.status !== "valid").length} Invalid / Skipped
+                    </span>
+                  </div>
+                </div>
+
+                <div className="border border-border rounded-xl max-h-60 overflow-y-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-muted/50 border-b border-border sticky top-0">
+                      <tr>
+                        <th className="p-2.5 font-semibold">Row</th>
+                        <th className="p-2.5 font-semibold">Code</th>
+                        <th className="p-2.5 font-semibold">Subject Name</th>
+                        <th className="p-2.5 font-semibold">Department</th>
+                        <th className="p-2.5 font-semibold">Sem</th>
+                        <th className="p-2.5 font-semibold">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {previewRows.map((r) => (
+                        <tr key={r.rowNum} className={r.status !== "valid" ? "bg-rose-500/5" : ""}>
+                          <td className="p-2.5 font-mono text-muted-foreground">{r.rowNum}</td>
+                          <td className="p-2.5 font-mono font-semibold">{r.courseCode || "-"}</td>
+                          <td className="p-2.5 font-medium">{r.courseName || "-"}</td>
+                          <td className="p-2.5 text-muted-foreground">{r.department || "-"}</td>
+                          <td className="p-2.5 font-medium">{r.semester || "-"}</td>
+                          <td className="p-2.5">
+                            {r.status === "valid" ? (
+                              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
+                                Valid
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-rose-500/10 text-rose-600 border-rose-500/30">
+                                {r.reason || "Invalid"}
+                              </Badge>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="pt-4 border-t border-border">
+            <Button variant="outline" disabled={importingBulk} onClick={resetBulkState}>
+              {bulkResult ? "Done" : "Cancel"}
+            </Button>
+            {!bulkResult && (
+              <Button
+                onClick={handleConfirmImport}
+                disabled={importingBulk || previewRows.filter((r) => r.status === "valid").length === 0}
+                className="bg-brand-primary hover:bg-brand-primary/90 text-white min-w-[140px]"
+              >
+                {importingBulk ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Importing...
+                  </>
+                ) : (
+                  `Confirm & Import (${previewRows.filter((r) => r.status === "valid").length})`
+                )}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete All Courses Dialog */}
+      <Dialog open={deleteAllDialogOpen} onOpenChange={setDeleteAllDialogOpen}>
+        <DialogContent className="sm:max-w-[540px] rounded-3xl border-rose-500/20">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-rose-600 dark:text-rose-400">
+              <Trash2 className="h-6 w-6" />
+              Delete Courses in Bulk
+            </DialogTitle>
+            <DialogDescription className="pt-1 text-xs">
+              Choose the deletion scope. This action will permanently remove courses and their enrollments.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 text-xs">
+            {/* Options */}
+            <div className="space-y-2 bg-rose-500/5 p-4 rounded-2xl border border-rose-500/20">
+              <span className="font-semibold text-rose-700 dark:text-rose-300 block mb-2">Select Target Scope:</span>
+
+              {/* Option 1: Specific Dept & Semester */}
+              <label className="flex items-start gap-3 p-3 rounded-xl bg-card border border-border cursor-pointer hover:bg-accent/40 transition-colors">
+                <input
+                  type="radio"
+                  name="purgeScope"
+                  checked={purgeScope === "specific"}
+                  onChange={() => setPurgeScope("specific")}
+                  className="accent-rose-600 mt-1"
+                />
+                <div className="flex-1 space-y-2">
+                  <span className="font-semibold text-foreground block">
+                    Specific Department & Semester
+                  </span>
+                  {purgeScope === "specific" && (
+                    <div className="grid grid-cols-2 gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground block mb-1">Department</Label>
+                        <Select value={purgeDept} onValueChange={setPurgeDept}>
+                          <SelectTrigger className="h-8 text-xs bg-card">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {DEPARTMENTS.map((d) => (
+                              <SelectItem key={d} value={d}>
+                                {d}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground block mb-1">Semester</Label>
+                        <Select value={purgeSem} onValueChange={setPurgeSem}>
+                          <SelectTrigger className="h-8 text-xs bg-card">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                              <SelectItem key={s} value={String(s)}>
+                                Semester {s}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </label>
+
+              {/* Option 2: Entire Department (All Semesters) */}
+              <label className="flex items-start gap-3 p-3 rounded-xl bg-card border border-border cursor-pointer hover:bg-accent/40 transition-colors">
+                <input
+                  type="radio"
+                  name="purgeScope"
+                  checked={purgeScope === "department"}
+                  onChange={() => setPurgeScope("department")}
+                  className="accent-rose-600 mt-1"
+                />
+                <div className="flex-1 space-y-2">
+                  <span className="font-semibold text-foreground block">
+                    Entire Department (All 8 Semesters)
+                  </span>
+                  {purgeScope === "department" && (
+                    <div className="pt-1" onClick={(e) => e.stopPropagation()}>
+                      <Label className="text-[10px] text-muted-foreground block mb-1">Department</Label>
+                      <Select value={purgeDept} onValueChange={setPurgeDept}>
+                        <SelectTrigger className="h-8 text-xs bg-card w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DEPARTMENTS.map((d) => (
+                            <SelectItem key={d} value={d}>
+                              {d}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              </label>
+
+              {/* Option 3: Entire College */}
+              <label className="flex items-start gap-3 p-3 rounded-xl bg-card border border-border cursor-pointer hover:bg-accent/40 transition-colors">
+                <input
+                  type="radio"
+                  name="purgeScope"
+                  checked={purgeScope === "entire"}
+                  onChange={() => setPurgeScope("entire")}
+                  className="accent-rose-600 mt-1"
+                />
+                <div>
+                  <span className="font-semibold text-rose-600 dark:text-rose-400 block">
+                    ALL Departments & ALL Semesters (Entire College)
+                  </span>
+                  <span className="text-[11px] text-muted-foreground block mt-0.5">
+                    Deletes every single subject across all departments in the portal.
+                  </span>
+                </div>
+              </label>
+            </div>
+
+            {/* Target Count Preview */}
+            <div className="flex items-center justify-between p-3 rounded-xl bg-muted/40 border border-border">
+              <span className="text-muted-foreground font-medium">Selected Deletion Impact:</span>
+              <Badge variant="outline" className="bg-rose-500/10 text-rose-600 border-rose-500/30 font-bold px-2.5 py-1">
+                Will delete {targetCoursesCount} subject(s)
+              </Badge>
+            </div>
+
+            {/* Confirmation Word Input for Entire Scope */}
+            {purgeScope === "entire" && (
+              <div className="space-y-1.5 pt-1">
+                <Label className="text-xs font-semibold text-rose-600 dark:text-rose-400">
+                  Type &quot;DELETE&quot; to enable purging the entire college:
+                </Label>
+                <Input
+                  value={purgeConfirmInput}
+                  onChange={(e) => setPurgeConfirmInput(e.target.value)}
+                  placeholder="DELETE"
+                  className="h-9 font-mono text-xs uppercase bg-card border-rose-500/40"
+                />
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="pt-2 border-t border-border">
+            <Button variant="outline" disabled={deletingAll} onClick={() => setDeleteAllDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={
+                deletingAll ||
+                targetCoursesCount === 0 ||
+                (purgeScope === "entire" && purgeConfirmInput.toUpperCase() !== "DELETE")
+              }
+              onClick={handleDeleteAllCourses}
+              className="bg-rose-600 hover:bg-rose-700 text-white min-w-[140px]"
+            >
+              {deletingAll ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Purging...
+                </>
+              ) : (
+                `Purge ${targetCoursesCount} Course(s)`
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
+}
+
+function parseCSVRow(line: string): string[] {
+  const cells: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        current += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ",") {
+        cells.push(current);
+        current = "";
+      } else {
+        current += ch;
+      }
+    }
+  }
+
+  cells.push(current);
+  return cells;
 }

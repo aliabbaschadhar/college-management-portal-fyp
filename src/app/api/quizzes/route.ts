@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { role: true, clerkId: true },
+      select: { role: true, clerkId: true, faculty: { select: { id: true, department: true } } },
     });
 
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -86,6 +86,23 @@ export async function POST(request: NextRequest) {
       status: string;
       questionIds?: string[];
     };
+
+    // Authorization: faculty can only create quizzes for courses in their dept or explicitly assigned to them
+    if (user.role === "FACULTY" && user.faculty) {
+      const course = await prisma.course.findUnique({
+        where: { id: body.courseId },
+        select: { department: true, assignedFaculty: true },
+      });
+      if (!course) {
+        return NextResponse.json({ error: "Course not found" }, { status: 404 });
+      }
+      const isAllowed =
+        course.department === user.faculty.department ||
+        course.assignedFaculty === user.faculty.id;
+      if (!isAllowed) {
+        return NextResponse.json({ error: "Forbidden: You can only create quizzes for courses in your department or assigned to you" }, { status: 403 });
+      }
+    }
 
     let calculatedMarks = body.totalMarks ?? 0;
     if (body.questionIds && body.questionIds.length > 0) {

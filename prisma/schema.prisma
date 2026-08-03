@@ -65,7 +65,7 @@ model Admin {
 
 model Course {
   id              String       @id @default(uuid())
-  courseCode      String       @unique
+  courseCode      String
   courseName      String
   creditHours     Int
   department      String
@@ -79,6 +79,8 @@ model Course {
   quizzes         Quiz[]
   timetables      Timetable[]
   questions       Question[]
+
+  @@unique([courseCode, department])
 }
 
 model Enrollment {

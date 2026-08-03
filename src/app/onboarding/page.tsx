@@ -248,7 +248,7 @@ export default function OnboardingPage() {
           <div className="relative group">
             <div className="absolute inset-0 rounded-2xl bg-brand-primary/20 blur-md transition-all group-hover:bg-brand-primary/30" />
             <Image
-              src="/logo.svg"
+              src="/collegelogo.png"
               alt="Govt. Graduate College logo"
               width={56}
               height={56}

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { ensureStudentEnrollments } from "@/lib/services/student";
+import { requireRole } from "@/lib/auth-guard";
 
 export async function GET() {
   const { userId } = await auth();
@@ -49,7 +50,20 @@ export async function GET() {
     const whereClause: Prisma.CourseWhereInput = {};
 
     if (user.role === "FACULTY" && user.faculty) {
-      whereClause.assignedFaculty = user.faculty.id;
+      // Faculty see: courses in their own department OR courses explicitly assigned to them
+      const faculty = await prisma.faculty.findUnique({
+        where: { id: user.faculty.id },
+        select: { department: true },
+      });
+      if (faculty) {
+        whereClause.OR = [
+          { department: faculty.department },
+          { assignedFaculty: user.faculty.id },
+        ];
+      } else {
+        // Fallback: only explicitly assigned courses
+        whereClause.assignedFaculty = user.faculty.id;
+      }
     } else if (user.role === "STUDENT") {
       if (user.student) {
         await ensureStudentEnrollments(user.student.id, user.student.department, user.student.semester);
@@ -60,7 +74,7 @@ export async function GET() {
       }
     }
 
-    let courses = await prisma.course.findMany({
+    const courses = await prisma.course.findMany({
       where: whereClause,
       include: {
         faculty: {
@@ -69,18 +83,6 @@ export async function GET() {
         _count: { select: { enrollments: true } },
       },
     });
-
-    // Fallback for faculty if no specific course is assigned yet
-    if (user.role === "FACULTY" && courses.length === 0) {
-      courses = await prisma.course.findMany({
-        include: {
-          faculty: {
-            include: { user: { select: { name: true } } },
-          },
-          _count: { select: { enrollments: true } },
-        },
-      });
-    }
 
     const result = courses.map((c) => ({
       id: c.id,
@@ -193,6 +195,50 @@ export async function POST(request: NextRequest) {
       );
     }
     console.error("POST /api/courses error:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const denied = await requireRole(["ADMIN"]);
+  if (denied) return denied;
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const department = searchParams.get("department");
+    const semesterStr = searchParams.get("semester");
+    const purgeAll = searchParams.get("all") === "true";
+
+    const where: Prisma.CourseWhereInput = {};
+    if (!purgeAll) {
+      if (department && department !== "all") {
+        where.department = department;
+      }
+      if (semesterStr && semesterStr !== "all") {
+        where.semester = Number(semesterStr);
+      }
+    }
+
+    const deleted = await prisma.course.deleteMany({
+      where,
+    });
+
+    try {
+      await prisma.auditLog.create({
+        data: {
+          action: "DELETED",
+          entity: "Course",
+          entityId: "PURGE_BULK",
+          description: `Deleted ${deleted.count} course(s) [Dept: ${department || "All"}, Sem: ${semesterStr || "All"}]`,
+        },
+      });
+    } catch {
+      /* ignore */
+    }
+
+    return NextResponse.json({ deletedCount: deleted.count });
+  } catch (error) {
+    console.error("DELETE /api/courses error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

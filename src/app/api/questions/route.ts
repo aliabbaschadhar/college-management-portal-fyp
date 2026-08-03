@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   try {
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { id: true, role: true, faculty: { select: { id: true } } },
+      select: { id: true, role: true, faculty: { select: { id: true, department: true } } },
     });
 
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -24,10 +24,14 @@ export async function GET(request: NextRequest) {
       ...(quizId ? { quizId } : {}),
     };
 
-    if (user.role === "FACULTY" && user.faculty?.id) {
-      if (!courseId && !quizId) {
-        whereClause.course = { assignedFaculty: user.faculty.id };
-      }
+    // Faculty: always restrict to courses in their own department OR explicitly assigned to them
+    if (user.role === "FACULTY" && user.faculty) {
+      whereClause.course = {
+        OR: [
+          { department: user.faculty.department },
+          { assignedFaculty: user.faculty.id },
+        ],
+      };
     }
 
     const questions = await prisma.question.findMany({
@@ -63,7 +67,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { role: true, clerkId: true, faculty: { select: { id: true } } },
+      select: { role: true, clerkId: true, faculty: { select: { id: true, department: true } } },
     });
 
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -82,16 +86,19 @@ export async function POST(request: NextRequest) {
 
       const course = await prisma.course.findUnique({
         where: { id: body.courseId },
-        select: { assignedFaculty: true },
+        select: { assignedFaculty: true, department: true },
       });
 
       if (!course) continue;
 
       const isAdmin = user.role === "ADMIN";
-      const isFacultyAssignedToCourse =
-        user.faculty && (course.assignedFaculty === null || course.assignedFaculty === user.faculty.id);
+      // Faculty can add questions to courses in their own department OR courses explicitly assigned to them
+      const isFacultyAllowed =
+        user.faculty &&
+        (course.department === user.faculty.department ||
+          course.assignedFaculty === user.faculty.id);
 
-      if (!isAdmin && !isFacultyAssignedToCourse) continue;
+      if (!isAdmin && !isFacultyAllowed) continue;
 
       const q = await prisma.question.create({
         data: {
