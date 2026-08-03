@@ -13,6 +13,8 @@ import {
   Loader2,
   RefreshCw,
 } from "lucide-react";
+import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
+import { getLocalTodayString } from "@/lib/utils";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
 import { Button } from "@/components/ui/button";
@@ -122,7 +124,7 @@ export default function ManageDuesPage() {
     studentId: "",
     type: "Tuition Fee",
     amount: "",
-    dueDate: "",
+    dueDate: getLocalTodayString(),
   });
 
   const loadData = () => {
@@ -221,7 +223,7 @@ export default function ManageDuesPage() {
         studentId: "",
         type: "Tuition Fee",
         amount: "",
-        dueDate: "",
+        dueDate: getLocalTodayString(),
       });
       loadData();
       router.refresh();
@@ -575,22 +577,13 @@ export default function ManageDuesPage() {
 
             <div className="grid gap-2">
               <Label htmlFor="feeType">Fee Type</Label>
-              <Select
+              <Input
+                id="feeType"
+                placeholder="e.g. Tuition Fee, Exam Fee, Sports Fee"
                 value={newFee.type}
-                onValueChange={(v) => setNewFee({ ...newFee, type: v })}
-              >
-                <SelectTrigger className="h-10 rounded-xl">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Tuition Fee">Tuition Fee</SelectItem>
-                  <SelectItem value="Admission Fee">Admission Fee</SelectItem>
-                  <SelectItem value="Lab Fee">Lab Fee</SelectItem>
-                  <SelectItem value="Library Fee">Library Fee</SelectItem>
-                  <SelectItem value="Transport Fee">Transport Fee</SelectItem>
-                  <SelectItem value="Examination Fee">Examination Fee</SelectItem>
-                </SelectContent>
-              </Select>
+                onChange={(e) => setNewFee({ ...newFee, type: e.target.value })}
+                className="h-10 rounded-xl"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">

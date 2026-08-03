@@ -213,8 +213,13 @@ export default function TakeQuizPage() {
     if (!activeQuiz || submittingQuiz) return;
     setSubmittingQuiz(true);
     try {
+      const structuredAnswers = questions.map((q, i) => ({
+        questionId: q.id,
+        selectedOption: answers[i] ?? -1,
+      }));
+
       const res = await api.post<{ score: number }>(`/api/quizzes/${activeQuiz.id}/submit`, {
-        answers: answers.map((a) => (a === null ? -1 : a)),
+        answers: structuredAnswers,
       });
       const achievedScore = res.data.score;
       setScore(achievedScore);
@@ -752,19 +757,118 @@ export default function TakeQuizPage() {
     const isPassing = percentage >= 50;
 
     return (
-      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-lg mx-auto space-y-6 mt-8">
-        <div className="rounded-2xl border border-border bg-card p-8 text-center">
-          <div className={`flex h-20 w-20 mx-auto items-center justify-center rounded-2xl ${isPassing ? "bg-emerald-500/10" : "bg-rose-500/10"}`}>
-            <Trophy className={`h-10 w-10 ${isPassing ? "text-emerald-500" : "text-rose-500"}`} />
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-2xl mx-auto space-y-6 mt-4 pb-12">
+        <div className="rounded-3xl border-2 border-border bg-card p-8 text-center shadow-lg">
+          <div className={`flex h-20 w-20 mx-auto items-center justify-center rounded-3xl ${isPassing ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-500"}`}>
+            <Trophy className="h-10 w-10" />
           </div>
-          <h2 className="text-xl font-bold text-foreground mt-4">{isPassing ? "Great Job! 🎉" : "Keep Trying! 💪"}</h2>
-          <p className="text-sm text-muted-foreground mt-1">{activeQuiz.title}</p>
+          <h2 className="text-2xl font-black text-foreground mt-4">{isPassing ? "Great Job! 🎉" : "Quiz Attempt Summary 💪"}</h2>
+          <p className="text-sm font-semibold text-muted-foreground mt-1">{activeQuiz.title}</p>
+
           <div className="mt-6 grid grid-cols-3 gap-4">
-            <div className="rounded-xl bg-muted/50 p-3"><p className="text-2xl font-bold text-foreground">{score}</p><p className="text-xs text-muted-foreground">Score</p></div>
-            <div className="rounded-xl bg-muted/50 p-3"><p className="text-2xl font-bold text-foreground">{totalMarks}</p><p className="text-xs text-muted-foreground">Total</p></div>
-            <div className="rounded-xl bg-muted/50 p-3"><p className={`text-2xl font-bold ${isPassing ? "text-emerald-500" : "text-rose-500"}`}>{percentage}%</p><p className="text-xs text-muted-foreground">Percentage</p></div>
+            <div className="rounded-2xl bg-muted/40 p-4 border border-border">
+              <p className="text-3xl font-black text-brand-primary">{score}</p>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mt-0.5">Your Score</p>
+            </div>
+            <div className="rounded-2xl bg-muted/40 p-4 border border-border">
+              <p className="text-3xl font-black text-foreground">{totalMarks}</p>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mt-0.5">Total Marks</p>
+            </div>
+            <div className="rounded-2xl bg-muted/40 p-4 border border-border">
+              <p className={`text-3xl font-black ${isPassing ? "text-emerald-500" : "text-rose-500"}`}>{percentage}%</p>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mt-0.5 font-mono">Percentage</p>
+            </div>
           </div>
-          <Button className="mt-6" onClick={() => { setView("list"); setActiveQuiz(null); }}>Back to Quizzes</Button>
+
+          <div className="mt-6 flex items-center justify-center gap-3">
+            <Button size="lg" className="rounded-xl font-bold px-8 bg-brand-primary hover:bg-brand-primary/90 text-white shadow-md" onClick={() => { setView("list"); setActiveQuiz(null); }}>
+              Back to Quizzes Dashboard
+            </Button>
+          </div>
+        </div>
+
+        {/* Answer Key Review Section */}
+        <div className="space-y-4 pt-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-emerald-500" /> Answer Key &amp; Question Review
+            </h3>
+            <Badge variant="outline" className="font-bold text-xs">
+              {questions.length} Questions Reviewed
+            </Badge>
+          </div>
+
+          <div className="space-y-3">
+            {questions.map((q, idx) => {
+              const studentAnswer = answers[idx];
+
+              const correctOptIdx =
+                q.correctOption !== null && q.correctOption !== undefined
+                  ? Number(q.correctOption)
+                  : -1;
+
+              const isCorrect =
+                studentAnswer !== null &&
+                studentAnswer !== undefined &&
+                correctOptIdx >= 0 &&
+                Number(studentAnswer) === correctOptIdx;
+
+              const correctAnswerText =
+                correctOptIdx >= 0 && q.options && q.options[correctOptIdx] !== undefined
+                  ? q.options[correctOptIdx]
+                  : "N/A";
+
+              const studentAnswerText =
+                studentAnswer !== null &&
+                studentAnswer !== undefined &&
+                studentAnswer >= 0 &&
+                q.options &&
+                q.options[studentAnswer] !== undefined
+                  ? q.options[studentAnswer]
+                  : "Not Answered";
+
+              return (
+                <div
+                  key={q.id || idx}
+                  className={`rounded-2xl border p-4 bg-card space-y-2.5 shadow-xs transition-all ${
+                    isCorrect
+                      ? "border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-950/10"
+                      : "border-rose-500/30 bg-rose-500/5 dark:bg-rose-950/10"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-sm font-bold text-foreground leading-snug">
+                      <span className="text-brand-primary font-black mr-2">Q{idx + 1}.</span>
+                      {q.text}
+                    </p>
+                    <Badge
+                      className={`text-[10px] font-extrabold uppercase shrink-0 py-0.5 px-2 rounded-lg ${
+                        isCorrect
+                          ? "bg-emerald-600 text-white"
+                          : "bg-rose-600 text-white"
+                      }`}
+                    >
+                      {isCorrect ? "Correct ✓" : "Incorrect ✗"}
+                    </Badge>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+                    <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 px-3 py-1.5 rounded-xl font-medium">
+                      <span className="font-bold text-[10px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Correct Answer:</span>
+                      <span className="font-semibold">{correctAnswerText}</span>
+                    </div>
+
+                    {!isCorrect && (
+                      <div className="flex items-center gap-1.5 bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300 px-3 py-1.5 rounded-xl font-medium">
+                        <span className="font-bold text-[10px] uppercase tracking-wider text-rose-600 dark:text-rose-400">Your Choice:</span>
+                        <span className="font-semibold">{studentAnswerText}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </motion.div>
     );

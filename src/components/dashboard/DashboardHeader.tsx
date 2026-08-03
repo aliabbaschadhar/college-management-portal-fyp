@@ -1,4 +1,4 @@
-import { Bell, Menu, Calendar, Megaphone, ArrowRight } from "lucide-react";
+import { Bell, Menu, Calendar, Megaphone, ArrowRight, RefreshCw, X } from "lucide-react";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
@@ -71,11 +71,19 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
     }
   }, [userId]);
 
+  const [isRefreshingAnnouncements, setIsRefreshingAnnouncements] = useState(false);
+
   const fetchAnnouncements = useCallback(async () => {
     try {
-      const res = await api.get<Announcement[]>("/api/announcements");
-      const annData = Array.isArray(res.data) ? res.data : [];
+      const [annRes, meRes] = await Promise.all([
+        api.get<Announcement[]>("/api/announcements").catch(() => ({ data: [] })),
+        userId && userId !== "anonymous" ? api.get("/api/me").catch(() => null) : Promise.resolve(null),
+      ]);
+      const annData = Array.isArray(annRes.data) ? annRes.data : [];
       setAllAnnouncements(annData);
+      if (meRes?.data) {
+        setDbProfile(meRes.data);
+      }
 
       if (role === "student") {
         const feesRes = await api.get<Fee[]>("/api/fees?status=Unpaid").catch(() => null);
@@ -86,7 +94,19 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
     } catch (err) {
       console.error("Failed to fetch announcements/fees for bell:", err);
     }
-  }, [role]);
+  }, [role, userId]);
+
+  const handleDismissItem = (id: string) => {
+    if (!userId) return;
+    const newDismissed = [...dismissedIds, id];
+    setDismissedIds(newDismissed);
+    try {
+      localStorage.setItem(`dismissed_announcements_${userId}`, JSON.stringify(newDismissed));
+      window.dispatchEvent(new Event("notifications-updated"));
+    } catch (e) {
+      console.error("Failed to save dismissed notification:", e);
+    }
+  };
 
   // Load user-scoped dismissed announcements from localStorage on mount, user change, or route transition
   useEffect(() => {
@@ -288,6 +308,20 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
                       <p className="text-xs text-muted-foreground">Unread alerts & campus announcements</p>
                     </div>
                   </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      setIsRefreshingAnnouncements(true);
+                      await fetchAnnouncements();
+                      setIsRefreshingAnnouncements(false);
+                    }}
+                    disabled={isRefreshingAnnouncements}
+                    className="rounded-xl h-8 text-xs gap-1.5 border-border"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${isRefreshingAnnouncements ? "animate-spin" : ""}`} />
+                    Refresh
+                  </Button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto space-y-4 pr-1">
@@ -354,7 +388,7 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
                       {unreadAnnouncements.map((ann) => (
                         <div
                           key={ann.id}
-                          className="p-4 rounded-2xl bg-accent/30 border border-border space-y-2 hover:bg-accent/50 transition-colors"
+                          className="p-4 rounded-2xl bg-accent/30 border border-border space-y-2 hover:bg-accent/50 transition-colors relative group"
                         >
                           <div className="flex items-center justify-between flex-wrap gap-2">
                             <div className="flex items-center gap-2">
@@ -370,10 +404,19 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
                               </Badge>
                               <span className="text-xs font-semibold text-foreground">{ann.title}</span>
                             </div>
-                            <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-mono">
-                              <Calendar className="h-3 w-3" />
-                              {new Date(ann.date).toLocaleDateString()}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-mono">
+                                <Calendar className="h-3 w-3" />
+                                {new Date(ann.date).toLocaleDateString()}
+                              </span>
+                              <button
+                                onClick={() => handleDismissItem(ann.id)}
+                                className="h-6 w-6 rounded-lg bg-card border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all cursor-pointer"
+                                title="Dismiss notification"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
                           </div>
                           <p className="text-xs text-muted-foreground leading-relaxed">
                             {ann.content}

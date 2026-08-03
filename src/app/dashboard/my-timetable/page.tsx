@@ -132,8 +132,10 @@ export default function MyTimetablePage() {
   useEffect(() => {
     if (!studentProfile) return;
     const shift = studentProfile.shift || "Morning";
+    const dept = studentProfile.department || "";
+    const sem = studentProfile.semester || 1;
     api
-      .get(`/api/timetable/settings?shift=${shift}`)
+      .get(`/api/timetable/settings?shift=${shift}&department=${encodeURIComponent(dept)}&semester=${sem}`)
       .then((res) => {
         if (res.data) {
           setGridStart(res.data.startTime);

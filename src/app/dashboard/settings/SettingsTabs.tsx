@@ -460,6 +460,7 @@ function QRSection({ user }: { user: SettingsUser }) {
 // ─── Admin Settings Section ───────────────────────────────────────────────────
 function AdminSettingsSection() {
   const [secret, setSecret] = useState("");
+  const [expiryHoursInput, setExpiryHoursInput] = useState<number>(1);
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -480,9 +481,13 @@ function AdminSettingsSection() {
         setTimeLeft("");
         clearInterval(interval);
       } else {
-        const mins = Math.floor(remaining / 60000);
+        const hours = Math.floor(remaining / 3600000);
+        const mins = Math.floor((remaining % 3600000) / 60000);
         const secs = Math.floor((remaining % 60000) / 1000);
-        setTimeLeft(`${mins}:${String(secs).padStart(2, "0")}`);
+        const hoursStr = String(hours).padStart(2, "0");
+        const minsStr = String(mins).padStart(2, "0");
+        const secsStr = String(secs).padStart(2, "0");
+        setTimeLeft(`${hoursStr}:${minsStr}:${secsStr}`);
       }
     }, 1000);
 
@@ -493,7 +498,9 @@ function AdminSettingsSection() {
     setLoading(true);
     setErrorMsg("");
     try {
-      const res = await api.post("/api/settings/admin-secret");
+      const res = await api.post("/api/settings/admin-secret", {
+        expiryHours: Number(expiryHoursInput) || 1,
+      });
       setSecret(res.data.secret || "");
       if (res.data.expiresAt) {
         setExpiresAt(res.data.expiresAt);
@@ -537,29 +544,50 @@ function AdminSettingsSection() {
       </div>
 
       <div className="p-5 rounded-2xl border border-border bg-card space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="admin-secret-key" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            Admin Onboarding Secret Key
-          </Label>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            This secret key is required when a new user requests the ADMIN role during portal onboarding. It is valid for 2 minutes after generation.
-          </p>
-          <div className="relative">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="admin-secret-expiry" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Key Expiry Duration (Hours)
+            </Label>
             <Input
-              id="admin-secret-key"
-              type="text"
-              value={secret}
-              readOnly
-              className="h-11 rounded-xl pr-28 font-mono bg-muted/30"
-              placeholder="No active secret key generated"
+              id="admin-secret-expiry"
+              type="number"
+              min="0.1"
+              max="72"
+              step="0.5"
+              value={expiryHoursInput}
+              onChange={(e) => setExpiryHoursInput(Number(e.target.value))}
+              disabled={loading || !!timeLeft}
+              className="h-11 rounded-xl font-mono"
+              placeholder="e.g. 1"
             />
-            {timeLeft && (
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md animate-pulse">
-                Expires in {timeLeft}
-              </span>
-            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="admin-secret-key" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Admin Secret Key
+            </Label>
+            <div className="relative">
+              <Input
+                id="admin-secret-key"
+                type="text"
+                value={secret}
+                readOnly
+                className="h-11 rounded-xl pr-32 font-mono bg-muted/30"
+                placeholder="No active secret key"
+              />
+              {timeLeft && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold font-mono text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md animate-pulse">
+                  Expires in {timeLeft}
+                </span>
+              )}
+            </div>
           </div>
         </div>
+
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          This secret key is required when a new user requests the ADMIN role during portal onboarding.
+        </p>
 
         {errorMsg && (
           <p className="text-xs text-rose-500 font-semibold">{errorMsg}</p>

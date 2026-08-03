@@ -36,7 +36,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
+import { cn, getLocalTodayString } from "@/lib/utils";
 
 type AttendanceStatus = "Present" | "Absent" | "Late";
 
@@ -97,9 +97,7 @@ export default function FacultyAttendancePage() {
   const [refreshing, setRefreshing] = useState(false);
 
   // Date filter (defaults to today)
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split("T")[0]
-  );
+  const [selectedDate, setSelectedDate] = useState<string>(getLocalTodayString());
   const [selectedDept, setSelectedDept] = useState<string>("ALL");
 
   // Admin view state
@@ -278,80 +276,88 @@ export default function FacultyAttendancePage() {
           <div className="rounded-3xl border border-border bg-gradient-to-br from-card to-muted/30 p-6 md:p-8 shadow-sm">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
               <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-brand-primary/10 text-brand-primary border-brand-primary/20">
-                    Daily Check-In
-                  </Badge>
-                  <span className="text-xs font-mono text-muted-foreground">
-                    {new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" })}
-                  </span>
-                </div>
                 <h2 className="text-2xl font-bold text-foreground">
                   Today&apos;s Attendance Status
                 </h2>
-                <p className="text-sm text-muted-foreground max-w-lg">
-                  {todayRecord?.checkInTime
-                    ? `Checked in at ${new Date(todayRecord.checkInTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-                    : "You have not checked in yet today. Click the button below to register your presence."}
+                <p className="text-sm font-semibold text-brand-primary">
+                  {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
                 </p>
-              </div>
-
-              {/* Status Badge + Action Button */}
-              <div className="flex flex-col sm:flex-row items-center gap-4">
-                {todayRecord && (
-                  <Badge
-                    variant="secondary"
-                    className={cn("px-4 py-2 text-sm font-semibold rounded-xl border", statusBadgeClass[todayRecord.status])}
-                  >
-                    {todayRecord.status === "Present" && <CheckCircle2 className="h-4 w-4 mr-1.5 shrink-0" />}
-                    {todayRecord.status === "Late" && <Clock className="h-4 w-4 mr-1.5 shrink-0" />}
-                    {todayRecord.status}
-                  </Badge>
-                )}
-
-                {!todayRecord?.checkInTime ? (
-                  <Button
-                    onClick={() => handleFacultySelfCheck("CHECK_IN")}
-                    disabled={checkingIn || refreshing}
-                    className="h-12 px-8 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg shadow-emerald-600/20 gap-2 disabled:opacity-50 disabled:pointer-events-none"
-                  >
-                    {checkingIn ? (
-                      <>
-                        <div className="h-4 w-4 animate-spin border-2 border-white/40 border-t-white rounded-full shrink-0" />
-                        <span>Checking in...</span>
-                      </>
-                    ) : (
-                      <>
-                        <UserCheck className="h-5 w-5" />
-                        <span>Check In Now</span>
-                      </>
-                    )}
-                  </Button>
-                ) : !todayRecord?.checkOutTime ? (
-                  <Button
-                    onClick={() => handleFacultySelfCheck("CHECK_OUT")}
-                    disabled={checkingIn || refreshing}
-                    variant="outline"
-                    className="h-12 px-8 rounded-2xl border-2 border-brand-primary text-brand-primary hover:bg-brand-primary/10 font-bold gap-2 disabled:opacity-50 disabled:pointer-events-none"
-                  >
-                    {checkingIn ? (
-                      <>
-                        <div className="h-4 w-4 animate-spin border-2 border-brand-primary/40 border-t-brand-primary rounded-full shrink-0" />
-                        <span>Checking out...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Clock className="h-5 w-5" />
-                        <span>Check Out</span>
-                      </>
-                    )}
-                  </Button>
+                
+                {new Date().getDay() === 0 ? (
+                  <p className="text-sm text-purple-600 dark:text-purple-400 font-medium">
+                    Today is Sunday — Campus is off today. Enjoy your day!
+                  </p>
                 ) : (
-                  <Badge variant="outline" className="px-4 py-2 text-xs font-semibold rounded-xl bg-muted text-muted-foreground">
-                    Completed for Today
-                  </Badge>
+                  <p className="text-sm text-muted-foreground max-w-lg">
+                    {todayRecord?.checkInTime
+                      ? `Checked in at ${new Date(todayRecord.checkInTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                      : "You have not checked in yet today. Click the button below to register your presence."}
+                  </p>
                 )}
               </div>
+
+              {/* Status Badge + Actions */}
+              {new Date().getDay() === 0 ? (
+                <Badge variant="outline" className="px-4 py-2 text-xs font-bold rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20">
+                  Sunday Off
+                </Badge>
+              ) : (
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  {todayRecord && (
+                    <Badge
+                      variant="secondary"
+                      className={cn("px-4 py-2 text-sm font-semibold rounded-xl border", statusBadgeClass[todayRecord.status])}
+                    >
+                      {todayRecord.status === "Present" && <CheckCircle2 className="h-4 w-4 mr-1.5 shrink-0" />}
+                      {todayRecord.status === "Late" && <Clock className="h-4 w-4 mr-1.5 shrink-0" />}
+                      {todayRecord.status}
+                    </Badge>
+                  )}
+
+                  {!todayRecord?.checkInTime ? (
+                    <Button
+                      onClick={() => handleFacultySelfCheck("CHECK_IN")}
+                      disabled={checkingIn || refreshing}
+                      className="h-11 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-600/20 gap-2 disabled:opacity-50 disabled:pointer-events-none text-xs"
+                    >
+                      {checkingIn ? (
+                        <>
+                          <div className="h-4 w-4 animate-spin border-2 border-white/40 border-t-white rounded-full shrink-0" />
+                          <span>Checking in...</span>
+                        </>
+                      ) : (
+                        <>
+                          <UserCheck className="h-4 w-4" />
+                          <span>Check In Now</span>
+                        </>
+                      )}
+                    </Button>
+                  ) : !todayRecord?.checkOutTime ? (
+                    <Button
+                      onClick={() => handleFacultySelfCheck("CHECK_OUT")}
+                      disabled={checkingIn || refreshing}
+                      variant="outline"
+                      className="h-11 px-6 rounded-xl border-2 border-brand-primary text-brand-primary hover:bg-brand-primary/10 font-bold gap-2 disabled:opacity-50 disabled:pointer-events-none text-xs"
+                    >
+                      {checkingIn ? (
+                        <>
+                          <div className="h-4 w-4 animate-spin border-2 border-brand-primary/40 border-t-brand-primary rounded-full shrink-0" />
+                          <span>Checking out...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="h-4 w-4" />
+                          <span>Check Out</span>
+                        </>
+                      )}
+                    </Button>
+                  ) : (
+                    <Badge variant="outline" className="px-4 py-2 text-xs font-semibold rounded-xl bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
+                      Completed for Today
+                    </Badge>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

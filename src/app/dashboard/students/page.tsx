@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/axios";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { Pencil, Trash2, Loader2, Eye, Calendar, Mail, Phone, Clock, Shield, RefreshCw, CheckCircle } from "lucide-react";
+import { Pencil, Trash2, Loader2, Eye, Calendar, Mail, Phone, Clock, Shield, RefreshCw, CheckCircle, BadgeCheck, Building2, BookOpen, GraduationCap, User } from "lucide-react";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
@@ -136,12 +136,48 @@ export default function ManageStudentsPage() {
   const [detailStudent, setDetailStudent] = useState<StudentWithUser | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
 
-  // Bulk/Class promotion states
+  // Bulk/Class promotion & deletion states
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [promotionDialogOpen, setPromotionDialogOpen] = useState(false);
   const [promoting, setPromoting] = useState(false);
   const [targetSemester, setTargetSemester] = useState("1");
   const [isPromotingAllClass, setIsPromotingAllClass] = useState(false);
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [bulkDeleteTarget, setBulkDeleteTarget] = useState<"selected" | "class" | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [readmittingStudentId, setReadmittingStudentId] = useState<string | null>(null);
+
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const showToast = (msg: string, ok = true) => {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  const handleBulkDelete = async () => {
+    if (!bulkDeleteTarget) return;
+    setBulkDeleting(true);
+    try {
+      const idsToDelete =
+        bulkDeleteTarget === "selected"
+          ? selectedStudentIds
+          : filteredStudents.map((s) => s.id);
+
+      if (idsToDelete.length > 0) {
+        await Promise.all(idsToDelete.map((id) => api.delete(`/api/students/${id}`)));
+        setStudents((prev) => prev.filter((s) => !idsToDelete.includes(s.id)));
+        if (bulkDeleteTarget === "selected") {
+          setSelectedStudentIds([]);
+        }
+        router.refresh();
+      }
+    } catch (err) {
+      console.error("Bulk delete students failed:", err);
+    } finally {
+      setBulkDeleting(false);
+      setBulkDeleteDialogOpen(false);
+      setBulkDeleteTarget(null);
+    }
+  };
 
   const filteredStudents = useMemo(() => {
     if (!selectedDept || !selectedSemester) return [];
@@ -272,22 +308,22 @@ export default function ManageStudentsPage() {
         const d = studentsRes.data;
         const normalized = Array.isArray(d)
           ? d.map((item: unknown) => {
-              const s = item as Record<string, unknown>;
-              return {
-                ...s,
-                user: {
-                  name:
-                    s.user && typeof s.user === "object" && "name" in s.user
-                      ? s.user.name
-                      : (s.name ?? null),
-                  email:
-                    s.user && typeof s.user === "object" && "email" in s.user
-                      ? s.user.email
-                      : (s.email ?? ""),
-                },
-                _count: s._count ?? { enrollments: 0 },
-              };
-            })
+            const s = item as Record<string, unknown>;
+            return {
+              ...s,
+              user: {
+                name:
+                  s.user && typeof s.user === "object" && "name" in s.user
+                    ? s.user.name
+                    : (s.name ?? null),
+                email:
+                  s.user && typeof s.user === "object" && "email" in s.user
+                    ? s.user.email
+                    : (s.email ?? ""),
+              },
+              _count: s._count ?? { enrollments: 0 },
+            };
+          })
           : [];
         setStudents(normalized as StudentWithUser[]);
         setCourses(coursesRes.data);
@@ -374,43 +410,43 @@ export default function ManageStudentsPage() {
   const columns: Column<StudentWithUser>[] = [
     ...(isAdmin
       ? [
-          {
-            key: "selection",
-            header: (
-              <input
-                type="checkbox"
-                checked={
-                  filteredStudents.length > 0 &&
-                  filteredStudents.every((s) => selectedStudentIds.includes(s.id))
+        {
+          key: "selection",
+          header: (
+            <input
+              type="checkbox"
+              checked={
+                filteredStudents.length > 0 &&
+                filteredStudents.every((s) => selectedStudentIds.includes(s.id))
+              }
+              onChange={(e) => {
+                const checked = e.target.checked;
+                if (checked) {
+                  const idsToAdd = filteredStudents.map((s) => s.id);
+                  setSelectedStudentIds((prev) => Array.from(new Set([...prev, ...idsToAdd])));
+                } else {
+                  const idsToRemove = new Set(filteredStudents.map((s) => s.id));
+                  setSelectedStudentIds((prev) => prev.filter((id) => !idsToRemove.has(id)));
                 }
-                onChange={(e) => {
-                  const checked = e.target.checked;
-                  if (checked) {
-                    const idsToAdd = filteredStudents.map((s) => s.id);
-                    setSelectedStudentIds((prev) => Array.from(new Set([...prev, ...idsToAdd])));
-                  } else {
-                    const idsToRemove = new Set(filteredStudents.map((s) => s.id));
-                    setSelectedStudentIds((prev) => prev.filter((id) => !idsToRemove.has(id)));
-                  }
-                }}
-                className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#16122d] text-brand-primary focus:ring-brand-primary"
-              />
-            ),
-            render: (row: StudentWithUser) => (
-              <input
-                type="checkbox"
-                checked={selectedStudentIds.includes(row.id)}
-                onChange={(e) => {
-                  const checked = e.target.checked;
-                  setSelectedStudentIds((prev) =>
-                    checked ? [...prev, row.id] : prev.filter((id) => id !== row.id)
-                  );
-                }}
-                className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#16122d] text-brand-primary focus:ring-brand-primary"
-              />
-            ),
-          },
-        ]
+              }}
+              className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#16122d] text-brand-primary focus:ring-brand-primary"
+            />
+          ),
+          render: (row: StudentWithUser) => (
+            <input
+              type="checkbox"
+              checked={selectedStudentIds.includes(row.id)}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setSelectedStudentIds((prev) =>
+                  checked ? [...prev, row.id] : prev.filter((id) => id !== row.id)
+                );
+              }}
+              className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#16122d] text-brand-primary focus:ring-brand-primary"
+            />
+          ),
+        },
+      ]
       : []),
     {
       key: "user",
@@ -481,92 +517,99 @@ export default function ManageStudentsPage() {
     },
     ...(isAdmin
       ? [
-          {
-            key: "actions" as keyof StudentWithUser,
-            header: "Actions",
-            render: (row: StudentWithUser) => (
-              <div className="flex items-center gap-1">
-                {row.blocked && (
-                  <Button
-                    size="sm"
-                    disabled={!row.readmitRequested}
-                    onClick={async () => {
-                      if (!row.readmitRequested) return;
-                      try {
-                        await api.patch(`/api/students/${row.id}`, { blocked: false, readmitRequested: false });
-                        setStudents((prev) =>
-                          prev.map((s) => (s.id === row.id ? { ...s, blocked: false, readmitRequested: false } : s))
-                        );
-                        router.refresh();
-                      } catch (err) {
-                        console.error("Failed to approve re-admission:", err);
-                      }
-                    }}
-                    className={`h-8 text-xs rounded-lg px-2 gap-1 font-semibold ${
-                      row.readmitRequested
-                        ? "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
-                        : "bg-muted text-muted-foreground opacity-50 cursor-not-allowed border border-muted"
-                    }`}
-                    title={
-                      row.readmitRequested
-                        ? "Approve Re-admission / Activate Student"
-                        : "Re-admission request required from faculty first"
+        {
+          key: "actions" as keyof StudentWithUser,
+          header: "Actions",
+          render: (row: StudentWithUser) => (
+            <div className="flex items-center gap-1">
+              {row.blocked && (
+                <Button
+                  size="sm"
+                  disabled={!row.readmitRequested || readmittingStudentId === row.id}
+                  onClick={async () => {
+                    if (!row.readmitRequested) return;
+                    setReadmittingStudentId(row.id);
+                    try {
+                      await api.patch(`/api/students/${row.id}`, { blocked: false, readmitRequested: false });
+                      setStudents((prev) =>
+                        prev.map((s) => (s.id === row.id ? { ...s, blocked: false, readmitRequested: false } : s))
+                      );
+                      router.refresh();
+                    } catch (err) {
+                      console.error("Failed to approve re-admission:", err);
+                    } finally {
+                      setReadmittingStudentId(null);
                     }
-                  >
-                    <CheckCircle className="h-3.5 w-3.5" /> Re-Admit Student
-                  </Button>
-                )}
-                <button
-                  onClick={() => {
-                    setDetailStudent(row);
-                    setDetailDialogOpen(true);
                   }}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"
-                  title="View Details"
+                  className={`h-8 text-xs rounded-lg px-2 gap-1 font-semibold ${row.readmitRequested
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+                    : "bg-muted text-muted-foreground opacity-50 cursor-not-allowed border border-muted"
+                    }`}
+                  title={
+                    row.readmitRequested
+                      ? "Approve Re-admission / Activate Student"
+                      : "Re-admission request required from faculty first"
+                  }
                 >
-                  <Eye className="h-4 w-4 text-muted-foreground" />
-                </button>
-                <button
-                  onClick={() => openEdit(row)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"
-                  title="Edit"
-                >
-                  <Pencil className="h-4 w-4 text-muted-foreground" />
-                </button>
-                <button
-                  onClick={() => {
-                    setDeletingStudent(row);
-                    setDeleteDialogOpen(true);
-                  }}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-destructive/10 transition-colors"
-                  title="Delete"
-                >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </button>
-              </div>
-            ),
-          },
-        ]
+                  {readmittingStudentId === row.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <CheckCircle className="h-3.5 w-3.5" />
+                  )}
+                  Re-Admit Student
+                </Button>
+              )}
+              <button
+                onClick={() => {
+                  setDetailStudent(row);
+                  setDetailDialogOpen(true);
+                }}
+                className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"
+                title="View Details"
+              >
+                <Eye className="h-4 w-4 text-muted-foreground" />
+              </button>
+              <button
+                onClick={() => openEdit(row)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"
+                title="Edit"
+              >
+                <Pencil className="h-4 w-4 text-muted-foreground" />
+              </button>
+              <button
+                onClick={() => {
+                  setDeletingStudent(row);
+                  setDeleteDialogOpen(true);
+                }}
+                className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-destructive/10 transition-colors"
+                title="Delete"
+              >
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </button>
+            </div>
+          ),
+        },
+      ]
       : [
-          {
-            key: "actions" as keyof StudentWithUser,
-            header: "Actions",
-            render: (row: StudentWithUser) => (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => {
-                    setDetailStudent(row);
-                    setDetailDialogOpen(true);
-                  }}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"
-                  title="View Details"
-                >
-                  <Eye className="h-4 w-4 text-muted-foreground" />
-                </button>
-              </div>
-            ),
-          },
-        ]),
+        {
+          key: "actions" as keyof StudentWithUser,
+          header: "Actions",
+          render: (row: StudentWithUser) => (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => {
+                  setDetailStudent(row);
+                  setDetailDialogOpen(true);
+                }}
+                className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"
+                title="View Details"
+              >
+                <Eye className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </div>
+          ),
+        },
+      ]),
   ];
 
   if (!isLoaded) {
@@ -720,26 +763,26 @@ export default function ManageStudentsPage() {
               breadcrumbs={
                 isAdmin
                   ? [
-                      { label: "Dashboard", href: "/dashboard" },
-                      { label: "Manage Students" },
-                    ]
+                    { label: "Dashboard", href: "/dashboard" },
+                    { label: "Manage Students" },
+                  ]
                   : [
-                      { label: "Dashboard", href: "/dashboard" },
-                      {
-                        label: "Manage Students",
-                        onClick: () => {
-                          setSelectedDept(null);
-                          setSelectedSemester(null);
-                        },
+                    { label: "Dashboard", href: "/dashboard" },
+                    {
+                      label: "Manage Students",
+                      onClick: () => {
+                        setSelectedDept(null);
+                        setSelectedSemester(null);
                       },
-                      {
-                        label: selectedDept!,
-                        onClick: () => {
-                          setSelectedSemester(null);
-                        },
+                    },
+                    {
+                      label: selectedDept!,
+                      onClick: () => {
+                        setSelectedSemester(null);
                       },
-                      { label: `Semester ${selectedSemester}` },
-                    ]
+                    },
+                    { label: `Semester ${selectedSemester}` },
+                  ]
               }
               action={
                 <div className="flex items-center gap-2">
@@ -753,16 +796,35 @@ export default function ManageStudentsPage() {
                     Refresh
                   </Button>
                   {isAdmin && (
-                    <Button
-                      onClick={() => {
-                        setIsPromotingAllClass(true);
-                        setPromotionDialogOpen(true);
-                      }}
-                      variant="outline"
-                      className="border-emerald-600 text-emerald-600 hover:bg-emerald-600/10 rounded-xl flex items-center gap-2 h-9"
-                    >
-                      Promote Entire Class
-                    </Button>
+                    <>
+                      <Button
+                        onClick={() => {
+                          if (selectedStudentIds.length === 0) {
+                            showToast("Please select at least one student first to promote.", false);
+                            return;
+                          }
+                          setIsPromotingAllClass(false);
+                          setPromotionDialogOpen(true);
+                        }}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl flex items-center gap-2 h-9 font-semibold shadow-sm"
+                      >
+                        Promote Selected {selectedStudentIds.length > 0 && `(${selectedStudentIds.length})`}
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          if (selectedStudentIds.length === 0) {
+                            showToast("Please select at least one student first to delete.", false);
+                            return;
+                          }
+                          setBulkDeleteTarget("selected");
+                          setBulkDeleteDialogOpen(true);
+                        }}
+                        variant="destructive"
+                        className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl flex items-center gap-2 h-9 font-bold shadow-sm"
+                      >
+                        <Trash2 className="h-4 w-4" /> Delete Selected {selectedStudentIds.length > 0 && `(${selectedStudentIds.length})`}
+                      </Button>
+                    </>
                   )}
                 </div>
               }
@@ -846,20 +908,6 @@ export default function ManageStudentsPage() {
                     </div>
                   )}
                 </div>
-
-                {isAdmin && selectedStudentIds.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <Button
-                      onClick={() => {
-                        setIsPromotingAllClass(false);
-                        setPromotionDialogOpen(true);
-                      }}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl flex items-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.2)]"
-                    >
-                      Promote Selected ({selectedStudentIds.length})
-                    </Button>
-                  </div>
-                )}
               </div>
 
               <div className="bg-card/50 backdrop-blur-sm border rounded-xl overflow-hidden shadow-sm">
@@ -877,103 +925,165 @@ export default function ManageStudentsPage() {
 
       {/* Detail View Dialog */}
       <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <DialogContent className="sm:max-w-[450px] overflow-hidden rounded-3xl p-0 border-none bg-linear-to-b from-card to-background shadow-2xl">
+        <DialogContent showCloseButton={false} className="sm:max-w-[640px] p-0 overflow-hidden rounded-2xl border border-brand-light bg-brand-white shadow-xl">
           <DialogHeader className="sr-only">
             <DialogTitle>Student Profile Details</DialogTitle>
             <DialogDescription>
               Detailed information about the selected student profile.
             </DialogDescription>
           </DialogHeader>
-          <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-r from-brand-primary via-brand-secondary to-brand-primary" />
-          <div className="p-6 pt-8 text-center space-y-6">
-            <div className="flex justify-center">
-              <div className="relative group">
-                <div className="absolute inset-0 rounded-full bg-brand-primary/20 blur-md transition-all group-hover:bg-brand-primary/30" />
-                {detailStudent?.avatar ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
-                    src={detailStudent.avatar}
-                    alt="Avatar"
-                    className="relative z-10 h-24 w-24 rounded-full border-2 border-border object-cover shadow-md"
-                  />
-                ) : (
-                  <div className="relative z-10 h-24 w-24 rounded-full border-2 border-border bg-brand-primary/10 flex items-center justify-center text-3xl font-bold text-brand-primary shadow-md">
-                    {(detailStudent?.user.name ?? "?")
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")
-                      .slice(0, 2)}
+          {detailStudent && (
+            <div className="grid grid-cols-1 md:grid-cols-12 rounded-2xl overflow-hidden border border-border">
+              {/* Left Column: Header Information */}
+              <div className="md:col-span-5 bg-gradient-to-br from-brand-primary to-brand-secondary p-6 text-center relative flex flex-col justify-between items-center text-white">
+                <div className="w-full flex items-center justify-between gap-2">
+                  <div className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold border backdrop-blur-sm ${detailStudent.blocked ? "bg-red-500/20 text-red-100 border-red-400/30" : "bg-white/20 text-white border-white/20"}`}>
+                    {detailStudent.blocked ? "⛔ Suspended" : "✓ Active Student"}
                   </div>
-                )}
-              </div>
-            </div>
+                  <div className="flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-2.5 py-1 text-[10px] text-white font-semibold">
+                    <BadgeCheck className="w-3.5 h-3.5" /> Official Verified
+                  </div>
+                </div>
 
-            <div className="space-y-1.5">
-              <h2 className="text-2xl font-black text-foreground">{detailStudent?.user.name ?? "—"}</h2>
-              <p className="text-sm font-semibold text-muted-foreground font-mono">{detailStudent?.rollNo}</p>
-              <div className="flex justify-center gap-2 pt-1.5">
-                <Badge variant="secondary" className={deptColors[detailStudent?.department ?? ""] || ""}>
-                  {detailStudent?.department}
-                </Badge>
-                <Badge variant="outline" className="font-bold border-brand-primary/20 text-brand-primary bg-brand-primary/5">
-                  Semester {detailStudent?.semester}
-                </Badge>
-              </div>
-            </div>
+                <div className="my-auto py-4">
+                  <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm mx-auto flex items-center justify-center mb-3 border-2 border-white/30 overflow-hidden ring-4 ring-white/10 shadow-lg">
+                    {detailStudent.avatar ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={detailStudent.avatar} alt={detailStudent.user.name ?? "Avatar"} className="object-cover h-full w-full" />
+                    ) : (
+                      <User className="w-10 h-10 text-white" />
+                    )}
+                  </div>
 
-            <div className="border-t border-border/60 my-6 pt-4 text-left space-y-3 px-4">
-              <div className="flex items-center gap-3 text-sm">
-                <Mail className="h-4.5 w-4.5 text-muted-foreground shrink-0" />
-                <div>
-                  <span className="text-xs text-muted-foreground block">Email Address</span>
-                  <span className="font-semibold text-foreground">{detailStudent?.user.email ?? "—"}</span>
+                  <h2 className="text-xl font-black text-white mb-1">
+                    {detailStudent.user.name ?? "—"}
+                  </h2>
+                  <p className="text-sm text-white/80 font-mono font-semibold mb-3">{detailStudent.rollNo}</p>
+
+                  <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                    <span className="inline-flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 text-xs text-white font-bold">
+                      <GraduationCap className="w-3.5 h-3.5" /> Student
+                    </span>
+                    <span className="inline-flex items-center bg-white/15 backdrop-blur-sm rounded-full px-2.5 py-1 text-xs text-white/90 font-medium">
+                      {detailStudent.department}
+                    </span>
+                    <span className="inline-flex items-center bg-white/15 backdrop-blur-sm rounded-full px-2.5 py-1 text-xs text-white/90 font-medium">
+                      Sem {detailStudent.semester}
+                    </span>
+                  </div>
                 </div>
+
+                <p className="text-[10px] text-white/60 font-mono">Roll: {detailStudent.rollNo}</p>
               </div>
-              <div className="flex items-center gap-3 text-sm">
-                <Phone className="h-4.5 w-4.5 text-muted-foreground shrink-0" />
-                <div>
-                  <span className="text-xs text-muted-foreground block">Phone Number</span>
-                  <span className="font-semibold text-foreground">{detailStudent?.phone ?? "—"}</span>
+
+              {/* Right Column: Related Data */}
+              <div className="md:col-span-7 p-6 space-y-3.5 bg-card">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Contact & Academic Details</p>
+                <div className="space-y-3 text-sm">
+                  {/* Institution */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
+                      <Building2 className="w-4 h-4 text-brand-primary" />
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Institution</p>
+                      <p className="font-semibold text-foreground">Govt. Graduate College, Hafizabad</p>
+                    </div>
+                  </div>
+
+                  {/* Email */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
+                      <Mail className="w-4 h-4 text-brand-primary" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-muted-foreground text-xs">Email Address</p>
+                      <p className="font-semibold text-foreground truncate font-mono">{detailStudent.user.email ?? "—"}</p>
+                    </div>
+                  </div>
+
+                  {/* Phone */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
+                      <Phone className="w-4 h-4 text-brand-primary" />
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Phone Number</p>
+                      <p className="font-semibold text-foreground">{detailStudent.phone ?? "—"}</p>
+                    </div>
+                  </div>
+
+                  {/* Shift */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
+                      <Clock className="w-4 h-4 text-brand-primary" />
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Semester & Shift</p>
+                      <p className="font-semibold text-foreground">Semester {detailStudent.semester} ({detailStudent.shift ?? "Morning"})</p>
+                    </div>
+                  </div>
+
+                  {/* Enrollment Date */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
+                      <Calendar className="w-4 h-4 text-brand-primary" />
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Enrolled Since</p>
+                      <p className="font-semibold text-foreground">
+                        {detailStudent.enrollmentDate
+                          ? new Date(detailStudent.enrollmentDate).toLocaleDateString("en-PK", {
+                              year: "numeric", month: "long", day: "numeric",
+                            })
+                          : "—"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Approved By */}
+                  {detailStudent.approvedBy && (
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
+                        <Shield className="w-4 h-4 text-brand-primary" />
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground text-xs">Approved By</p>
+                        <p className="font-semibold text-foreground">{detailStudent.approvedBy}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-              <div className="flex items-center gap-3 text-sm">
-                <Clock className="h-4.5 w-4.5 text-muted-foreground shrink-0" />
-                <div>
-                  <span className="text-xs text-muted-foreground block">Shift</span>
-                  <span className="font-semibold text-foreground">{detailStudent?.shift ?? "—"}</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 text-sm">
-                <Calendar className="h-4.5 w-4.5 text-muted-foreground shrink-0" />
-                <div>
-                  <span className="text-xs text-muted-foreground block">Enrollment Date &amp; Time</span>
-                  <span className="font-semibold text-foreground">
-                    {detailStudent?.enrollmentDate
-                      ? new Date(detailStudent.enrollmentDate).toLocaleString(undefined, {
-                          dateStyle: "medium",
-                          timeStyle: "short",
-                        })
-                      : "—"}
-                  </span>
-                </div>
-              </div>
-              {detailStudent?.approvedBy && (
-                <div className="flex items-center gap-3 text-sm">
-                  <Shield className="h-4.5 w-4.5 text-muted-foreground shrink-0" />
+
+                {/* System Audit */}
+                <div className="flex items-center gap-3 text-sm pt-1">
+                  <div className="w-9 h-9 rounded-lg bg-brand-light flex items-center justify-center shrink-0">
+                    <Shield className="w-[18px] h-[18px] text-brand-primary" />
+                  </div>
                   <div>
-                    <span className="text-xs text-muted-foreground block">Approved By</span>
-                    <span className="font-semibold text-foreground">{detailStudent.approvedBy}</span>
+                    <p className="text-muted-foreground text-xs">System Audit Details</p>
+                    <div className="mt-0.5">
+                      <AuditBadgeInline entity="Student" entityId={detailStudent.id} />
+                    </div>
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
 
-            <div className="flex justify-center pt-2">
-              <Button variant="outline" className="rounded-xl min-w-[120px]" onClick={() => setDetailDialogOpen(false)}>
-                Close Profile
-              </Button>
+              {/* Card Footer */}
+              <div className="px-6 py-4 bg-brand-light/60 border-t border-brand-light flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  Verified Student Record
+                </p>
+                <Button
+                  onClick={() => setDetailDialogOpen(false)}
+                  variant="outline"
+                  className="rounded-xl h-8 px-4 text-xs font-medium"
+                >
+                  Close
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -1192,8 +1302,55 @@ export default function ManageStudentsPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          {/* Bulk Delete Confirmation Dialog */}
+          <Dialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+            <DialogContent className="sm:max-w-[450px] rounded-3xl">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-rose-600 font-bold">
+                  <Trash2 className="h-5 w-5" />
+                  Confirm Bulk Student Deletion
+                </DialogTitle>
+                <DialogDescription>
+                  {bulkDeleteTarget === "selected"
+                    ? `Are you sure you want to permanently delete ${selectedStudentIds.length} selected student(s)? This action cannot be undone.`
+                    : `Are you sure you want to permanently delete all ${filteredStudents.length} student(s) in ${selectedDept} Semester ${selectedSemester} (${selectedShift} Shift)? This action cannot be undone.`}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="gap-2 pt-3">
+                <Button variant="outline" disabled={bulkDeleting} onClick={() => setBulkDeleteDialogOpen(false)} className="rounded-xl">
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={bulkDeleting}
+                  onClick={handleBulkDelete}
+                  className="rounded-xl font-bold bg-rose-600 hover:bg-rose-700 gap-2"
+                >
+                  {bulkDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {bulkDeleting ? "Deleting..." : "Confirm Delete Students"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </>
       )}
+
+      {/* Floating Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 16, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.96 }}
+            transition={{ duration: 0.2 }}
+            className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-2xl px-5 py-3.5 shadow-xl text-sm font-medium ${toast.ok ? "bg-emerald-600 text-white" : "bg-rose-600 text-white"
+              }`}
+          >
+            {toast.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

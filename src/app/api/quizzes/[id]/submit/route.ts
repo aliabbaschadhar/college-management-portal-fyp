@@ -11,7 +11,11 @@ export async function POST(
 
   try {
     const { id: quizId } = await params;
-    const body = (await request.json()) as { answers?: number[]; studentId?: string; score?: number };
+    const body = (await request.json()) as {
+      answers?: Array<{ questionId: string; selectedOption: number }> | Record<string, number> | number[];
+      studentId?: string;
+      score?: number;
+    };
 
     // Load user role
     const user = await prisma.user.findUnique({
@@ -49,25 +53,59 @@ export async function POST(
       return NextResponse.json({ error: "Forbidden: Student profile not found" }, { status: 403 });
     }
 
-    let score = body.score ?? 0;
-    if (Array.isArray(body.answers) && quiz.questions.length > 0) {
-      let correct = 0;
-      quiz.questions.forEach((q, i) => {
-        if (body.answers![i] !== undefined && body.answers![i] === q.correctOption) {
-          correct++;
-        }
-      });
-      const marksPerQuestion = quiz.totalMarks / quiz.questions.length;
-      score = Math.round(correct * marksPerQuestion);
+    let calculatedScore = body.score ?? 0;
+    let numericAnswersArray: number[] = [];
+
+    if (body.answers && quiz.questions.length > 0) {
+      let earnedMarks = 0;
+      const defaultMarksPerQ = quiz.totalMarks / quiz.questions.length;
+
+      // Case 1: Array of { questionId, selectedOption }
+      if (Array.isArray(body.answers) && typeof body.answers[0] === "object" && body.answers[0] !== null) {
+        const answerList = body.answers as Array<{ questionId: string; selectedOption: number }>;
+        const answerMap = new Map(answerList.map((a) => [a.questionId, a.selectedOption]));
+
+        quiz.questions.forEach((q) => {
+          const selected = answerMap.get(q.id);
+          if (selected !== undefined && selected === q.correctOption) {
+            earnedMarks += q.marks || defaultMarksPerQ;
+          }
+        });
+        calculatedScore = Math.round(earnedMarks);
+        numericAnswersArray = answerList.map((a) => a.selectedOption);
+      }
+      // Case 2: Object key-value map { [questionId]: selectedOption }
+      else if (typeof body.answers === "object" && !Array.isArray(body.answers)) {
+        const answerMap = body.answers as Record<string, number>;
+        quiz.questions.forEach((q) => {
+          const selected = answerMap[q.id];
+          if (selected !== undefined && selected === q.correctOption) {
+            earnedMarks += q.marks || defaultMarksPerQ;
+          }
+        });
+        calculatedScore = Math.round(earnedMarks);
+        numericAnswersArray = Object.values(answerMap);
+      }
+      // Case 3: Positional array of numbers [0, 1, 2]
+      else if (Array.isArray(body.answers)) {
+        const numAnswers = body.answers as number[];
+        quiz.questions.forEach((q, i) => {
+          if (numAnswers[i] !== undefined && numAnswers[i] === q.correctOption) {
+            earnedMarks += q.marks || defaultMarksPerQ;
+          }
+        });
+        calculatedScore = Math.round(earnedMarks);
+        numericAnswersArray = numAnswers;
+      }
     }
 
     const attempt = await prisma.quizAttempt.create({
       data: {
         quizId,
         studentId: targetStudentId,
-        score,
+        score: calculatedScore,
         totalMarks: quiz.totalMarks,
-        answers: body.answers ?? [],
+        answers: numericAnswersArray,
         quizTitle: quiz.title,
         courseCode: quiz.course?.courseCode ?? null,
       },

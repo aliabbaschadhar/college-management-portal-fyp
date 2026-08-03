@@ -15,6 +15,8 @@ import {
   AlertTriangle,
   UserCheck,
   Loader2,
+  Lock,
+  Unlock,
 } from "lucide-react";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { motion } from "framer-motion";
@@ -118,11 +120,21 @@ export default function TimetablePage() {
   const [form, setForm] = useState<TimetableMutationInput>(EMPTY_FORM);
   const [error, setError] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const [confirmDeleteTarget, setConfirmDeleteTarget] = useState<TimetableApiEntry | "bulk" | null>(null);
+  const [pdfModalOpen, setPdfModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (mutationError) {
+      const timer = setTimeout(() => setMutationError(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [mutationError]);
 
   // Dynamic grid configuration states
   const [gridStart, setGridStart] = useState("07:45");
   const [gridDuration, setGridDuration] = useState(45);
   const [gridSlotsCount, setGridSlotsCount] = useState(7);
+  const [gridLocked, setGridLocked] = useState(true);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
   const [deletingTimetableId, setDeletingTimetableId] = useState<string | null>(null);
@@ -255,8 +267,9 @@ export default function TimetablePage() {
             const courseName = String(row.courseName ?? "").trim();
             const department = String(row.department ?? "").trim();
             const semester = Number(row.semester ?? 0);
+            const facObj = row.faculty && typeof row.faculty === "object" ? (row.faculty as { user?: { name?: string } }) : null;
             const facultyName =
-              typeof row.facultyName === "string" ? row.facultyName : null;
+              typeof row.facultyName === "string" ? row.facultyName : facObj?.user?.name ?? null;
 
             if (
               !id ||
@@ -455,6 +468,7 @@ export default function TimetablePage() {
       setMutationError(
         axiosErr.response?.data?.error ?? "Failed to save timetable entry",
       );
+      setDialogOpen(false);
     } finally {
       setSaving(false);
     }
@@ -479,88 +493,7 @@ export default function TimetablePage() {
 
   const handleExportPdf = () => {
     setMutationError(null);
-    const printWindow = window.open("", "_blank", "width=1200,height=900");
-    if (!printWindow) {
-      setMutationError(
-        "Unable to open print window. Please allow pop-ups and try again.",
-      );
-      return;
-    }
-
-    const generatedAt = new Date().toLocaleString();
-    const currentSlots = slots;
-
-    const rows = currentSlots.map((slot) => {
-      const daySlots = DAYS.map((day) => {
-        const slotStart = timeToMinutes(slot.start);
-        const slotEnd = timeToMinutes(slot.end);
-        const entry = timetable.find((t) => {
-          if (t.day !== day) return false;
-          const classStart = timeToMinutes(t.startTime);
-          const classEnd = timeToMinutes(t.endTime);
-          return classStart < slotEnd && classEnd > slotStart;
-        });
-
-        if (!entry) return "<td>-</td>";
-
-        const code = entry.course?.courseCode ?? "—";
-        const name = entry.course?.courseName ?? "";
-        const room = entry.room ? `Room: ${entry.room}` : "";
-        const teacher = entry.course?.faculty?.user?.name ? `Teacher: ${entry.course.faculty.user.name}` : "Teacher: Unassigned";
-
-        return `<td><strong>${code}</strong><br/>${name}<br/><span style="color:#6b7280;">${room}</span><br/><span style="color:#4b5563;">${teacher}</span></td>`;
-      }).join("");
-
-      return `<tr><th style="white-space:nowrap;">${to12HourTime(slot.start)} - ${to12HourTime(slot.end)}</th>${daySlots}</tr>`;
-    }).join("");
-
-    const html = `<!doctype html>
-<html>
-  <head>
-    <title>Timetable - ${filterDept} Semester ${filterSemester} (${filterShift})</title>
-    <style>
-      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 24px; color: #111827; }
-      .header { border-bottom: 2px solid #3b82f6; padding-bottom: 12px; margin-bottom: 16px; }
-      h1 { margin: 0; font-size: 22px; color: #1e3a8a; }
-      .meta { display: flex; gap: 16px; margin-top: 6px; font-size: 13px; color: #4b5563; font-weight: 600; }
-      table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-      th, td { border: 1px solid #cbd5e1; padding: 8px 10px; font-size: 11px; vertical-align: top; text-align: left; }
-      th { background: #f1f5f9; color: #0f172a; font-weight: 700; }
-      tr:nth-child(even) td { background: #f8fafc; }
-    </style>
-  </head>
-  <body>
-    <div class="header">
-      <h1>College Management Portal — Timetable Schedule</h1>
-      <div class="meta">
-        <span>Department: ${filterDept}</span>
-        <span>Semester: ${filterSemester}</span>
-        <span>Shift: ${filterShift}</span>
-        <span>Generated: ${generatedAt}</span>
-      </div>
-    </div>
-    <table>
-      <thead>
-        <tr>
-          <th style="width: 110px;">Time Slot</th>
-          ${DAYS.map((day) => `<th>${day}</th>`).join("")}
-        </tr>
-      </thead>
-      <tbody>
-        ${rows}
-      </tbody>
-    </table>
-  </body>
-</html>`;
-
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
-
-    setTimeout(() => {
-      printWindow.focus();
-      printWindow.print();
-    }, 300);
+    setPdfModalOpen(true);
   };
 
   const getClassForSlot = (day: string, slot: { start: string; end: string }) => {
@@ -601,6 +534,19 @@ export default function TimetablePage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
+      {/* Floating Top Warning/Error Toast */}
+      {mutationError && (
+        <motion.div
+          initial={{ opacity: 0, y: -20, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -20, scale: 0.95 }}
+          className="fixed top-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl bg-rose-600 text-white shadow-2xl border border-rose-400 font-bold text-sm"
+        >
+          <AlertTriangle className="h-5 w-5 shrink-0" />
+          <span>{mutationError}</span>
+        </motion.div>
+      )}
+
       <PageHeader
         title="Manage Timetable"
         subtitle="Create, edit, and export class schedules"
@@ -615,7 +561,7 @@ export default function TimetablePage() {
                 <Button
                   variant="destructive"
                   className="h-9 gap-2 font-bold"
-                  onClick={handleBulkDeleteSlots}
+                  onClick={() => setConfirmDeleteTarget("bulk")}
                   disabled={deletingTimetableId === "bulk"}
                 >
                   {deletingTimetableId === "bulk" ? (
@@ -639,7 +585,7 @@ export default function TimetablePage() {
               className="h-9 gap-2"
               onClick={handleExportPdf}
             >
-              <Download className="h-4 w-4" /> Export PDF
+              <Download className="h-4 w-4" /> View / Export PDF
             </Button>
             <Button
               onClick={() => openBatchDialog()}
@@ -716,51 +662,70 @@ export default function TimetablePage() {
         </div>
 
         <div className="p-4 bg-card border rounded-2xl shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-2">
-            <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-              <Clock className="h-4 w-4 text-brand-primary" /> Shift Grid Settings ({filterShift})
-            </h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-2 gap-2">
+            <div className="flex items-center gap-3">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Clock className="h-4 w-4 text-brand-primary" /> Shift Grid Settings ({filterShift})
+              </h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setGridLocked(!gridLocked)}
+                className={`h-7 text-xs font-semibold gap-1.5 rounded-lg border transition-all ${
+                  gridLocked
+                    ? "border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20"
+                    : "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20"
+                }`}
+              >
+                {gridLocked ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
+                {gridLocked ? "Locked (Click to Unlock)" : "Unlocked (Editing Allowed)"}
+              </Button>
+            </div>
             <span className="text-xs text-muted-foreground">Define grid start time, slot duration, and slots count</span>
           </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-zinc-600 dark:text-zinc-400">Start Time</Label>
               <Input
                 type="time"
+                disabled={gridLocked}
                 value={gridStart}
                 onChange={(e) => setGridStart(e.target.value)}
-                className="h-9"
+                className="h-9 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-zinc-600 dark:text-zinc-400">Slot Duration (Mins)</Label>
               <Input
                 type="number"
+                disabled={gridLocked}
                 min="5"
                 max="180"
                 value={gridDuration}
                 onChange={(e) => setGridDuration(Number(e.target.value))}
-                className="h-9"
+                className="h-9 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-zinc-600 dark:text-zinc-400">Total Slots</Label>
               <Input
                 type="number"
+                disabled={gridLocked}
                 min="1"
                 max="20"
                 value={gridSlotsCount}
                 onChange={(e) => setGridSlotsCount(Number(e.target.value))}
-                className="h-9"
+                className="h-9 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
             <Button
               onClick={handleSaveSettings}
-              disabled={settingsSaving}
+              disabled={settingsSaving || gridLocked}
               size="sm"
-              className="bg-brand-primary hover:bg-brand-primary/95 text-white h-9 shadow-sm"
+              className="bg-brand-primary hover:bg-brand-primary/95 text-white h-9 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {settingsSaving ? "Saving..." : "Save Grid Config"}
+              {settingsSaving ? "Saving..." : "Save Time Table Slots"}
             </Button>
           </div>
         </div>
@@ -774,12 +739,6 @@ export default function TimetablePage() {
         {error && (
           <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {error}
-          </div>
-        )}
-
-        {mutationError && (
-          <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {mutationError}
           </div>
         )}
 
@@ -855,7 +814,7 @@ export default function TimetablePage() {
                                       <Pencil className="h-3.5 w-3.5 text-brand-primary" />
                                     </button>
                                     <button
-                                      onClick={() => handleDelete(cls)}
+                                      onClick={() => setConfirmDeleteTarget(cls)}
                                       disabled={deletingTimetableId === cls.id}
                                       className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-rose-100 disabled:opacity-50"
                                       title="Delete entry"
@@ -1190,7 +1149,7 @@ export default function TimetablePage() {
                           value={entry.day}
                           onValueChange={(val) => {
                             setBatchEntries((prev) =>
-                              prev.map((e, i) => (i === idx ? { ...e, day: val } : e))
+                              prev.map((e) => ({ ...e, day: val }))
                             );
                           }}
                         >
@@ -1273,6 +1232,133 @@ export default function TimetablePage() {
               {batchSaving ? "Generating Schedule..." : "Create All Timetable Slots"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!confirmDeleteTarget} onOpenChange={(open) => { if (!open) setConfirmDeleteTarget(null); }}>
+        <DialogContent className="sm:max-w-[420px] rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-rose-600 font-bold">
+              <AlertTriangle className="h-5 w-5" />
+              Confirm Timetable Deletion
+            </DialogTitle>
+            <DialogDescription>
+              {confirmDeleteTarget === "bulk"
+                ? `Are you sure you want to delete ${selectedTimetableIds.length} selected timetable slots? This operation cannot be undone.`
+                : `Are you sure you want to delete the timetable slot for "${(confirmDeleteTarget as TimetableApiEntry)?.course?.courseName}" on ${(confirmDeleteTarget as TimetableApiEntry)?.day}?`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 pt-2">
+            <Button variant="outline" onClick={() => setConfirmDeleteTarget(null)} className="rounded-xl">
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (confirmDeleteTarget === "bulk") {
+                  handleBulkDeleteSlots();
+                } else if (confirmDeleteTarget) {
+                  handleDelete(confirmDeleteTarget);
+                }
+                setConfirmDeleteTarget(null);
+              }}
+              className="rounded-xl font-bold bg-rose-600 hover:bg-rose-700"
+            >
+              Confirm Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* In-App PDF Preview Dialog */}
+      <Dialog open={pdfModalOpen} onOpenChange={setPdfModalOpen}>
+        <DialogContent showCloseButton={false} className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto rounded-3xl p-6">
+          <DialogHeader className="flex flex-row items-center justify-between border-b pb-4">
+            <div>
+              <DialogTitle className="text-xl font-bold text-brand-primary">
+                Timetable PDF Schedule Preview
+              </DialogTitle>
+              <DialogDescription>
+                {filterDept} — Semester {filterSemester} ({filterShift} Shift)
+              </DialogDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => {
+                  const printContent = document.getElementById("printable-timetable-area");
+                  if (!printContent) return;
+                  const win = window.open("", "", "width=1200,height=900");
+                  if (!win) return;
+                  win.document.write(`<!doctype html><html><head><title>Timetable - ${filterDept} Sem ${filterSemester}</title><style>body{font-family:sans-serif;padding:24px;color:#111827;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #cbd5e1;padding:8px;font-size:11px;vertical-align:top;}th{background:#f1f5f9;}</style></head><body>${printContent.innerHTML}</body></html>`);
+                  win.document.close();
+                  win.focus();
+                  win.print();
+                }}
+                className="bg-brand-primary text-white h-9 rounded-xl gap-2 text-xs"
+              >
+                <Download className="h-4 w-4" /> Print / Export PDF
+              </Button>
+              <Button variant="outline" onClick={() => setPdfModalOpen(false)} className="h-9 rounded-xl text-xs">
+                Close
+              </Button>
+            </div>
+          </DialogHeader>
+
+          <div id="printable-timetable-area" className="p-4 bg-white dark:bg-zinc-900 rounded-2xl border text-foreground space-y-4">
+            <div className="border-b pb-3">
+              <h2 className="text-lg font-bold text-blue-900 dark:text-blue-300">College Management Portal — Timetable Schedule</h2>
+              <div className="flex flex-wrap gap-4 text-xs font-semibold text-muted-foreground mt-1">
+                <span>Department: <strong>{filterDept}</strong></span>
+                <span>Semester: <strong>{filterSemester}</strong></span>
+                <span>Shift: <strong>{filterShift}</strong></span>
+                <span>Generated: <strong>{new Date().toLocaleString()}</strong></span>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse border border-zinc-300 dark:border-zinc-700 text-xs">
+                <thead>
+                  <tr className="bg-zinc-100 dark:bg-zinc-800">
+                    <th className="border border-zinc-300 dark:border-zinc-700 p-2 text-left w-28">Time Slot</th>
+                    {DAYS.map((day) => (
+                      <th key={day} className="border border-zinc-300 dark:border-zinc-700 p-2 text-left font-bold">{day}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {slots.map((slot) => (
+                    <tr key={`${slot.start}-${slot.end}`}>
+                      <td className="border border-zinc-300 dark:border-zinc-700 p-2 font-bold whitespace-nowrap bg-zinc-50 dark:bg-zinc-800/50">
+                        {to12HourTime(slot.start)} - {to12HourTime(slot.end)}
+                      </td>
+                      {DAYS.map((day) => {
+                        const entry = timetable.find((t) => {
+                          if (t.day !== day) return false;
+                          const classStart = timeToMinutes(t.startTime);
+                          const classEnd = timeToMinutes(t.endTime);
+                          const slotStart = timeToMinutes(slot.start);
+                          const slotEnd = timeToMinutes(slot.end);
+                          return classStart < slotEnd && classEnd > slotStart;
+                        });
+
+                        if (!entry) return <td key={day} className="border border-zinc-300 dark:border-zinc-700 p-2 text-muted-foreground">—</td>;
+
+                        return (
+                          <td key={day} className="border border-zinc-300 dark:border-zinc-700 p-2 align-top bg-blue-50/50 dark:bg-blue-950/20">
+                            <div className="font-bold text-brand-primary text-xs">{entry.course?.courseCode}</div>
+                            <div className="font-medium text-foreground">{entry.course?.courseName}</div>
+                            <div className="text-[11px] text-muted-foreground">Room: {entry.room}</div>
+                            <div className="text-[11px] text-muted-foreground">Teacher: {entry.course?.faculty?.user?.name ?? "Unassigned"}</div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </motion.div>

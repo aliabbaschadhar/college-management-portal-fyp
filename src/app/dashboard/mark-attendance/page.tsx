@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { ClipboardCheck, CheckCircle, Users, RefreshCw, AlertTriangle, Eye, Calendar, Loader2 } from "lucide-react";
 import { api } from "@/lib/axios";
+import { getLocalTodayString } from "@/lib/utils";
 import { useStoredState } from "@/hooks/useStoredState";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { useUser } from "@clerk/nextjs";
@@ -77,10 +78,12 @@ export default function MarkAttendancePage() {
   const [selectedSemester, setSelectedSemester] = useStoredState("mark_att_sem", "");
   const [selectedCourse, setSelectedCourse] = useStoredState("mark_att_course", "");
   const [selectedShift, setSelectedShift] = useStoredState("mark_att_shift", "morning");
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [selectedDate, setSelectedDate] = useState(getLocalTodayString());
   const [attendanceData, setAttendanceData] = useState<StudentAttendance[]>([]);
+  const [savedSnapshot, setSavedSnapshot] = useState<StudentAttendance[]>([]);
   const [timetableDays, setTimetableDays] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -214,15 +217,16 @@ export default function MarkAttendancePage() {
       setTimetableDays(Array.from(new Set(ttEntries.map((t) => t.day))));
       const statusMap = new Map(prevRecords.map((r) => [r.studentId, r.status]));
 
-      setAttendanceData(
-        students.map((s) => ({
-          student: s,
-          status: statusMap.get(s.id) || "Present",
-        }))
-      );
+      const loadedList = students.map((s) => ({
+        student: s,
+        status: statusMap.get(s.id) || ("Present" as AttendanceStatus),
+      }));
+      setAttendanceData(loadedList);
+      setSavedSnapshot(loadedList);
     } catch (err) {
       console.error("Failed to load attendance/students:", err);
       setAttendanceData([]);
+      setSavedSnapshot([]);
       setTimetableDays([]);
     } finally {
       setLoadingStudents(false);
@@ -266,10 +270,17 @@ export default function MarkAttendancePage() {
     return dateObj.toLocaleDateString("en-US", { weekday: "long" });
   }, [selectedDate]);
 
+  const isSunday = useMemo(() => {
+    if (!selectedDate) return false;
+    const dateObj = new Date(`${selectedDate}T00:00:00`);
+    return dateObj.getDay() === 0;
+  }, [selectedDate]);
+
   const hasScheduledClass = useMemo(() => {
+    if (isSunday) return false;
     if (timetableDays.length === 0) return true; // If no timetable defined yet, allow marking
     return timetableDays.some((d) => d.toLowerCase() === selectedDayName.toLowerCase());
-  }, [timetableDays, selectedDayName]);
+  }, [timetableDays, selectedDayName, isSunday]);
 
   const handleStudentClick = async (student: StudentOption) => {
     setHistoryStudent(student);
@@ -315,16 +326,25 @@ export default function MarkAttendancePage() {
   const handleSubmit = async () => {
     if (!selectedCourse || attendanceData.length === 0) return;
     setSubmitting(true);
+    setSaveError(null);
+    setSubmitted(false);
     try {
       await api.post("/api/attendance", {
         courseId: selectedCourse,
         date: selectedDate,
         records: attendanceData.map((a) => ({ studentId: a.student.id, status: a.status })),
       });
+      setSavedSnapshot(attendanceData);
       setSubmitted(true);
-      setTimeout(() => setSubmitted(false), 3000);
-    } catch (err) {
-      console.error("Failed to save attendance:", err);
+      setTimeout(() => setSubmitted(false), 4000);
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } };
+      const msg = axiosErr.response?.data?.error ?? "Failed to save attendance.";
+      setSaveError(`${msg} (Operation rolled back)`);
+      if (savedSnapshot.length > 0) {
+        setAttendanceData(savedSnapshot);
+      }
+      setTimeout(() => setSaveError(null), 6000);
     } finally {
       setSubmitting(false);
     }
@@ -456,8 +476,20 @@ export default function MarkAttendancePage() {
         </div>
       </div>
 
-      {/* Timetable Alignment Warning */}
-      {!hasScheduledClass && selectedCourse && (
+      {/* Timetable Alignment / Sunday Warning */}
+      {isSunday && selectedCourse ? (
+        <div className="rounded-xl border border-purple-500/30 bg-purple-500/10 p-4 flex items-center gap-3">
+          <AlertTriangle className="h-5 w-5 text-purple-600 dark:text-purple-400 shrink-0" />
+          <div>
+            <p className="text-sm font-bold text-purple-700 dark:text-purple-400">
+              Today is Sunday — Attendance Marking Disabled
+            </p>
+            <p className="text-xs text-purple-600/80 dark:text-purple-400/80 mt-0.5">
+              Attendance cannot be marked or modified on Sundays as campus is closed.
+            </p>
+          </div>
+        </div>
+      ) : !hasScheduledClass && selectedCourse ? (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 flex items-center gap-3">
           <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
           <div>
@@ -469,7 +501,7 @@ export default function MarkAttendancePage() {
             </p>
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Attendance List */}
       {loadingStudents ? (
@@ -492,10 +524,10 @@ export default function MarkAttendancePage() {
                   </Badge>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => markAll("Present")} disabled={!hasScheduledClass} className="text-emerald-600 border-2">
+                  <Button variant="outline" size="sm" onClick={() => markAll("Present")} disabled={!hasScheduledClass || isSunday} className="text-emerald-600 border-2">
                     Mark All Present
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => markAll("Absent")} disabled={!hasScheduledClass} className="text-rose-600 border-2">
+                  <Button variant="outline" size="sm" onClick={() => markAll("Absent")} disabled={!hasScheduledClass || isSunday} className="text-rose-600 border-2">
                     Mark All Absent
                   </Button>
                 </div>
@@ -563,13 +595,13 @@ export default function MarkAttendancePage() {
                               {(["Present", "Absent", "Late"] as AttendanceStatus[]).map((status) => (
                                 <button
                                   key={status}
-                                  disabled={!hasScheduledClass}
+                                  disabled={!hasScheduledClass || isSunday}
                                   onClick={() => toggleStatus(item.student.id, status)}
                                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                                     item.status === status
                                       ? statusStyles[status].active
                                       : statusStyles[status].bg
-                                  } ${!hasScheduledClass ? "opacity-40 cursor-not-allowed" : ""}`}
+                                  } ${(!hasScheduledClass || isSunday) ? "opacity-40 cursor-not-allowed" : ""}`}
                                 >
                                   {status}
                                 </button>
@@ -619,14 +651,20 @@ export default function MarkAttendancePage() {
               </div>
 
               {/* Submit */}
-              <div className="flex justify-end">
+              <div className="flex flex-col items-end gap-2">
+                {saveError && (
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-bold animate-pulse">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    <span>{saveError}</span>
+                  </div>
+                )}
                 {submitted ? (
                   <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
                     <CheckCircle className="h-5 w-5 animate-bounce" />
                     <span className="text-sm font-semibold">Attendance saved successfully!</span>
                   </div>
                 ) : (
-                  <Button onClick={handleSubmit} disabled={submitting || !hasScheduledClass} className="gap-2 border-2">
+                  <Button onClick={handleSubmit} disabled={submitting || !hasScheduledClass || isSunday} className="gap-2 border-2">
                     <ClipboardCheck className="h-4 w-4" />
                     {submitting ? "Saving..." : "Save Attendance"}
                   </Button>

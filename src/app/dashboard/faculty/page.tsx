@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/axios";
-import { Pencil, Trash2, Eye, RefreshCw } from "lucide-react";
+import { Pencil, Trash2, Eye, RefreshCw, BadgeCheck, Briefcase, Building2, Mail, Phone as PhoneIcon, BookOpen, Calendar, Shield, User, GraduationCap } from "lucide-react";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
@@ -389,73 +389,164 @@ export default function ManageFacultyPage() {
 
       {/* View Faculty Details Dialog */}
       <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
-        <DialogContent className="sm:max-w-[500px] border-none shadow-2xl overflow-hidden rounded-3xl">
-          <div className="absolute top-0 left-0 w-full h-2 bg-brand-primary" />
-          <DialogHeader className="pt-6">
-            <DialogTitle className="text-xl font-bold flex items-center gap-2">
-              <Eye className="h-5 w-5 text-brand-primary" />
-              Faculty Member Profile
-            </DialogTitle>
+        <DialogContent showCloseButton={false} className="sm:max-w-[640px] p-0 overflow-hidden rounded-2xl border border-brand-light bg-brand-white shadow-xl">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Faculty Member Profile</DialogTitle>
+            <DialogDescription>
+              Detailed information about the selected faculty profile.
+            </DialogDescription>
           </DialogHeader>
           {viewingFaculty && (
-            <div className="space-y-4 py-4">
-              <div className="flex items-center gap-4 border-b pb-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-primary/10 text-lg font-bold text-brand-primary">
-                  {(viewingFaculty.user.name ?? "?")
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")
-                    .slice(0, 2)}
+            <div className="grid grid-cols-1 md:grid-cols-12 rounded-2xl overflow-hidden border border-border">
+              {/* Left Column: Header Information */}
+              <div className="md:col-span-5 bg-gradient-to-br from-[#A78BFA] to-brand-primary p-6 text-center relative flex flex-col justify-between items-center text-white">
+                <div className="w-full flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold border backdrop-blur-sm bg-white/20 text-white border-white/20">
+                    ✓ Faculty Instructor
+                  </div>
+                  <div className="flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-2.5 py-1 text-[10px] text-white font-semibold">
+                    <BadgeCheck className="w-3.5 h-3.5" /> Official Verified
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-lg font-bold text-foreground">{viewingFaculty.user.name}</h3>
-                  <p className="text-xs text-muted-foreground uppercase font-semibold mt-0.5">Faculty Member</p>
+
+                <div className="my-auto py-4">
+                  <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm mx-auto flex items-center justify-center mb-3 border-2 border-white/30 overflow-hidden ring-4 ring-white/10 shadow-lg">
+                    {viewingFaculty.avatar ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={viewingFaculty.avatar}
+                        alt={viewingFaculty.user.name ?? "Avatar"}
+                        className="object-cover h-full w-full"
+                      />
+                    ) : (
+                      <User className="w-10 h-10 text-white" />
+                    )}
+                  </div>
+
+                  <h2 className="text-xl font-black text-white mb-2">
+                    {viewingFaculty.user.name}
+                  </h2>
+
+                  <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                    <span className="inline-flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 text-xs text-white font-bold">
+                      <Briefcase className="w-3.5 h-3.5" /> Faculty
+                    </span>
+                    <span className="inline-flex items-center bg-white/15 backdrop-blur-sm rounded-full px-2.5 py-1 text-xs text-white/90 font-medium">
+                      {viewingFaculty.department}
+                    </span>
+                  </div>
                 </div>
+
+                <p className="text-[10px] text-white/60 font-mono">Dept: {viewingFaculty.department}</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="font-semibold text-muted-foreground block text-xs uppercase tracking-wider">Email Address</span>
-                  <span className="font-medium text-foreground font-mono">{viewingFaculty.user.email}</span>
-                </div>
-                <div>
-                  <span className="font-semibold text-muted-foreground block text-xs uppercase tracking-wider">Department</span>
-                  <span className="font-medium text-foreground">{viewingFaculty.department}</span>
-                </div>
-                <div>
-                  <span className="font-semibold text-muted-foreground block text-xs uppercase tracking-wider">Specialization</span>
-                  <span className="font-medium text-foreground">{viewingFaculty.specialization ?? "—"}</span>
-                </div>
-                <div>
-                  <span className="font-semibold text-muted-foreground block text-xs uppercase tracking-wider">Phone</span>
-                  <span className="font-medium text-foreground">{viewingFaculty.phone ?? "—"}</span>
-                </div>
-                <div>
-                  <span className="font-semibold text-muted-foreground block text-xs uppercase tracking-wider">Joined Date</span>
-                  <span className="font-medium text-foreground">
-                    {new Date(viewingFaculty.joinDate).toLocaleDateString("en-PK", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric"
-                    })}
-                  </span>
-                </div>
-                <div>
-                  <span className="font-semibold text-muted-foreground block text-xs uppercase tracking-wider">System Audit Details</span>
-                  <div className="mt-1">
-                    <AuditBadgeInline entity="Faculty" entityId={viewingFaculty.id} />
+              {/* Right Column: Related Data */}
+              <div className="md:col-span-7 p-6 space-y-3.5 bg-card">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Contact & Academic Details</p>
+                <div className="space-y-3 text-sm">
+                  {/* Institution */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
+                      <Building2 className="w-4 h-4 text-brand-primary" />
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Institution</p>
+                      <p className="font-semibold text-foreground">Govt. Graduate College, Hafizabad</p>
+                    </div>
+                  </div>
+
+                  {/* Email */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
+                      <Mail className="w-4 h-4 text-brand-primary" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-muted-foreground text-xs">Email Address</p>
+                      <p className="font-semibold text-foreground truncate font-mono">{viewingFaculty.user.email}</p>
+                    </div>
+                  </div>
+
+                  {/* Phone */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
+                      <PhoneIcon className="w-4 h-4 text-brand-primary" />
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Phone Number</p>
+                      <p className="font-semibold text-foreground">{viewingFaculty.phone ?? "—"}</p>
+                    </div>
+                  </div>
+
+                  {/* Department */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
+                      <GraduationCap className="w-4 h-4 text-brand-primary" />
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Department</p>
+                      <p className="font-semibold text-foreground">{viewingFaculty.department}</p>
+                    </div>
+                  </div>
+
+                  {/* Specialization */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
+                      <Briefcase className="w-4 h-4 text-brand-primary" />
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Specialization</p>
+                      <p className="font-semibold text-foreground">{viewingFaculty.specialization ?? "—"}</p>
+                    </div>
+                  </div>
+
+                  {/* Joined Date */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
+                      <Calendar className="w-4 h-4 text-brand-primary" />
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Joined Date</p>
+                      <p className="font-semibold text-foreground">
+                        {new Date(viewingFaculty.joinDate).toLocaleDateString("en-PK", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                  {/* System Audit */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center shrink-0">
+                      <Shield className="w-4 h-4 text-brand-primary" />
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">System Audit Details</p>
+                      <div className="mt-0.5">
+                        <AuditBadgeInline entity="Faculty" entityId={viewingFaculty.id} />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
+              {/* Card Footer */}
+              <div className="px-6 py-4 bg-brand-light/60 border-t border-brand-light flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  Verified Faculty Record
+                </p>
+                <Button
+                  onClick={() => setDetailsDialogOpen(false)}
+                  variant="outline"
+                  className="rounded-xl h-8 px-4 text-xs font-medium"
+                >
+                  Close
+                </Button>
+              </div>
             </div>
           )}
-          <DialogFooter className="pb-6">
-            <Button onClick={() => setDetailsDialogOpen(false)} className="rounded-xl">
-              Close
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </motion.div>
   );
 }
+

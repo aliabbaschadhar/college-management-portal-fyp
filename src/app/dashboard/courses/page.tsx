@@ -959,31 +959,6 @@ export default function ManageCoursesPage() {
                 </span>
               </div>
             </div>
-
-            <div className="bg-muted/10 p-4 rounded-2xl border border-border space-y-2">
-              <span className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-1.5">
-                <Clock className="w-3 h-3 text-brand-secondary" />
-                Latest Assignment Details
-              </span>
-              {loadingAudit ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /> Loading logs...
-                </div>
-              ) : courseAuditLogs.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic py-1">No assignment history found.</p>
-              ) : (
-                <div className="space-y-3">
-                  {courseAuditLogs.slice(0, 3).map((log) => (
-                    <div key={log.id} className="text-xs border-b border-border/50 pb-2 last:border-0 last:pb-0">
-                      <p className="font-medium text-foreground">{log.description}</p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5 font-medium">
-                        By {log.adminName || "System"} · {new Date(log.createdAt).toLocaleString()}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
           <DialogFooter>
             <Button

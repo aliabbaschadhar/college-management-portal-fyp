@@ -136,10 +136,26 @@ export async function POST(request: NextRequest) {
     const now = new Date();
 
     if (body.action === "CHECK_IN") {
-      // Determine if Late based on time (e.g. after 09:15 AM)
+      // Determine status based on college working hours (07:30 to 13:00)
+      // Present: < 08:30 AM
+      // Late: 08:30 AM - 01:00 PM (13:00)
+      // Absent: > 01:00 PM (13:00)
       const currentHour = now.getHours();
       const currentMinute = now.getMinutes();
-      const isLate = currentHour > 9 || (currentHour === 9 && currentMinute > 15);
+      const totalMinutes = currentHour * 60 + currentMinute;
+
+      const presentThreshold = 8 * 60 + 30; // 08:30 AM
+      const workingEndThreshold = 13 * 60; // 01:00 PM
+
+      let computedStatus: "Present" | "Late" | "Absent" = "Present";
+      let autoNote: string | undefined = body.notes;
+
+      if (totalMinutes > workingEndThreshold) {
+        computedStatus = "Absent";
+        autoNote = body.notes ? `${body.notes} (Checked in after working hours)` : "Checked in after working hours (1:00 PM)";
+      } else if (totalMinutes >= presentThreshold) {
+        computedStatus = "Late";
+      }
 
       const record = await prisma.facultyAttendance.upsert({
         where: {
@@ -150,16 +166,16 @@ export async function POST(request: NextRequest) {
         },
         update: {
           checkInTime: now,
-          status: isLate ? "Late" : "Present",
-          notes: body.notes ?? undefined,
+          status: computedStatus,
+          notes: autoNote ?? undefined,
         },
         create: {
           facultyId: dbUser.faculty.id,
           date: today,
-          status: isLate ? "Late" : "Present",
+          status: computedStatus,
           checkInTime: now,
           markedBy: "SELF",
-          notes: body.notes,
+          notes: autoNote,
         },
       });
 

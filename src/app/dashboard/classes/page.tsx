@@ -214,7 +214,7 @@ export default function ClassesPage() {
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <Badge variant="secondary" className="gap-1 rounded-lg">
-                    <Users className="h-3.5 w-3.5" /> {allStudents.length} Students Enrolled
+                    <Users className="h-3.5 w-3.5" /> {filteredStudents.length} Students Enrolled {selectedShift !== "ALL" ? `(${selectedShift})` : ""}
                   </Badge>
                   <Badge variant="outline" className="text-xs rounded-lg">
                     {course.creditHours} Credits

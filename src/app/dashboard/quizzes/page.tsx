@@ -6,6 +6,7 @@ import { FileText, Plus, Clock, Users, Eye, CheckCircle, Play, Square, Loader2, 
 import { api } from "@/lib/axios";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
+import { getLocalTodayString } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { ListSkeleton } from "@/components/ui";
 import { Badge } from "@/components/ui/badge";
@@ -105,7 +106,7 @@ export default function ManageQuizzesPage() {
   const [formDuration, setFormDuration] = useState(15);
   const [formMarks, setFormMarks] = useState(20);
   const [formQuestions, setFormQuestions] = useState<string[]>([]);
-  const [formDueDate, setFormDueDate] = useState("");
+  const [formDueDate, setFormDueDate] = useState(getLocalTodayString());
 
   const fetchQuizzes = async () => {
     try {
@@ -202,7 +203,7 @@ export default function ManageQuizzesPage() {
     setFormDuration(15);
     setFormMarks(20);
     setFormQuestions([]);
-    setFormDueDate("");
+    setFormDueDate(getLocalTodayString());
   };
 
   const toggleQuestion = (qId: string) => {
@@ -554,6 +555,25 @@ export default function ManageQuizzesPage() {
                     <label className="text-sm font-medium text-foreground block">
                       Select {activeSubTab === "quizzes" ? "MCQ Questions" : "Assignment Questions"} ({formQuestions.length} selected)
                     </label>
+                    {availableQuestions.length > 0 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          const availIds = availableQuestions.map((q) => q.id);
+                          const allSelected = availIds.every((id) => formQuestions.includes(id));
+                          if (allSelected) {
+                            setFormQuestions((prev) => prev.filter((id) => !availIds.includes(id)));
+                          } else {
+                            setFormQuestions((prev) => Array.from(new Set([...prev, ...availIds])));
+                          }
+                        }}
+                        className="h-7 text-xs px-2 text-brand-primary font-bold hover:bg-brand-primary/10 rounded-lg"
+                      >
+                        {availableQuestions.every((q) => formQuestions.includes(q.id)) ? "Deselect All" : "Select All"}
+                      </Button>
+                    )}
                   </div>
 
                   {availableQuestions.length === 0 ? (
@@ -672,49 +692,68 @@ export default function ManageQuizzesPage() {
                           <span className="text-xs text-muted-foreground italic font-mono">Not Attempted</span>
                         )
                       ) : (
-                        <Button
-                          size="sm"
-                          variant={st.submitted ? "default" : "outline"}
-                          disabled={togglingStudentSubmission === st.id}
-                          onClick={async () => {
-                            if (!submissionModalQuiz) return;
-                            setTogglingStudentSubmission(st.id);
-                            try {
-                              if (st.submitted) {
-                                await api.delete(`/api/quizzes/${submissionModalQuiz.id}/submit?studentId=${st.id}`);
-                                setEnrolledStudents((prev) =>
-                                  prev.map((s) => (s.id === st.id ? { ...s, submitted: false, score: undefined } : s))
-                                );
-                              } else {
-                                await api.post(`/api/quizzes/${submissionModalQuiz.id}/submit`, {
-                                  studentId: st.id,
-                                  score: submissionModalQuiz.totalMarks,
-                                  answers: [],
-                                });
-                                setEnrolledStudents((prev) =>
-                                  prev.map((s) => (s.id === st.id ? { ...s, submitted: true, score: submissionModalQuiz.totalMarks } : s))
-                                );
+                        (() => {
+                          const isClosedOrEnded =
+                            submissionModalQuiz?.status === "Closed" ||
+                            (submissionModalQuiz?.dueDate
+                              ? new Date(submissionModalQuiz.dueDate).getTime() < Date.now()
+                              : false);
+
+                          return (
+                            <Button
+                              size="sm"
+                              variant={st.submitted ? "default" : "outline"}
+                              disabled={isClosedOrEnded || togglingStudentSubmission === st.id}
+                              title={
+                                isClosedOrEnded
+                                  ? "Submissions are locked because this assignment is closed or past its deadline"
+                                  : undefined
                               }
-                            } catch (err) {
-                              console.error("Failed to toggle submission:", err);
-                            } finally {
-                              setTogglingStudentSubmission(null);
-                            }
-                          }}
-                          className={`h-8 text-xs rounded-xl font-bold transition-all ${
-                            st.submitted
-                              ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                              : "border-amber-500/40 text-amber-600 hover:bg-amber-500/10"
-                          }`}
-                        >
-                          {togglingStudentSubmission === st.id ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : st.submitted ? (
-                            "Submitted ✓"
-                          ) : (
-                            "Mark Submitted"
-                          )}
-                        </Button>
+                              onClick={async () => {
+                                if (!submissionModalQuiz || isClosedOrEnded) return;
+                                setTogglingStudentSubmission(st.id);
+                                try {
+                                  if (st.submitted) {
+                                    await api.delete(`/api/quizzes/${submissionModalQuiz.id}/submit?studentId=${st.id}`);
+                                    setEnrolledStudents((prev) =>
+                                      prev.map((s) => (s.id === st.id ? { ...s, submitted: false, score: undefined } : s))
+                                    );
+                                  } else {
+                                    await api.post(`/api/quizzes/${submissionModalQuiz.id}/submit`, {
+                                      studentId: st.id,
+                                      score: submissionModalQuiz.totalMarks,
+                                      answers: [],
+                                    });
+                                    setEnrolledStudents((prev) =>
+                                      prev.map((s) => (s.id === st.id ? { ...s, submitted: true, score: submissionModalQuiz.totalMarks } : s))
+                                    );
+                                  }
+                                } catch (err) {
+                                  console.error("Failed to toggle submission:", err);
+                                } finally {
+                                  setTogglingStudentSubmission(null);
+                                }
+                              }}
+                              className={`h-8 text-xs rounded-xl font-bold transition-all ${
+                                isClosedOrEnded
+                                  ? "opacity-50 cursor-not-allowed border-muted text-muted-foreground"
+                                  : st.submitted
+                                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                  : "border-amber-500/40 text-amber-600 hover:bg-amber-500/10"
+                              }`}
+                            >
+                              {togglingStudentSubmission === st.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : isClosedOrEnded ? (
+                                st.submitted ? "Submitted (Locked)" : "Closed"
+                              ) : st.submitted ? (
+                                "Submitted ✓"
+                              ) : (
+                                "Mark Submitted"
+                              )}
+                            </Button>
+                          );
+                        })()
                       )}
                     </div>
                   </div>
