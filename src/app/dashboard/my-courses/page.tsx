@@ -35,6 +35,8 @@ interface CourseWithDetails {
   department: string;
   semester: number;
   assignedFaculty: string | null;
+  assignedFacultyMorning?: string | null;
+  assignedFacultyEvening?: string | null;
   shift?: string;
   faculty: { user: { name: string | null; email?: string | null }; department: string } | null;
   _count: { enrollments: number };
@@ -63,6 +65,7 @@ export default function MyCoursesPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [shiftFilter, setShiftFilter] = useState<"ALL" | "Morning" | "Evening">("ALL");
   const [selectedFacultyModal, setSelectedFacultyModal] = useState<CourseWithDetails | null>(null);
 
   const fetchCourses = useCallback(async () => {
@@ -87,6 +90,18 @@ export default function MyCoursesPage() {
   };
 
   const filteredCourses = courses.filter((c) => {
+    // 1. Shift Filter
+    if (shiftFilter !== "ALL") {
+      const courseShift = (c.shift || "").toLowerCase();
+      const targetShift = shiftFilter.toLowerCase();
+      const isMorning = courseShift === "morning" || Boolean(c.assignedFacultyMorning) || courseShift === "both";
+      const isEvening = courseShift === "evening" || Boolean(c.assignedFacultyEvening) || courseShift === "both";
+
+      if (targetShift === "morning" && !isMorning) return false;
+      if (targetShift === "evening" && !isEvening) return false;
+    }
+
+    // 2. Search Query Filter
     if (!searchQuery.trim()) return true;
     const tokens = searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
     const combined = `${c.courseName} ${c.courseCode} ${c.department} ${(c as unknown as Record<string, unknown>).facultyName ?? ""}`.toLowerCase();
@@ -135,23 +150,65 @@ export default function MyCoursesPage() {
         }
       />
 
-      {/* Top Search & Stats Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-card p-4 rounded-2xl border border-border shadow-xs">
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search course name or code..."
-            className="pl-9 h-10 rounded-xl"
-          />
+      {/* Top Search, Shift Filters & Stats Bar */}
+      <div className="flex flex-col lg:flex-row items-center justify-between gap-4 bg-card p-4 rounded-2xl border border-border shadow-xs">
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search course name or code..."
+              className="pl-9 h-10 rounded-xl"
+            />
+          </div>
+
+          {/* Morning / Evening Shift Filter Buttons */}
+          <div className="flex items-center bg-muted/50 p-1 rounded-xl border border-border w-full sm:w-auto justify-center">
+            <button
+              type="button"
+              onClick={() => setShiftFilter("ALL")}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                shiftFilter === "ALL"
+                  ? "bg-card text-foreground shadow-xs border border-border"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              All Shifts
+            </button>
+            <button
+              type="button"
+              onClick={() => setShiftFilter("Morning")}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                shiftFilter === "Morning"
+                  ? "bg-amber-500 text-white shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <span className="h-2 w-2 rounded-full bg-amber-200 animate-pulse" />
+              Morning
+            </button>
+            <button
+              type="button"
+              onClick={() => setShiftFilter("Evening")}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                shiftFilter === "Evening"
+                  ? "bg-indigo-600 text-white shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <span className="h-2 w-2 rounded-full bg-indigo-200 animate-pulse" />
+              Evening
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-3 w-full sm:w-auto overflow-x-auto">
+
+        <div className="flex items-center gap-3 w-full lg:w-auto overflow-x-auto justify-end">
           <Badge variant="outline" className="px-3 py-1.5 rounded-xl border-brand-primary/30 text-brand-primary font-bold text-xs">
-            {courses.length} Registered Courses
+            {filteredCourses.length} Courses
           </Badge>
           <Badge variant="outline" className="px-3 py-1.5 rounded-xl border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-bold text-xs">
-            {courses.reduce((acc, c) => acc + c.creditHours, 0)} Total Credits
+            {filteredCourses.reduce((acc, c) => acc + c.creditHours, 0)} Total Credits
           </Badge>
         </div>
       </div>
@@ -161,7 +218,10 @@ export default function MyCoursesPage() {
         {filteredCourses.map((course, idx) => {
           const facultyName = course.faculty?.user?.name ?? "TBA";
           const studentCount = course._count.enrollments;
-          const progressPercent = Math.min(100, Math.max(30, ((idx + 2) * 22) % 100)); // Dynamic presentation progress
+          const shiftLower = (course.shift || "morning").toLowerCase();
+          const isBothShifts = shiftLower === "both" || (course.assignedFacultyMorning && course.assignedFacultyEvening);
+          const isMorningShift = shiftLower === "morning" || Boolean(course.assignedFacultyMorning);
+          const isEveningShift = shiftLower === "evening" || Boolean(course.assignedFacultyEvening);
 
           return (
             <motion.div
@@ -195,6 +255,21 @@ export default function MyCoursesPage() {
                     <Badge variant="outline" className="text-[10px] font-bold bg-card/70 border-border/60 py-0.5 px-2">
                       Sem {course.semester} • {course.creditHours} CH
                     </Badge>
+
+                    {/* Shift Badge (Morning, Evening, or Both) */}
+                    {isBothShifts ? (
+                      <Badge className="text-[10px] font-bold bg-gradient-to-r from-amber-500 to-indigo-600 text-white px-2 py-0.5 border-none shadow-xs">
+                        Both Shifts
+                      </Badge>
+                    ) : isEveningShift ? (
+                      <Badge className="text-[10px] font-bold bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 px-2 py-0.5">
+                        Evening Shift
+                      </Badge>
+                    ) : (
+                      <Badge className="text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 px-2 py-0.5">
+                        Morning Shift
+                      </Badge>
+                    )}
                   </div>
                 </div>
 

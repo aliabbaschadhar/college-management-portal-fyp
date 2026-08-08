@@ -56,7 +56,7 @@ export async function getFacultyDashboardData(
     },
   });
 
-  if (!user || user.role !== "FACULTY" || !user.faculty) {
+  if (!user || user.role?.toUpperCase() !== "FACULTY" || !user.faculty) {
     return null;
   }
 

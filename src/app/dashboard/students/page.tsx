@@ -60,6 +60,8 @@ const deptColors: Record<string, string> = {
     "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
   Chemistry: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
   Economics: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400",
+  "Political Science": "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400",
+  Zoology: "bg-lime-100 text-lime-700 dark:bg-lime-900/30 dark:text-lime-400",
   Urdu: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
   "Islamic Studies":
     "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400",
@@ -80,6 +82,8 @@ const departmentIcons: Record<string, string> = {
   English: "📚",
   Chemistry: "🧪",
   Economics: "📊",
+  "Political Science": "🏛️",
+  Zoology: "🦁",
   Urdu: "✍️",
   "Islamic Studies": "🕌",
 };
@@ -227,7 +231,7 @@ export default function ManageStudentsPage() {
 
   useEffect(() => {
     if (selectedSemester) {
-      setTargetSemester(String(Math.min(8, selectedSemester + 1)));
+      setTargetSemester(String(selectedSemester + 1));
     }
   }, [selectedSemester]);
 
@@ -237,23 +241,28 @@ export default function ManageStudentsPage() {
 
   const canPromoteCount = useMemo(() => {
     if (isPromotingAllClass) {
-      return filteredStudents.filter((s) => s.semester < 8).length;
+      return filteredStudents.length;
     }
-    return selectedStudents.filter((s) => s.semester < 8).length;
+    return selectedStudents.length;
   }, [selectedStudents, filteredStudents, isPromotingAllClass]);
 
   const cannotPromoteCount = useMemo(() => {
-    if (isPromotingAllClass) {
-      return filteredStudents.filter((s) => s.semester >= 8).length;
-    }
-    return selectedStudents.filter((s) => s.semester >= 8).length;
-  }, [selectedStudents, filteredStudents, isPromotingAllClass]);
+    return 0;
+  }, []);
+
+  const [graduationGradesheetUrl, setGraduationGradesheetUrl] = useState<string>("");
 
   const handlePromote = async () => {
+    if (Number(targetSemester) === 9 && !graduationGradesheetUrl.trim()) {
+      showToast("Clearance Failed: Official 8-semester degree gradesheet (PDF or Image) is required to graduate student.", false);
+      return;
+    }
+
     setPromoting(true);
     try {
       let payload: Record<string, unknown> = {
         targetSemester: Number(targetSemester),
+        gradesheetUrl: graduationGradesheetUrl.trim() || undefined,
       };
 
       if (isPromotingAllClass) {
@@ -263,7 +272,7 @@ export default function ManageStudentsPage() {
           semester: selectedSemester,
         };
       } else {
-        const promoteIds = selectedStudents.filter((s) => s.semester < 8).map((s) => s.id);
+        const promoteIds = selectedStudents.map((s) => s.id);
         if (promoteIds.length === 0) return;
         payload = {
           ...payload,
@@ -911,11 +920,15 @@ export default function ManageStudentsPage() {
               </div>
 
               <div className="bg-card/50 backdrop-blur-sm border rounded-xl overflow-hidden shadow-sm">
-                <DataTable
-                  data={filteredStudents as unknown as Record<string, unknown>[]}
-                  columns={columns as unknown as Column<Record<string, unknown>>[]}
-                  searchPlaceholder="Search by name, roll no, department, email..."
-                />
+                {loading ? (
+                  <TableSkeleton rows={10} />
+                ) : (
+                  <DataTable
+                    data={filteredStudents as unknown as Record<string, unknown>[]}
+                    columns={columns as unknown as Column<Record<string, unknown>>[]}
+                    searchPlaceholder="Search by name, roll no, department, email..."
+                  />
+                )}
               </div>
             </div>
           </motion.div>
@@ -1228,9 +1241,9 @@ export default function ManageStudentsPage() {
                       <SelectValue placeholder="Select target semester" />
                     </SelectTrigger>
                     <SelectContent className="bg-white dark:bg-[#110d22] border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white">
-                      {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((sem) => (
                         <SelectItem key={sem} value={String(sem)}>
-                          Semester {sem}
+                          {sem === 9 ? "🎓 Graduate to Alumni Status" : `Semester ${sem}`}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1242,10 +1255,51 @@ export default function ManageStudentsPage() {
                     This action will:
                   </p>
                   <ul className="list-disc list-inside text-sm space-y-1 text-muted-foreground pl-2">
-                    <li>Update their semesters to <strong>Semester {targetSemester}</strong></li>
-                    <li>Automatically enroll them in all courses offered in the target semester</li>
+                    <li>
+                      {Number(targetSemester) === 9
+                        ? "Change student status to Graduated (Alumni Directory)"
+                        : `Update their semesters to Semester ${targetSemester}`}
+                    </li>
+                    <li>
+                      {Number(targetSemester) === 9
+                        ? "Archive active course enrollments while preserving past academic records"
+                        : "Automatically enroll them in all courses offered in the target semester"}
+                    </li>
                   </ul>
                 </div>
+
+                {Number(targetSemester) === 9 && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2">
+                    <Label className="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5 uppercase">
+                      Upload 8-Semester Degree Gradesheet (Mandatory) *
+                    </Label>
+                    <Input
+                      type="file"
+                      accept=".pdf,image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            setGraduationGradesheetUrl(reader.result as string);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="text-xs rounded-xl bg-card cursor-pointer"
+                    />
+                    <Input
+                      type="text"
+                      placeholder="Or enter complete gradesheet URL..."
+                      value={graduationGradesheetUrl}
+                      onChange={(e) => setGraduationGradesheetUrl(e.target.value)}
+                      className="text-xs rounded-xl font-mono bg-card"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      ⚠️ Clearance requirement: Must upload the complete degree gradesheet covering all 8 semesters.
+                    </p>
+                  </div>
+                )}
 
                 <div className="p-3 bg-accent/30 rounded-xl space-y-2 border">
                   <div className="flex justify-between text-sm">

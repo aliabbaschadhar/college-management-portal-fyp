@@ -58,6 +58,8 @@ const deptColors: Record<string, string> = {
     "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
   Chemistry: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
   Economics: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400",
+  "Political Science": "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400",
+  Zoology: "bg-lime-100 text-lime-700 dark:bg-lime-900/30 dark:text-lime-400",
   Urdu: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
   "Islamic Studies":
     "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400",

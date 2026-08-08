@@ -390,6 +390,43 @@ export default function TimetablePage() {
   const [batchSaving, setBatchSaving] = useState<boolean>(false);
   const [batchError, setBatchError] = useState<string | null>(null);
 
+  // Auto Generator Dialog states
+  const [autoGenDialogOpen, setAutoGenDialogOpen] = useState<boolean>(false);
+  const [autoGenRoomsInput, setAutoGenRoomsInput] = useState<string>("Room 101, Room 102, Room 103");
+  const [autoGenDays, setAutoGenDays] = useState<string[]>(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]);
+  const [autoGenGenerating, setAutoGenGenerating] = useState<boolean>(false);
+  const [autoGenError, setAutoGenError] = useState<string | null>(null);
+
+  const handleAutoGenerateTimetable = async () => {
+    if (autoGenDays.length === 0) {
+      setAutoGenError("Please select at least one day to generate timetable classes.");
+      return;
+    }
+    setAutoGenGenerating(true);
+    setAutoGenError(null);
+    try {
+      const roomList = autoGenRoomsInput.split(",").map((r) => r.trim()).filter(Boolean);
+      await api.post("/api/timetable/auto-generate", {
+        department: filterDept,
+        semester: Number(filterSemester),
+        shift: filterShift,
+        rooms: roomList.length > 0 ? roomList : ["Room 101", "Room 102"],
+        startTime: gridStart,
+        duration: Number(gridDuration),
+        slotsCount: Number(gridSlotsCount),
+        days: autoGenDays,
+      });
+      setAutoGenDialogOpen(false);
+      await loadTimetable();
+      router.refresh();
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } };
+      setAutoGenError(axiosErr.response?.data?.error ?? "Failed to auto-generate timetable");
+    } finally {
+      setAutoGenGenerating(false);
+    }
+  };
+
   const recalculateBatchSchedule = (
     preset: "45" | "30" | "custom",
     customMins?: number
@@ -758,6 +795,12 @@ export default function TimetablePage() {
               <Download className="h-4 w-4" /> View / Export PDF
             </Button>
             <Button
+              onClick={() => setAutoGenDialogOpen(true)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 shadow-lg shadow-emerald-600/20 gap-1.5 font-bold"
+            >
+              <Sparkles className="h-4 w-4" /> Auto Generator
+            </Button>
+            <Button
               onClick={() => openBatchDialog()}
               className="bg-purple-600 hover:bg-purple-700 text-white h-9 shadow-lg shadow-purple-600/20 gap-1.5"
             >
@@ -1006,7 +1049,11 @@ export default function TimetablePage() {
                   <SelectValue placeholder="Select course" />
                 </SelectTrigger>
                 <SelectContent className="max-h-80">
-                  {primaryCourses.length > 0 && (
+                  {primaryCourses.length === 0 ? (
+                    <SelectItem value="none" disabled>
+                      No courses available for {filterDept} Sem {filterSemester}
+                    </SelectItem>
+                  ) : (
                     <SelectGroup>
                       <SelectLabel className="text-xs font-bold text-brand-primary uppercase tracking-wider px-2 py-1 bg-brand-primary/5 rounded-md mb-1">
                         {filterDept} — Semester {filterSemester}
@@ -1018,28 +1065,6 @@ export default function TimetablePage() {
                           <SelectItem key={c.id} value={c.id}>
                             <div className="flex items-center justify-between gap-2 w-full text-xs">
                               <span className="font-bold">{c.courseCode} — {c.courseName}</span>
-                              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded font-mono ${hasNoTeacher ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"}`}>
-                                {hasNoTeacher ? "⚠️ Unassigned" : teacher}
-                              </span>
-                            </div>
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectGroup>
-                  )}
-
-                  {secondaryCourses.length > 0 && (
-                    <SelectGroup>
-                      <SelectLabel className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-2 py-1 bg-muted/40 rounded-md mt-2 mb-1">
-                        Other Courses ({secondaryCourses.length})
-                      </SelectLabel>
-                      {secondaryCourses.map((c) => {
-                        const teacher = getTeacherForCourseAndShift(c, form.shift);
-                        const hasNoTeacher = !teacher || teacher === "Unassigned";
-                        return (
-                          <SelectItem key={c.id} value={c.id}>
-                            <div className="flex items-center justify-between gap-2 w-full text-xs">
-                              <span className="font-semibold">{c.courseCode} — {c.courseName} <span className="text-[10px] text-muted-foreground font-normal">({c.department} • Sem {c.semester})</span></span>
                               <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded font-mono ${hasNoTeacher ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"}`}>
                                 {hasNoTeacher ? "⚠️ Unassigned" : teacher}
                               </span>
@@ -1375,30 +1400,11 @@ export default function TimetablePage() {
                               <SelectValue placeholder="Select Course..." />
                             </SelectTrigger>
                             <SelectContent className="max-h-80">
-                              {primaryCourses.length > 0 && (
-                                <SelectGroup>
-                                  <SelectLabel className="text-[11px] font-bold text-brand-primary uppercase tracking-wider px-2 py-0.5">
-                                    {filterDept} — Sem {filterSemester}
-                                  </SelectLabel>
-                                  {primaryCourses.map((c) => (
-                                    <SelectItem key={c.id} value={c.id}>
-                                      {c.courseCode} - {c.courseName}
-                                    </SelectItem>
-                                  ))}
-                                </SelectGroup>
-                              )}
-                              {secondaryCourses.length > 0 && (
-                                <SelectGroup>
-                                  <SelectLabel className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-0.5 mt-1">
-                                    Other Courses ({secondaryCourses.length})
-                                  </SelectLabel>
-                                  {secondaryCourses.map((c) => (
-                                    <SelectItem key={c.id} value={c.id}>
-                                      {c.courseCode} - {c.courseName} ({c.department} Sem {c.semester})
-                                    </SelectItem>
-                                  ))}
-                                </SelectGroup>
-                              )}
+                              {primaryCourses.map((c) => (
+                                <SelectItem key={c.id} value={c.id}>
+                                  {c.courseCode} - {c.courseName}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
 
@@ -1756,6 +1762,128 @@ export default function TimetablePage() {
               </table>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Auto Generator Modal Dialog */}
+      <Dialog open={autoGenDialogOpen} onOpenChange={setAutoGenDialogOpen}>
+        <DialogContent className="sm:max-w-[760px] max-h-[90vh] overflow-y-auto rounded-3xl p-6">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-emerald-500" />
+              Auto-Generate Timetable Schedule
+            </DialogTitle>
+            <DialogDescription>
+              Automatically map courses, assigned faculty, and timeslots into a conflict-free schedule.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 py-3">
+            {autoGenError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
+                {autoGenError}
+              </div>
+            )}
+
+            {/* Active Class Days Selector */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase">
+                Select Active Days For Class Schedule
+              </Label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 p-3 rounded-2xl border border-border bg-card">
+                {DAYS.map((d) => {
+                  const isChecked = autoGenDays.includes(d);
+                  return (
+                    <label key={d} className="flex items-center gap-2 text-xs font-bold cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {
+                          setAutoGenDays((prev) =>
+                            prev.includes(d) ? prev.filter((item) => item !== d) : [...prev, d]
+                          );
+                        }}
+                        className="h-4 w-4 rounded accent-emerald-600 cursor-pointer"
+                      />
+                      <span className={isChecked ? "text-foreground" : "text-muted-foreground"}>{d}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Target Courses & Faculty Assignment Checklist (No Scroll) */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase flex items-center justify-between">
+                <span>Target Courses & Assigned Faculty ({primaryCourses.length})</span>
+                <span className="text-[10px] normal-case text-muted-foreground">Auto-mapped per shift</span>
+              </Label>
+              <div className="space-y-1.5 p-2 rounded-2xl border border-border bg-card">
+                {primaryCourses.length === 0 ? (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 p-2 font-medium">
+                    ⚠️ No courses found for {filterDept} Sem {filterSemester}. Please add courses in Manage Courses first.
+                  </p>
+                ) : (
+                  primaryCourses.map((c) => {
+                    const teacher = getTeacherForCourseAndShift(c, filterShift);
+                    const isAssigned = teacher && teacher !== "Unassigned";
+                    return (
+                      <div key={c.id} className="flex items-center justify-between text-xs p-2.5 rounded-xl bg-muted/30 border border-border/50">
+                        <span className="font-bold text-foreground">
+                          {c.courseCode} - {c.courseName}
+                        </span>
+                        <span className={`inline-flex items-center gap-1 font-semibold text-[11px] px-2.5 py-0.5 rounded-md ${
+                          isAssigned ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                        }`}>
+                          {isAssigned ? teacher : "Unassigned"}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="rooms-input" className="text-xs font-semibold text-muted-foreground uppercase">Available Rooms / Labs (comma separated)</Label>
+              <Input
+                id="rooms-input"
+                value={autoGenRoomsInput}
+                onChange={(e) => setAutoGenRoomsInput(e.target.value)}
+                placeholder="e.g. Room 101, Room 102, Lab 1"
+                className="rounded-xl font-mono text-xs"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Enter room names separated by commas. The system will rotate available rooms to avoid room collisions.
+              </p>
+            </div>
+
+            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-800 dark:text-emerald-300 space-y-1">
+              <p className="font-bold">✨ Conflict-Free Guarantee</p>
+              <p>The algorithm automatically verifies room availability and teacher schedules to prevent double-booking across the institution.</p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setAutoGenDialogOpen(false)} className="rounded-xl">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAutoGenerateTimetable}
+              disabled={autoGenGenerating || primaryCourses.length === 0}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold gap-2"
+            >
+              {autoGenGenerating ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" /> Generate Schedule
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </motion.div>

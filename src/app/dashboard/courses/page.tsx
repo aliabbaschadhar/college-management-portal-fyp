@@ -22,14 +22,12 @@ import {
   GraduationCap,
   Loader2,
   Eye,
-  Clock,
   RefreshCw,
   FileSpreadsheet,
   Upload,
   Download,
   AlertCircle,
   CheckCircle2,
-  FileText,
   Clipboard,
   Sun,
   Moon,
@@ -187,7 +185,7 @@ export default function ManageCoursesPage() {
   const [selectedFaculty, setSelectedFaculty] = useState<string>("");
   const [selectedAssignShift, setSelectedAssignShift] = useState<string>("Morning");
   const [assigning, setAssigning] = useState(false);
-  const [unassigningCourseId, setUnassigningCourseId] = useState<string | null>(null);
+  const [unassigningShiftKey, setUnassigningShiftKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Detail Dialog states
@@ -567,16 +565,20 @@ export default function ManageCoursesPage() {
   const handleUnassign = async (courseId?: string, targetShift?: string) => {
     const targetId = courseId || assigningCourse?.id;
     if (!targetId) return;
+    const shiftToUnassign = targetShift || selectedAssignShift;
+    const shiftKey = `${targetId}-${shiftToUnassign}`;
+
     try {
       setAssigning(true);
-      setUnassigningCourseId(targetId);
-      const shiftToUnassign = targetShift || selectedAssignShift;
+      setUnassigningShiftKey(shiftKey);
       const payload: Record<string, string | null> = { shift: shiftToUnassign };
 
       if (shiftToUnassign === "Morning") {
         payload.assignedFacultyMorning = null;
+        payload.assignedFaculty = null;
       } else if (shiftToUnassign === "Evening") {
         payload.assignedFacultyEvening = null;
+        payload.assignedFaculty = null;
       } else {
         payload.assignedFaculty = null;
         payload.assignedFacultyMorning = null;
@@ -597,7 +599,7 @@ export default function ManageCoursesPage() {
       console.error("Failed to unassign faculty:", err);
     } finally {
       setAssigning(false);
-      setUnassigningCourseId(null);
+      setUnassigningShiftKey(null);
     }
   };
 
@@ -629,8 +631,8 @@ export default function ManageCoursesPage() {
       render: (row) => <Badge variant="outline">{row.creditHours} CH</Badge>,
     },
     {
-      key: "faculty",
-      header: "Shift Assignment & Faculty",
+      key: "morningFaculty" as keyof CourseWithDetails,
+      header: "Morning Faculty",
       render: (row) => {
         const morningTeacher =
           row.facultyMorning?.user?.name ||
@@ -644,7 +646,59 @@ export default function ManageCoursesPage() {
           (row.assignedFaculty && (row.shift === "Morning" || row.shift === "Both")
             ? row.faculty?.department
             : null);
+        const isAssigned = Boolean(morningTeacher);
+        const morningKey = `${row.id}-Morning`;
+        const isUnassigningThis = unassigningShiftKey === morningKey;
 
+        return (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                openAssignModal(row, "Morning");
+              }}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                isAssigned
+                  ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/20"
+                  : "bg-muted text-muted-foreground border-dashed border-border hover:bg-accent"
+              }`}
+              title="Click to assign or change Morning Faculty"
+            >
+              <Sun className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+              <span>{isAssigned ? morningTeacher : "+ Assign Morning"}</span>
+            </button>
+
+            {isAssigned && (
+              <button
+                disabled={isUnassigningThis}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleUnassign(row.id, "Morning");
+                }}
+                className="p-1 rounded-md text-rose-500 hover:bg-rose-500/10 transition-colors disabled:opacity-40 cursor-pointer"
+                title="Unassign Morning Faculty"
+              >
+                {isUnassigningThis ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <UserMinus className="h-3.5 w-3.5" />
+                )}
+              </button>
+            )}
+
+            {morningDept && morningDept !== row.department && (
+              <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded-md border border-purple-500/20">
+                {morningDept}
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: "eveningFaculty" as keyof CourseWithDetails,
+      header: "Evening Faculty",
+      render: (row) => {
         const eveningTeacher =
           row.facultyEvening?.user?.name ||
           (row.assignedFacultyEvening
@@ -657,97 +711,49 @@ export default function ManageCoursesPage() {
           (row.assignedFaculty && (row.shift === "Evening" || row.shift === "Both")
             ? row.faculty?.department
             : null);
-
-        const isMorningAssigned = Boolean(morningTeacher);
-        const isEveningAssigned = Boolean(eveningTeacher);
+        const isAssigned = Boolean(eveningTeacher);
+        const eveningKey = `${row.id}-Evening`;
+        const isUnassigningThis = unassigningShiftKey === eveningKey;
 
         return (
-          <div className="flex flex-col gap-1.5 py-0.5">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {/* Morning Badge Button */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                openAssignModal(row, "Evening");
+              }}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                isAssigned
+                  ? "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/20"
+                  : "bg-muted text-muted-foreground border-dashed border-border hover:bg-accent"
+              }`}
+              title="Click to assign or change Evening Faculty"
+            >
+              <Moon className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+              <span>{isAssigned ? eveningTeacher : "+ Assign Evening"}</span>
+            </button>
+
+            {isAssigned && (
               <button
-                type="button"
+                disabled={isUnassigningThis}
                 onClick={(e) => {
                   e.stopPropagation();
-                  openAssignModal(row, "Morning");
+                  handleUnassign(row.id, "Evening");
                 }}
-                title={
-                  isMorningAssigned
-                    ? `Morning Shift: ${morningTeacher} ${morningDept ? `(${morningDept})` : ""} — Click to edit`
-                    : "Click to assign Morning Shift teacher"
-                }
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer hover:scale-105 active:scale-95 ${
-                  isMorningAssigned
-                    ? "bg-amber-500/15 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300 border border-amber-500/40 shadow-xs hover:bg-amber-500/25"
-                    : "bg-muted/40 text-muted-foreground/60 border border-dashed border-border hover:bg-amber-500/10 hover:text-amber-700"
-                }`}
+                className="p-1 rounded-md text-rose-500 hover:bg-rose-500/10 transition-colors disabled:opacity-40 cursor-pointer"
+                title="Unassign Evening Faculty"
               >
-                <Sun
-                  className={`h-3.5 w-3.5 ${
-                    isMorningAssigned
-                      ? "text-amber-600 dark:text-amber-400 fill-amber-500/20"
-                      : "opacity-40"
-                  }`}
-                />
-                <span className="font-bold">M</span>
-                <span className="text-[11px]">
-                  {isMorningAssigned ? (
-                    <span className="font-semibold max-w-[120px] truncate inline-block align-bottom">
-                      {morningTeacher}
-                    </span>
-                  ) : (
-                    "Unassigned"
-                  )}
-                </span>
+                {isUnassigningThis ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <UserMinus className="h-3.5 w-3.5" />
+                )}
               </button>
-
-              {/* Evening Badge Button */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openAssignModal(row, "Evening");
-                }}
-                title={
-                  isEveningAssigned
-                    ? `Evening Shift: ${eveningTeacher} ${eveningDept ? `(${eveningDept})` : ""} — Click to edit`
-                    : "Click to assign Evening Shift teacher"
-                }
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer hover:scale-105 active:scale-95 ${
-                  isEveningAssigned
-                    ? "bg-indigo-500/15 text-indigo-800 dark:bg-indigo-500/20 dark:text-indigo-300 border border-indigo-500/40 shadow-xs hover:bg-indigo-500/25"
-                    : "bg-muted/40 text-muted-foreground/60 border border-dashed border-border hover:bg-indigo-500/10 hover:text-indigo-700"
-                }`}
-              >
-                <Moon
-                  className={`h-3.5 w-3.5 ${
-                    isEveningAssigned
-                      ? "text-indigo-600 dark:text-indigo-400 fill-indigo-500/20"
-                      : "opacity-40"
-                  }`}
-                />
-                <span className="font-bold">E</span>
-                <span className="text-[11px]">
-                  {isEveningAssigned ? (
-                    <span className="font-semibold max-w-[120px] truncate inline-block align-bottom">
-                      {eveningTeacher}
-                    </span>
-                  ) : (
-                    "Unassigned"
-                  )}
-                </span>
-              </button>
-            </div>
-
-            {/* Cross-department badge indicators */}
-            {morningDept && morningDept !== row.department && (
-              <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20 w-fit">
-                M Cross-Dept: {morningDept}
-              </span>
             )}
+
             {eveningDept && eveningDept !== row.department && (
-              <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20 w-fit">
-                E Cross-Dept: {eveningDept}
+              <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded-md border border-purple-500/20">
+                {eveningDept}
               </span>
             )}
           </div>
@@ -774,35 +780,6 @@ export default function ManageCoursesPage() {
           >
             <Eye className="h-4 w-4 text-brand-primary" />
           </button>
-          {/* Show Plus (+) Assign button only if both shifts are NOT fully assigned */}
-          {row.shift !== "Both" && (
-            <button
-              onClick={() => {
-                setAssigningCourse(row);
-                setSelectedFaculty(row.assignedFaculty || "");
-                setSelectedAssignShift(row.shift || "Morning");
-                setAssignDialogOpen(true);
-              }}
-              className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"
-              title="Assign Faculty"
-            >
-              <UserPlus className="h-4 w-4 text-brand-secondary" />
-            </button>
-          )}
-          {row.assignedFaculty && (
-            <button
-              onClick={() => handleUnassign(row.id)}
-              disabled={unassigningCourseId === row.id}
-              className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-rose-500/10 transition-colors disabled:opacity-50"
-              title="Unassign Faculty"
-            >
-              {unassigningCourseId === row.id ? (
-                <Loader2 className="h-4 w-4 animate-spin text-rose-500" />
-              ) : (
-                <UserMinus className="h-4 w-4 text-rose-500" />
-              )}
-            </button>
-          )}
           <button
             onClick={() => openEdit(row)}
             className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent transition-colors"
@@ -827,8 +804,12 @@ export default function ManageCoursesPage() {
 
   // Filter courses for DataTable in View 3
   const filteredCourses = courses.filter((c) => {
-    const matchesDept = !selectedDept || selectedDept === "all" || c.department === selectedDept;
-    const matchesSem = !selectedSem || c.semester === Number(selectedSem);
+    const matchesDept =
+      !selectedDept ||
+      selectedDept === "all" ||
+      c.department.toLowerCase() === selectedDept.toLowerCase();
+    const matchesSem =
+      !selectedSem || Number(c.semester) === Number(selectedSem);
     return matchesDept && matchesSem;
   });
 

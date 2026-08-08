@@ -9,6 +9,8 @@ export const DEPARTMENTS = [
   "English",
   "Chemistry",
   "Economics",
+  "Political Science",
+  "Zoology",
   "Urdu",
   "Islamic Studies",
 ] as const;

@@ -184,12 +184,19 @@ export default function AdminDashboardHome() {
   const [data, setData] = useState<AdminDashboardData>(defaultData);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dbName, setDbName] = useState<string | null>(null);
 
   const fetchData = async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
     try {
-      const r = await api.get<AdminDashboardApiResponse>("/api/dashboard/admin");
+      const [r, meRes] = await Promise.all([
+        api.get<AdminDashboardApiResponse>("/api/dashboard/admin"),
+        api.get("/api/me").catch(() => null),
+      ]);
       const payload = r.data;
+      if (meRes?.data?.name) {
+        setDbName(meRes.data.name);
+      }
       if (payload.error) {
         setData(defaultData);
         setAuditLogs([]);
@@ -236,12 +243,16 @@ export default function AdminDashboardHome() {
       ][i] ?? "var(--color-brand-secondary)",
   }));
 
+  const welcomeSub = dbName
+    ? `Welcome back, ${dbName}! Here's what's happening at your college today.`
+    : "Welcome back! Here's what's happening at your college today.";
+
   if (loading) {
     return (
       <div className="space-y-6">
         <PageHeader
           title="Dashboard Overview"
-          subtitle="Welcome back! Here's what's happening at your college today."
+          subtitle={welcomeSub}
           action={
             <Button
               variant="outline"
@@ -281,7 +292,7 @@ export default function AdminDashboardHome() {
     >
       <PageHeader
         title="Dashboard Overview"
-        subtitle="Welcome back! Here's what's happening at your college today."
+        subtitle={welcomeSub}
         action={
           <Button
             variant="outline"
@@ -300,46 +311,54 @@ export default function AdminDashboardHome() {
         variants={item}
         className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4"
       >
-        <StatsCard
-          title="Total Students"
-          value={data.stats.totalStudents}
-          trend="Enrolled"
-          trendDirection="up"
-          trendLabel="Current Status"
-          icon={Users}
-          iconColor="var(--color-brand-primary)"
-          iconBg="rgb(var(--color-brand-primary-rgb) / 0.1)"
-        />
-        <StatsCard
-          title="Total Faculty"
-          value={data.stats.totalFaculty}
-          trend="Active"
-          trendDirection="up"
-          trendLabel="Current Status"
-          icon={GraduationCap}
-          iconColor="var(--color-brand-secondary)"
-          iconBg="rgb(var(--color-brand-secondary-rgb) / 0.1)"
-        />
-        <StatsCard
-          title="Active Courses"
-          value={data.stats.activeCourses}
-          trend="Offered"
-          trendDirection="up"
-          trendLabel="Current Status"
-          icon={BookOpen}
-          iconColor="var(--color-data-3)"
-          iconBg="color-mix(in oklab, var(--color-data-3) 10%, transparent)"
-        />
-        <StatsCard
-          title="Pending Admissions"
-          value={data.stats.pendingAdmissions}
-          trend={data.stats.pendingAdmissions > 0 ? "Action Req." : "Clear"}
-          trendDirection={data.stats.pendingAdmissions > 0 ? "down" : "up"}
-          trendLabel="Admissions Status"
-          icon={UserPlus}
-          iconColor="var(--color-data-4)"
-          iconBg="color-mix(in oklab, var(--color-data-4) 10%, transparent)"
-        />
+        <Link href="/dashboard/students" className="block transition-transform hover:scale-[1.02]">
+          <StatsCard
+            title="Total Students"
+            value={data.stats.totalStudents}
+            trend="Enrolled"
+            trendDirection="up"
+            trendLabel="Current Status"
+            icon={Users}
+            iconColor="var(--color-brand-primary)"
+            iconBg="rgb(var(--color-brand-primary-rgb) / 0.1)"
+          />
+        </Link>
+        <Link href="/dashboard/faculty" className="block transition-transform hover:scale-[1.02]">
+          <StatsCard
+            title="Total Faculty"
+            value={data.stats.totalFaculty}
+            trend="Active"
+            trendDirection="up"
+            trendLabel="Current Status"
+            icon={GraduationCap}
+            iconColor="var(--color-brand-secondary)"
+            iconBg="rgb(var(--color-brand-secondary-rgb) / 0.1)"
+          />
+        </Link>
+        <Link href="/dashboard/courses" className="block transition-transform hover:scale-[1.02]">
+          <StatsCard
+            title="Active Courses"
+            value={data.stats.activeCourses}
+            trend="Offered"
+            trendDirection="up"
+            trendLabel="Current Status"
+            icon={BookOpen}
+            iconColor="var(--color-data-3)"
+            iconBg="color-mix(in oklab, var(--color-data-3) 10%, transparent)"
+          />
+        </Link>
+        <Link href="/dashboard/admissions" className="block transition-transform hover:scale-[1.02]">
+          <StatsCard
+            title="Pending Admissions"
+            value={data.stats.pendingAdmissions}
+            trend={data.stats.pendingAdmissions > 0 ? "Action Req." : "Clear"}
+            trendDirection={data.stats.pendingAdmissions > 0 ? "down" : "up"}
+            trendLabel="Admissions Status"
+            icon={UserPlus}
+            iconColor="var(--color-data-4)"
+            iconBg="color-mix(in oklab, var(--color-data-4) 10%, transparent)"
+          />
+        </Link>
       </motion.div>
 
       {/* Charts */}
@@ -349,9 +368,10 @@ export default function AdminDashboardHome() {
       >
         {/* Bar chart */}
         <div className="rounded-xl border border-border bg-card p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">
-            Students per Department
-          </h3>
+          <Link href="/dashboard/students" className="flex items-center justify-between text-sm font-semibold text-foreground mb-4 hover:text-brand-primary transition-colors group">
+            <span>Students per Department</span>
+            <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+          </Link>
           <ChartContainer
             config={barChartConfig}
             className="min-h-[280px] w-full"
@@ -377,9 +397,10 @@ export default function AdminDashboardHome() {
 
         {/* Doughnut chart */}
         <div className="rounded-xl border border-border bg-card p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">
-            Attendance Overview
-          </h3>
+          <Link href="/dashboard/attendance" className="flex items-center justify-between text-sm font-semibold text-foreground mb-4 hover:text-brand-primary transition-colors group">
+            <span>Attendance Overview</span>
+            <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+          </Link>
           <ChartContainer
             config={doughnutConfig}
             className="min-h-[280px] w-full"
@@ -413,9 +434,10 @@ export default function AdminDashboardHome() {
       >
         {/* Recent Announcements */}
         <div className="lg:col-span-2 rounded-xl border border-border bg-card p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">
-            Recent Announcements
-          </h3>
+          <Link href="/dashboard/announcements" className="flex items-center justify-between text-sm font-semibold text-foreground mb-4 hover:text-brand-primary transition-colors group">
+            <span>Recent Announcements</span>
+            <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+          </Link>
           <div className="space-y-3">
             {data.recentAnnouncements.length === 0 ? (
               <p className="text-sm text-muted-foreground">
@@ -471,9 +493,10 @@ export default function AdminDashboardHome() {
           </div>
 
           {/* Fee Summary */}
-          <div className="mt-5 pt-4 border-t border-border">
-            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-              Fee Summary
+          <Link href="/dashboard/dues" className="mt-5 pt-4 border-t border-border block hover:opacity-80 transition-opacity group">
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center justify-between">
+              <span>Fee Summary</span>
+              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
             </h4>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -489,7 +512,7 @@ export default function AdminDashboardHome() {
                 </span>
               </div>
             </div>
-          </div>
+          </Link>
         </div>
       </motion.div>
 

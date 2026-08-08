@@ -65,7 +65,7 @@ export default function ClassesPage() {
   // Single-Row Top Filter Bar States
   const [selectedDept, setSelectedDept] = useState("ALL");
   const [selectedSemester, setSelectedSemester] = useState("ALL");
-  const [selectedShift, setSelectedShift] = useState("Morning");
+  const [selectedShift, setSelectedShift] = useState("ALL");
   const [expanded, setExpanded] = useState<string | null>(null);
 
   // Student Detail Modal States
@@ -77,12 +77,9 @@ export default function ClassesPage() {
     else setRefreshing(true);
 
     try {
-      const r = await api.get<{ id: string }[]>("/api/courses");
+      const r = await api.get<CourseWithEnrollments[]>("/api/courses");
       const list = Array.isArray(r.data) ? r.data : [];
-      const detailed = await Promise.all(
-        list.map((c) => api.get(`/api/courses/${c.id}`).then((r2) => r2.data))
-      );
-      setCourses(detailed as CourseWithEnrollments[]);
+      setCourses(list);
     } catch (err) {
       console.error("Failed to load classes:", err);
       setCourses([]);
@@ -184,6 +181,7 @@ export default function ClassesPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="ALL">All Shifts</SelectItem>
               <SelectItem value="Morning">Morning</SelectItem>
               <SelectItem value="Evening">Evening</SelectItem>
             </SelectContent>

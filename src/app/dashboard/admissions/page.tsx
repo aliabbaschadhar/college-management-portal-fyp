@@ -739,7 +739,7 @@ export default function ManageAdmissionsPage() {
         >
           Student Admissions
           {admissions.filter((a) => a.status === "Pending").length > 0 && (
-            <span className="ml-2 bg-brand-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+            <span className="ml-2 bg-rose-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-xs">
               {admissions.filter((a) => a.status === "Pending").length}
             </span>
           )}
@@ -754,7 +754,7 @@ export default function ManageAdmissionsPage() {
         >
           Faculty Onboarding
           {staffRequests.filter((r) => r.status === "Pending" && r.role === "FACULTY").length > 0 && (
-            <span className="ml-2 bg-brand-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+            <span className="ml-2 bg-rose-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-xs animate-pulse">
               {staffRequests.filter((r) => r.status === "Pending" && r.role === "FACULTY").length}
             </span>
           )}
@@ -769,7 +769,7 @@ export default function ManageAdmissionsPage() {
         >
           Admin Onboarding
           {staffRequests.filter((r) => r.status === "Pending" && r.role === "ADMIN").length > 0 && (
-            <span className="ml-2 bg-brand-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+            <span className="ml-2 bg-rose-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-xs animate-pulse">
               {staffRequests.filter((r) => r.status === "Pending" && r.role === "ADMIN").length}
             </span>
           )}

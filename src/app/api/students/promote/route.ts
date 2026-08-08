@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
       department?: string;
       semester?: number;
       targetSemester: number;
+      gradesheetUrl?: string;
     };
 
     if (!body || (!body.studentIds && (!body.department || !body.semester)) || !body.targetSemester) {
@@ -30,9 +31,11 @@ export async function POST(request: NextRequest) {
     }
 
     const targetSemester = Number(body.targetSemester);
-    if (isNaN(targetSemester) || targetSemester < 1 || targetSemester > 8) {
-      return NextResponse.json({ error: "targetSemester must be an integer between 1 and 8" }, { status: 400 });
+    if (isNaN(targetSemester) || targetSemester < 1 || targetSemester > 9) {
+      return NextResponse.json({ error: "targetSemester must be an integer between 1 and 9 (9 = Graduated)" }, { status: 400 });
     }
+
+    const isGraduating = targetSemester === 9;
 
     // Resolve which students to promote
     let promoteStudentIds: string[] = [];
@@ -62,7 +65,19 @@ export async function POST(request: NextRequest) {
       try {
         const student = await prisma.student.findUnique({
           where: { id: studentId },
-          select: { id: true, semester: true, department: true, rollNo: true },
+          select: {
+            id: true,
+            semester: true,
+            department: true,
+            rollNo: true,
+            status: true,
+            blocked: true,
+            readmitRequested: true,
+            fees: {
+              where: { status: { in: ["Unpaid", "Overdue"] } },
+              select: { amount: true, type: true, status: true },
+            },
+          },
         });
 
         if (!student) {
@@ -70,7 +85,62 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        if (student.semester === targetSemester) {
+        if (isGraduating) {
+          if (!body.gradesheetUrl) {
+            errors.push(`Clearance Failed for ${student.rollNo}: Official 8-semester degree gradesheet (PDF or Image) must be uploaded`);
+            continue;
+          }
+
+          if (student.status === "Graduated") {
+            errors.push(`Student ${student.rollNo} is already Graduated`);
+            continue;
+          }
+
+          if (student.blocked) {
+            errors.push(`Clearance Failed for ${student.rollNo}: Student account is suspended/blocked`);
+            continue;
+          }
+
+          if (student.readmitRequested) {
+            errors.push(`Clearance Failed for ${student.rollNo}: Pending re-admission request must be resolved first`);
+            continue;
+          }
+
+          if (student.fees && student.fees.length > 0) {
+            const totalPending = student.fees.reduce((sum, f) => sum + f.amount, 0);
+            errors.push(`Clearance Failed for ${student.rollNo}: Has ${student.fees.length} unpaid/overdue fee dues (Total: $${totalPending.toFixed(2)})`);
+            continue;
+          }
+
+          const graduatedStudent = await prisma.$transaction(async (tx) => {
+            const updated = await tx.student.update({
+              where: { id: studentId },
+              data: {
+                status: "Graduated",
+                semester: 8,
+                gradesheetUrl: body.gradesheetUrl,
+                graduationDate: new Date(),
+              },
+              include: { user: { select: { name: true } } },
+            });
+            await tx.enrollment.deleteMany({ where: { studentId: student.id } });
+            return updated;
+          });
+
+          await logAuditAction({
+            action: "UPDATED",
+            entity: "Student",
+            entityId: studentId,
+            description: `Graduated student ${student.rollNo} from Semester 8 to Alumni status`,
+            adminClerkId: userId,
+            adminName,
+          });
+
+          results.push(graduatedStudent);
+          continue;
+        }
+
+        if (student.semester === targetSemester && student.status === "Active") {
           errors.push(`Student ${student.rollNo} is already in Semester ${targetSemester}`);
           continue;
         }
@@ -79,7 +149,7 @@ export async function POST(request: NextRequest) {
           // Promote semester
           const updated = await tx.student.update({
             where: { id: studentId },
-            data: { semester: targetSemester },
+            data: { semester: targetSemester, status: "Active" },
             include: { user: { select: { name: true } } },
           });
 
@@ -135,6 +205,7 @@ export async function POST(request: NextRequest) {
         rollNo: s.rollNo,
         name: s.user?.name,
         semester: s.semester,
+        status: s.status,
       })),
       errors,
     });

@@ -47,8 +47,9 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
   const [dbProfile, setDbProfile] = useState<{
     name: string | null;
     role: string;
-    faculty?: { department: string; specialization: string } | null;
-    student?: { department: string; semester: number; shift: string; blocked?: boolean; readmitRequested?: boolean } | null;
+    avatar?: string | null;
+    faculty?: { department: string; specialization: string; avatar?: string | null } | null;
+    student?: { department: string; semester: number; shift: string; blocked?: boolean; readmitRequested?: boolean; avatar?: string | null } | null;
   } | null>(null);
 
   const { user } = useUser();
@@ -101,14 +102,14 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
     const newDismissed = [...dismissedIds, id];
     setDismissedIds(newDismissed);
     try {
-      localStorage.setItem(`dismissed_announcements_${userId}`, JSON.stringify(newDismissed));
-      window.dispatchEvent(new Event("notifications-updated"));
+      localStorage.setItem(`popup_dismissed_announcements_${userId}`, JSON.stringify(newDismissed));
+      window.dispatchEvent(new Event("popup-notifications-updated"));
     } catch (e) {
       console.error("Failed to save dismissed notification:", e);
     }
   };
 
-  // Load user-scoped dismissed announcements from localStorage on mount, user change, or route transition
+  // Load user-scoped dismissed announcements for popup from localStorage
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsMounted(true);
@@ -116,7 +117,7 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
 
     const syncDismissed = () => {
       if (userId) {
-        const stored = localStorage.getItem(`dismissed_announcements_${userId}`);
+        const stored = localStorage.getItem(`popup_dismissed_announcements_${userId}`);
         if (stored) {
           try {
             const parsed = JSON.parse(stored);
@@ -136,10 +137,10 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
 
     syncDismissed();
 
-    window.addEventListener("notifications-updated", syncDismissed);
+    window.addEventListener("popup-notifications-updated", syncDismissed);
     return () => {
       clearTimeout(timer);
-      window.removeEventListener("notifications-updated", syncDismissed);
+      window.removeEventListener("popup-notifications-updated", syncDismissed);
     };
   }, [userId, pathname]);
 
@@ -267,14 +268,24 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
         )}
 
         {/* User button */}
-        <UserButton
-          afterSignOutUrl="/"
-          appearance={{
-            elements: {
-              avatarBox: "h-9 w-9 ring-2 ring-brand-primary/20",
-            },
-          }}
-        />
+        <div className="relative h-9 w-9 flex items-center justify-center">
+          {(dbProfile?.avatar || dbProfile?.student?.avatar || dbProfile?.faculty?.avatar) ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={dbProfile?.avatar || dbProfile?.student?.avatar || dbProfile?.faculty?.avatar || ""}
+              alt={dbProfile?.name || "User Avatar"}
+              className="absolute inset-0 h-9 w-9 rounded-full object-cover ring-2 ring-brand-primary/30 pointer-events-none z-10"
+            />
+          ) : null}
+          <UserButton
+            afterSignOutUrl="/"
+            appearance={{
+              elements: {
+                avatarBox: "h-9 w-9 ring-2 ring-brand-primary/20",
+              },
+            }}
+          />
+        </div>
       </div>
 
       {/* Centered Simple Notification Modal */}

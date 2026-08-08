@@ -23,9 +23,10 @@ import {
   ListSkeleton,
   TableSkeleton,
 } from "@/components/ui";
-import { Button } from "@/components/ui/button";
+import { AlumniDashboardHome } from "@/components/dashboard/AlumniDashboardHome";
 import { RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   ChartContainer,
   ChartTooltip,
@@ -91,6 +92,10 @@ interface StudentDashboardResponse {
     shift: string;
     blocked?: boolean;
     readmitRequested?: boolean;
+    status?: string;
+    rollNo?: string;
+    cgpa?: number;
+    enrollmentDate?: string;
   };
 }
 
@@ -119,14 +124,21 @@ export function StudentDashboardHome() {
   const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dbName, setDbName] = useState<string | null>(null);
   const [dashboardData, setDashboardData] =
     useState<StudentDashboardResponse | null>(null);
 
   const fetchDashboard = async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
     try {
-      const res = await api.get<StudentDashboardResponse>("/api/dashboard/student");
+      const [res, meRes] = await Promise.all([
+        api.get<StudentDashboardResponse>("/api/dashboard/student"),
+        api.get("/api/me").catch(() => null),
+      ]);
       const data = res.data;
+      if (meRes?.data?.name) {
+        setDbName(meRes.data.name);
+      }
       if (!data || (typeof data === "object" && "error" in data)) {
         setTimetable([]);
         setQuizzes([]);
@@ -175,6 +187,59 @@ export function StudentDashboardHome() {
   const attendanceRate = stats?.attendanceRate ?? stats?.attendancePercent;
   const totalDues = stats?.totalDues ?? stats?.pendingDues;
   const totalCourses = stats?.totalCourses ?? stats?.enrolledCourses;
+
+  const displayName = dbName || user?.firstName || "Student";
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title={`Welcome, ${displayName}! 👋`}
+          subtitle="Here's your academic snapshot for today."
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              disabled
+              className="geo-pressable flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-not-allowed opacity-50"
+            >
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              Refresh
+            </Button>
+          }
+        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <StatsCardSkeleton />
+          <StatsCardSkeleton />
+          <StatsCardSkeleton />
+          <StatsCardSkeleton />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <ChartSkeleton />
+          <ChartSkeleton />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2">
+            <TableSkeleton rows={5} />
+          </div>
+          <ListSkeleton count={3} />
+        </div>
+      </div>
+    );
+  }
+
+  // If student is graduated, render Alumni Portal Dashboard
+  if (dashboardData?.studentProfile?.status === "Graduated") {
+    return (
+      <AlumniDashboardHome
+        studentName={displayName}
+        department={dashboardData.studentProfile.department}
+        cgpa={dashboardData.studentProfile.cgpa ?? currentGpa ?? 3.8}
+        rollNo={dashboardData.studentProfile.rollNo || "N/A"}
+        enrollmentDate={dashboardData.studentProfile.enrollmentDate}
+      />
+    );
+  }
 
   const gpaTrend =
     currentGpa === undefined || currentGpa === null
@@ -230,47 +295,6 @@ export function StudentDashboardHome() {
     },
   ];
 
-  if (loading) {
-    const firstName = user?.firstName ?? "Student";
-    return (
-      <div className="space-y-6">
-        <PageHeader
-          title={`Welcome, ${firstName}! 👋`}
-          subtitle="Here's your academic snapshot for today."
-          action={
-            <Button
-              variant="outline"
-              size="sm"
-              disabled
-              className="geo-pressable flex items-center gap-2 border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] cursor-not-allowed opacity-50"
-            >
-              <RefreshCw className="h-4 w-4 animate-spin" />
-              Refresh
-            </Button>
-          }
-        />
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          <StatsCardSkeleton />
-          <StatsCardSkeleton />
-          <StatsCardSkeleton />
-          <StatsCardSkeleton />
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <ChartSkeleton />
-          <ChartSkeleton />
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2">
-            <TableSkeleton rows={5} />
-          </div>
-          <ListSkeleton count={3} />
-        </div>
-      </div>
-    );
-  }
-
-  const firstName = user?.firstName ?? "Student";
-
   return (
     <motion.div
       variants={container}
@@ -307,7 +331,7 @@ export function StudentDashboardHome() {
       )}
 
       <PageHeader
-        title={`Welcome, ${firstName}! 👋`}
+        title={`Welcome, ${displayName}! 👋`}
         subtitle="Here's your academic snapshot for today."
         action={
           <Button
@@ -327,46 +351,54 @@ export function StudentDashboardHome() {
         variants={item}
         className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4"
       >
-        <StatsCard
-          title="Previous CGPA"
-          value={currentGpa === null || currentGpa === undefined ? "—" : currentGpa.toFixed(2)}
-          trend={gpaTrend}
-          trendDirection={gpaTrendDir}
-          trendLabel="Academic Status"
-          icon={GraduationCap}
-          iconColor="var(--color-brand-primary)"
-          iconBg="rgb(var(--color-brand-primary-rgb) / 0.1)"
-        />
-        <StatsCard
-          title="Attendance"
-          value={attendanceRate === null || attendanceRate === undefined ? "—" : `${attendanceRate}%`}
-          trend={attendanceTrend}
-          trendDirection={attendanceTrendDir}
-          trendLabel="Attendance Status"
-          icon={Clock}
-          iconColor="var(--color-system-success)"
-          iconBg="rgb(var(--color-system-success-rgb) / 0.1)"
-        />
-        <StatsCard
-          title="Pending Dues"
-          value={totalDues !== undefined ? `PKR ${totalDues.toLocaleString()}` : "—"}
-          trend={duesTrend}
-          trendDirection={duesTrendDir}
-          trendLabel="Dues Status"
-          icon={CreditCard}
-          iconColor="var(--color-system-danger)"
-          iconBg="rgb(var(--color-system-danger-rgb) / 0.1)"
-        />
-        <StatsCard
-          title="Enrolled Courses"
-          value={totalCourses ?? timetable.length}
-          trend="Active"
-          trendDirection="up"
-          trendLabel="Registration Status"
-          icon={BookOpen}
-          iconColor="var(--color-data-3)"
-          iconBg="color-mix(in oklab, var(--color-data-3) 10%, transparent)"
-        />
+        <Link href="/dashboard/my-grades" className="block transition-transform hover:scale-[1.02]">
+          <StatsCard
+            title="Previous CGPA"
+            value={currentGpa === null || currentGpa === undefined ? "—" : currentGpa.toFixed(2)}
+            trend={gpaTrend}
+            trendDirection={gpaTrendDir}
+            trendLabel="Academic Status"
+            icon={GraduationCap}
+            iconColor="var(--color-brand-primary)"
+            iconBg="rgb(var(--color-brand-primary-rgb) / 0.1)"
+          />
+        </Link>
+        <Link href="/dashboard/my-attendance" className="block transition-transform hover:scale-[1.02]">
+          <StatsCard
+            title="Attendance"
+            value={attendanceRate === null || attendanceRate === undefined ? "—" : `${attendanceRate}%`}
+            trend={attendanceTrend}
+            trendDirection={attendanceTrendDir}
+            trendLabel="Attendance Status"
+            icon={Clock}
+            iconColor="var(--color-system-success)"
+            iconBg="rgb(var(--color-system-success-rgb) / 0.1)"
+          />
+        </Link>
+        <Link href="/dashboard/my-dues" className="block transition-transform hover:scale-[1.02]">
+          <StatsCard
+            title="Pending Dues"
+            value={totalDues !== undefined ? `PKR ${totalDues.toLocaleString()}` : "—"}
+            trend={duesTrend}
+            trendDirection={duesTrendDir}
+            trendLabel="Dues Status"
+            icon={CreditCard}
+            iconColor="var(--color-system-danger)"
+            iconBg="rgb(var(--color-system-danger-rgb) / 0.1)"
+          />
+        </Link>
+        <Link href="/dashboard/my-courses" className="block transition-transform hover:scale-[1.02]">
+          <StatsCard
+            title="Enrolled Courses"
+            value={totalCourses ?? timetable.length}
+            trend="Active"
+            trendDirection="up"
+            trendLabel="Registration Status"
+            icon={BookOpen}
+            iconColor="var(--color-data-3)"
+            iconBg="color-mix(in oklab, var(--color-data-3) 10%, transparent)"
+          />
+        </Link>
       </motion.div>
 
       {/* Charts */}
@@ -376,9 +408,10 @@ export function StudentDashboardHome() {
       >
         {/* Attendance Chart */}
         <div className="rounded-xl border border-border bg-card p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">
-            Attendance by Course
-          </h3>
+          <Link href="/dashboard/my-attendance" className="flex items-center justify-between text-sm font-semibold text-foreground mb-4 hover:text-brand-primary transition-colors group">
+            <span>Attendance by Course</span>
+            <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+          </Link>
           <ChartContainer
             config={attendanceChartConfig}
             className="h-[200px] w-full"
@@ -417,9 +450,10 @@ export function StudentDashboardHome() {
 
         {/* Grade Breakdown */}
         <div className="rounded-xl border border-border bg-card p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">
-            Grade Breakdown
-          </h3>
+          <Link href="/dashboard/my-grades" className="flex items-center justify-between text-sm font-semibold text-foreground mb-4 hover:text-brand-primary transition-colors group">
+            <span>Grade Breakdown</span>
+            <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+          </Link>
           <ChartContainer
             config={gradeChartConfig}
             className="h-[200px] w-full"
@@ -448,9 +482,10 @@ export function StudentDashboardHome() {
       >
         {/* Today's Classes */}
         <div className="rounded-xl border border-border bg-card p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">
-            Today&apos;s Classes
-          </h3>
+          <Link href="/dashboard/my-courses" className="flex items-center justify-between text-sm font-semibold text-foreground mb-4 hover:text-brand-primary transition-colors group">
+            <span>Today&apos;s Classes</span>
+            <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+          </Link>
           {todayClasses.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No classes scheduled for today. 🎉

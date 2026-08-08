@@ -275,6 +275,10 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
       shift: student.shift,
       blocked: student.blocked,
       readmitRequested: student.readmitRequested,
+      status: student.status,
+      rollNo: student.rollNo,
+      cgpa: student.cgpa,
+      enrollmentDate: student.enrollmentDate?.toISOString(),
     },
   };
 }

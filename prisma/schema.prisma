@@ -35,6 +35,9 @@ model Student {
   cgpa           Float         @default(0.0)
   blocked        Boolean       @default(false)
   readmitRequested Boolean     @default(false)
+  status         String        @default("Active")
+  gradesheetUrl  String?
+  graduationDate DateTime?
   attendances    Attendance[]
   enrollments    Enrollment[]
   fees           Fee[]

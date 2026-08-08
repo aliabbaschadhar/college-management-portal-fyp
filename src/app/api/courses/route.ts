@@ -47,23 +47,22 @@ export async function GET() {
     }
 
     // Build where clause based on role
+    const userRole = user.role?.toUpperCase();
     const whereClause: Prisma.CourseWhereInput = {};
 
-    if (user.role === "FACULTY" && user.faculty) {
+    if (userRole === "FACULTY" && user.faculty) {
       // Faculty see strictly courses explicitly assigned to them by an admin
       whereClause.OR = [
         { assignedFaculty: user.faculty.id },
         { assignedFacultyMorning: user.faculty.id },
         { assignedFacultyEvening: user.faculty.id },
       ];
-    } else if (user.role === "STUDENT") {
-      if (user.student) {
-        await ensureStudentEnrollments(user.student.id, user.student.department, user.student.semester);
-        whereClause.semester = user.student.semester;
-        whereClause.enrollments = {
-          some: { studentId: user.student.id },
-        };
-      }
+    } else if (userRole === "STUDENT" && user.student) {
+      await ensureStudentEnrollments(user.student.id, user.student.department, user.student.semester);
+      whereClause.semester = user.student.semester;
+      whereClause.enrollments = {
+        some: { studentId: user.student.id },
+      };
     }
 
     const courses = await prisma.course.findMany({
@@ -77,6 +76,23 @@ export async function GET() {
         },
         facultyEvening: {
           include: { user: { select: { name: true } } },
+        },
+        timetables: true,
+        enrollments: {
+          include: {
+            student: {
+              select: {
+                id: true,
+                rollNo: true,
+                phone: true,
+                department: true,
+                semester: true,
+                shift: true,
+                enrollmentDate: true,
+                user: { select: { name: true, email: true } },
+              },
+            },
+          },
         },
         _count: { select: { enrollments: true } },
       },
@@ -93,6 +109,8 @@ export async function GET() {
       assignedFacultyMorning: c.assignedFacultyMorning,
       assignedFacultyEvening: c.assignedFacultyEvening,
       shift: c.shift,
+      timetables: c.timetables,
+      enrollments: c.enrollments,
       faculty: c.faculty
         ? {
             user: { name: c.faculty.user.name },

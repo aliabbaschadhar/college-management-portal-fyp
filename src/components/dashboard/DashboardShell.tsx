@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
+import { LayoutDashboard } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { getNavItems } from "@/lib/sidebar-config";
@@ -39,6 +40,29 @@ export function DashboardShell({ children, role, roleLabel }: DashboardShellProp
       localStorage.setItem("lastViewedFeedback", Date.now().toString());
     }
   }, [pathname]);
+
+  useEffect(() => {
+    if (role !== "student" || !isLoaded || !isSignedIn) return;
+    let isMounted = true;
+
+    api.get<{ student?: { status?: string } }>("/api/me")
+      .then((res) => {
+        if (!isMounted) return;
+        if (res.data?.student?.status === "Graduated") {
+          setNavItems([
+            { title: "Graduation Portal", href: "/dashboard", icon: LayoutDashboard },
+          ]);
+          if (pathname !== "/dashboard" && !pathname.startsWith("/dashboard/alumni")) {
+            window.location.href = "/dashboard";
+          }
+        }
+      })
+      .catch((err) => console.error("Failed to fetch student status for sidebar:", err));
+
+    return () => {
+      isMounted = false;
+    };
+  }, [role, isLoaded, isSignedIn, pathname]);
 
   useEffect(() => {
     if (role !== "admin" || !isLoaded || !isSignedIn) return;

@@ -35,6 +35,8 @@ import {
 } from "@/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
 
+import { DEPARTMENTS as DOMAIN_DEPARTMENTS } from "@/lib/constants";
+
 type Role = "ADMIN" | "FACULTY" | "STUDENT";
 
 interface UserRow {
@@ -44,7 +46,13 @@ interface UserRow {
   email: string;
   role: Role;
   createdAt: string;
-  student: { rollNo: string; department: string; semester?: number } | null;
+  student: {
+    rollNo: string;
+    department: string;
+    semester?: number;
+    approvedBy?: string | null;
+    enrollmentDate?: string;
+  } | null;
   faculty: { department: string } | null;
 }
 
@@ -56,14 +64,7 @@ const roleBadgeClass: Record<Role, string> = {
     "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
 };
 
-const DEPARTMENTS = [
-  "ALL",
-  "Computer Science",
-  "Software Engineering",
-  "Electrical Engineering",
-  "Business Administration",
-  "Mathematics",
-];
+const DEPARTMENTS = ["ALL", ...DOMAIN_DEPARTMENTS];
 
 const SEMESTERS = ["ALL", "1", "2", "3", "4", "5", "6", "7", "8"];
 
@@ -413,7 +414,24 @@ export function UserManagementClient() {
 
                         {/* Audit */}
                         <td className="text-center py-3 px-3 hidden md:table-cell">
-                          <AuditBadgeInline entity="User" entityId={user.id} />
+                          <div className="flex flex-col items-center gap-1">
+                            <AuditBadgeInline entity="User" entityId={user.id} />
+                            {user.role === "STUDENT" && user.student && (
+                              <div className="text-[10px] text-muted-foreground flex flex-col items-center">
+                                <span className="font-semibold text-brand-primary">
+                                  Approved by: {user.student.approvedBy || "Admin"}
+                                </span>
+                                <span className="text-[9px] opacity-75">
+                                  {user.student.enrollmentDate
+                                    ? new Date(user.student.enrollmentDate).toLocaleString(undefined, {
+                                        dateStyle: "short",
+                                        timeStyle: "short",
+                                      })
+                                    : new Date(user.createdAt).toLocaleDateString()}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </td>
 
                         {/* Action */}
