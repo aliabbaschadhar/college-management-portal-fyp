@@ -63,7 +63,9 @@ export async function GET(request: NextRequest) {
     const isAdmin = authUser?.role?.toUpperCase() === "ADMIN";
 
     const formatted = alumniList.map((a) => {
-      const gradYear = a.enrollmentDate ? new Date(a.enrollmentDate).getFullYear() + 4 : new Date().getFullYear();
+      const startYear = a.enrollmentDate ? new Date(a.enrollmentDate).getFullYear() : 2022;
+      const endYear = startYear + 4;
+      const batchStr = `Batch ${startYear}-${String(endYear).slice(-2)}`;
       return {
         id: a.id,
         rollNo: a.rollNo,
@@ -71,8 +73,9 @@ export async function GET(request: NextRequest) {
         email: isAdmin ? (a.user?.email || "") : "",
         avatar: a.avatar || a.user?.avatar || null,
         department: a.department,
-        graduationYear: gradYear,
-        cgpa: isAdmin ? a.cgpa : null,
+        graduationYear: endYear,
+        batch: batchStr,
+        cgpa: a.cgpa,
         shift: a.shift,
         status: a.status,
       };

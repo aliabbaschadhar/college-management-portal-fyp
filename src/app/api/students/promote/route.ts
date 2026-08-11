@@ -37,6 +37,13 @@ export async function POST(request: NextRequest) {
 
     const isGraduating = targetSemester === 9;
 
+    if (isGraduating && (!body.gradesheetUrl || typeof body.gradesheetUrl !== "string" || !body.gradesheetUrl.trim())) {
+      return NextResponse.json(
+        { error: "A valid PDF grade sheet document is mandatory before converting a student to Alumni status." },
+        { status: 400 }
+      );
+    }
+
     // Resolve which students to promote
     let promoteStudentIds: string[] = [];
     if (body.studentIds && Array.isArray(body.studentIds)) {
@@ -86,29 +93,24 @@ export async function POST(request: NextRequest) {
         }
 
         if (isGraduating) {
-          if (!body.gradesheetUrl) {
-            errors.push(`Clearance Failed for ${student.rollNo}: Official 8-semester degree gradesheet (PDF or Image) must be uploaded`);
-            continue;
-          }
-
           if (student.status === "Graduated") {
             errors.push(`Student ${student.rollNo} is already Graduated`);
             continue;
           }
 
           if (student.blocked) {
-            errors.push(`Clearance Failed for ${student.rollNo}: Student account is suspended/blocked`);
+            errors.push(`Clearance Failed: Student ${student.rollNo} account is currently suspended/struck off.`);
             continue;
           }
 
           if (student.readmitRequested) {
-            errors.push(`Clearance Failed for ${student.rollNo}: Pending re-admission request must be resolved first`);
+            errors.push(`Clearance Failed: Student ${student.rollNo} has a pending re-admission request.`);
             continue;
           }
 
           if (student.fees && student.fees.length > 0) {
             const totalPending = student.fees.reduce((sum, f) => sum + f.amount, 0);
-            errors.push(`Clearance Failed for ${student.rollNo}: Has ${student.fees.length} unpaid/overdue fee dues (Total: $${totalPending.toFixed(2)})`);
+            errors.push(`Clearance Failed: Student ${student.rollNo} has ${student.fees.length} unpaid fee due(s) totaling PKR ${totalPending.toLocaleString()}. Graduation is blocked until cleared.`);
             continue;
           }
 
@@ -118,7 +120,7 @@ export async function POST(request: NextRequest) {
               data: {
                 status: "Graduated",
                 semester: 8,
-                gradesheetUrl: body.gradesheetUrl,
+                gradesheetUrl: body.gradesheetUrl || null,
                 graduationDate: new Date(),
               },
               include: { user: { select: { name: true } } },
@@ -195,6 +197,19 @@ export async function POST(request: NextRequest) {
         console.error(`Error promoting student ${studentId}:`, studentErr);
         errors.push(`Failed to promote student ${studentId}`);
       }
+    }
+
+    if (results.length === 0 && errors.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: errors.join(" | "),
+          promotedCount: 0,
+          promotedStudents: [],
+          errors,
+        },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json({

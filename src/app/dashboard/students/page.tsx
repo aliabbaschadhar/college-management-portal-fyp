@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/axios";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { Pencil, Trash2, Loader2, Eye, Calendar, Mail, Phone, Clock, Shield, RefreshCw, CheckCircle, BadgeCheck, Building2, BookOpen, GraduationCap, User } from "lucide-react";
+import { Pencil, Trash2, Loader2, Eye, Calendar, Shield, RefreshCw, CheckCircle, BadgeCheck, Building2, BookOpen, GraduationCap, User, AlertOctagon, X } from "lucide-react";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
@@ -45,6 +45,7 @@ interface StudentWithUser {
   approvedBy?: string | null;
   blocked?: boolean;
   readmitRequested?: boolean;
+  status?: string;
   user: { name: string | null; email: string };
   _count: { enrollments: number };
 }
@@ -146,6 +147,8 @@ export default function ManageStudentsPage() {
   const [promoting, setPromoting] = useState(false);
   const [targetSemester, setTargetSemester] = useState("1");
   const [isPromotingAllClass, setIsPromotingAllClass] = useState(false);
+  const [gradesheetFile, setGradesheetFile] = useState<File | null>(null);
+  const [gradesheetError, setGradesheetError] = useState<string | null>(null);
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
   const [bulkDeleteTarget, setBulkDeleteTarget] = useState<"selected" | "class" | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -154,7 +157,7 @@ export default function ManageStudentsPage() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
-    setTimeout(() => setToast(null), 3500);
+    setTimeout(() => setToast(null), ok ? 3500 : 6000);
   };
 
   const handleBulkDelete = async () => {
@@ -189,7 +192,8 @@ export default function ManageStudentsPage() {
       (s) =>
         s.department === selectedDept &&
         s.semester === selectedSemester &&
-        s.shift === selectedShift
+        s.shift === selectedShift &&
+        s.status !== "Graduated"
     );
   }, [students, selectedDept, selectedSemester, selectedShift]);
 
@@ -199,7 +203,7 @@ export default function ManageStudentsPage() {
       const facultyDepts = new Set(courses.map((c) => c.department));
       return DEPARTMENTS.filter((dept) => facultyDepts.has(dept));
     }
-    return DEPARTMENTS.filter((dept) => students.some((s) => s.department === dept));
+    return DEPARTMENTS.filter((dept) => students.some((s) => s.department === dept && s.status !== "Graduated"));
   }, [isAdmin, isFaculty, courses, students]);
 
   const visibleSemesters = useMemo(() => {
@@ -214,7 +218,7 @@ export default function ManageStudentsPage() {
       return allSemesters.filter((sem) => facultySemesters.has(sem));
     }
     return allSemesters.filter((sem) =>
-      students.some((s) => s.department === selectedDept && s.semester === sem)
+      students.some((s) => s.department === selectedDept && s.semester === sem && s.status !== "Graduated")
     );
   }, [isAdmin, isFaculty, courses, selectedDept, students]);
 
@@ -250,20 +254,35 @@ export default function ManageStudentsPage() {
     return 0;
   }, []);
 
-  const [graduationGradesheetUrl, setGraduationGradesheetUrl] = useState<string>("");
-
   const handlePromote = async () => {
-    if (Number(targetSemester) === 9 && !graduationGradesheetUrl.trim()) {
-      showToast("Clearance Failed: Official 8-semester degree gradesheet (PDF or Image) is required to graduate student.", false);
-      return;
+    setGradesheetError(null);
+
+    if (Number(targetSemester) === 9) {
+      if (!gradesheetFile) {
+        setGradesheetError("Please select a mandatory PDF grade sheet file to convert student to Alumni status.");
+        return;
+      }
+      if (!gradesheetFile.name.toLowerCase().endsWith(".pdf") && gradesheetFile.type !== "application/pdf") {
+        setGradesheetError("Only PDF files (.pdf) are allowed for the degree grade sheet.");
+        return;
+      }
     }
 
     setPromoting(true);
     try {
       let payload: Record<string, unknown> = {
         targetSemester: Number(targetSemester),
-        gradesheetUrl: graduationGradesheetUrl.trim() || undefined,
       };
+
+      if (Number(targetSemester) === 9 && gradesheetFile) {
+        const base64Url = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(gradesheetFile);
+        });
+        payload.gradesheetUrl = base64Url;
+      }
 
       if (isPromotingAllClass) {
         payload = {
@@ -280,28 +299,65 @@ export default function ManageStudentsPage() {
         };
       }
 
-      const { data } = await api.post<{ promotedStudents: { id: string; semester: number }[] }>(
-        "/api/students/promote",
-        payload
-      );
+      const res = await api.post<{
+        success: boolean;
+        promotedCount: number;
+        promotedStudents: { id: string; semester: number; status?: string }[];
+        errors?: string[];
+        error?: string;
+      }>("/api/students/promote", payload);
 
-      // Update local student semesters
-      const promotedMap = new Map(data.promotedStudents.map((s) => [s.id, s.semester]));
+      const data = res.data;
+
+      if (data.errors && data.errors.length > 0) {
+        if (data.promotedCount === 0) {
+          setPromotionDialogOpen(false);
+          setGradesheetFile(null);
+          showToast(data.errors.join(" | "), false);
+          return;
+        } else {
+          showToast(`Partial success (${data.promotedCount} promoted). Warnings: ${data.errors.join(" | ")}`, false);
+        }
+      } else {
+        showToast(
+          Number(targetSemester) === 9
+            ? "Students successfully graduated and converted to Alumni!"
+            : "Students successfully promoted!"
+        );
+      }
+
+      // Update local student semesters and status
+      const promotedMap = new Map(data.promotedStudents.map((s) => [s.id, s]));
       setStudents((prev) =>
         prev.map((s) => {
-          const newSem = promotedMap.get(s.id);
-          if (newSem !== undefined) {
-            return { ...s, semester: newSem };
+          const updatedInfo = promotedMap.get(s.id);
+          if (updatedInfo) {
+            return {
+              ...s,
+              semester: updatedInfo.semester,
+              status: updatedInfo.status ?? (Number(targetSemester) === 9 ? "Graduated" : s.status),
+            };
           }
           return s;
         })
       );
 
       setSelectedStudentIds([]);
+      setGradesheetFile(null);
       setPromotionDialogOpen(false);
       router.refresh();
     } catch (err: unknown) {
       console.error("Promotion failed:", err);
+      const apiErr = err as { response?: { data?: { error?: string; errors?: string[] } } };
+      const errMsg =
+        apiErr.response?.data?.error ||
+        apiErr.response?.data?.errors?.join(" | ") ||
+        "Failed to promote/graduate student. Please check clearance and retry.";
+      
+      // Auto-exit promotion dialog and gradesheet input so top red toast alert bar is fully visible
+      setPromotionDialogOpen(false);
+      setGradesheetFile(null);
+      showToast(errMsg, false);
     } finally {
       setPromoting(false);
     }
@@ -647,7 +703,7 @@ export default function ManageStudentsPage() {
           >
             <PageHeader
               title="Manage Students"
-              subtitle={`${students.length} students enrolled across all departments`}
+              subtitle={`${students.filter((s) => s.status !== "Graduated").length} active students enrolled across all departments`}
               breadcrumbs={[
                 { label: "Dashboard", href: "/dashboard" },
                 { label: "Manage Students" },
@@ -660,7 +716,7 @@ export default function ManageStudentsPage() {
               /* Department Grid */
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {visibleDepartments.map((dept) => {
-                  const count = students.filter((s) => s.department === dept).length;
+                  const count = students.filter((s) => s.department === dept && s.status !== "Graduated").length;
                   return (
                     <motion.div
                       whileHover={{ scale: 1.03, y: -4 }}
@@ -730,7 +786,7 @@ export default function ManageStudentsPage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 {visibleSemesters.map((sem) => {
                   const count = students.filter(
-                    (s) => s.department === selectedDept && s.semester === sem
+                    (s) => s.department === selectedDept && s.semester === sem && s.status !== "Graduated"
                   ).length;
                   return (
                     <motion.div
@@ -1250,6 +1306,38 @@ export default function ManageStudentsPage() {
                   </Select>
                 </div>
 
+                {Number(targetSemester) === 9 && (
+                  <div className="space-y-2 p-4 bg-amber-500/10 border-2 border-amber-500/30 rounded-2xl">
+                    <Label className="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                      <BookOpen className="h-4 w-4" />
+                      Mandatory Complete Grade Sheet (PDF File Only) *
+                    </Label>
+                    <Input
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        if (file && !file.name.toLowerCase().endsWith(".pdf") && file.type !== "application/pdf") {
+                          setGradesheetError("Only PDF files (.pdf) are allowed");
+                          setGradesheetFile(null);
+                        } else {
+                          setGradesheetError(null);
+                          setGradesheetFile(file);
+                        }
+                      }}
+                      className="bg-card border-border text-xs cursor-pointer file:bg-brand-primary file:text-white file:border-0 file:rounded-lg file:px-3 file:py-1"
+                    />
+                    {gradesheetError && (
+                      <p className="text-xs text-rose-600 dark:text-rose-400 font-bold">{gradesheetError}</p>
+                    )}
+                    {gradesheetFile && (
+                      <p className="text-xs text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                        ✓ Selected: {gradesheetFile.name} ({(gradesheetFile.size / 1024).toFixed(1)} KB)
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <div className="space-y-3">
                   <p className="text-sm text-muted-foreground">
                     This action will:
@@ -1268,38 +1356,7 @@ export default function ManageStudentsPage() {
                   </ul>
                 </div>
 
-                {Number(targetSemester) === 9 && (
-                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2">
-                    <Label className="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5 uppercase">
-                      Upload 8-Semester Degree Gradesheet (Mandatory) *
-                    </Label>
-                    <Input
-                      type="file"
-                      accept=".pdf,image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onload = () => {
-                            setGraduationGradesheetUrl(reader.result as string);
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                      className="text-xs rounded-xl bg-card cursor-pointer"
-                    />
-                    <Input
-                      type="text"
-                      placeholder="Or enter complete gradesheet URL..."
-                      value={graduationGradesheetUrl}
-                      onChange={(e) => setGraduationGradesheetUrl(e.target.value)}
-                      className="text-xs rounded-xl font-mono bg-card"
-                    />
-                    <p className="text-[11px] text-muted-foreground">
-                      ⚠️ Clearance requirement: Must upload the complete degree gradesheet covering all 8 semesters.
-                    </p>
-                  </div>
-                )}
+
 
                 <div className="p-3 bg-accent/30 rounded-xl space-y-2 border">
                   <div className="flex justify-between text-sm">
@@ -1371,18 +1428,42 @@ export default function ManageStudentsPage() {
         </>
       )}
 
-      {/* Floating Toast Notification */}
+      {/* Top of Screen Alert Toast Bar */}
       <AnimatePresence>
         {toast && (
           <motion.div
-            initial={{ opacity: 0, y: 16, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.96 }}
-            transition={{ duration: 0.2 }}
-            className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-2xl px-5 py-3.5 shadow-xl text-sm font-medium ${toast.ok ? "bg-emerald-600 text-white" : "bg-rose-600 text-white"
-              }`}
+            initial={{ opacity: 0, y: -40, x: "-50%", scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, x: "-50%", scale: 1 }}
+            exit={{ opacity: 0, y: -30, x: "-50%", scale: 0.96 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            className={`fixed top-6 left-1/2 z-[9999] w-[92%] max-w-lg rounded-2xl p-4 shadow-lg backdrop-blur-md border-2 flex items-start gap-3.5 ${
+              toast.ok
+                ? "bg-emerald-50 dark:bg-emerald-950/80 border-emerald-500/30 text-emerald-900 dark:text-emerald-100 shadow-emerald-500/10"
+                : "bg-rose-50 dark:bg-rose-950/80 border-rose-500/30 text-rose-900 dark:text-rose-100 shadow-rose-500/10"
+            }`}
           >
-            {toast.msg}
+            <div className={`p-2 rounded-xl shrink-0 ${toast.ok ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : "bg-rose-500/15 text-rose-600 dark:text-rose-400"}`}>
+              {toast.ok ? (
+                <CheckCircle className="h-5 w-5" />
+              ) : (
+                <AlertOctagon className="h-5 w-5" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0 pr-1 space-y-0.5">
+              <h4 className={`text-sm font-bold tracking-tight ${toast.ok ? "text-emerald-800 dark:text-emerald-300" : "text-rose-800 dark:text-rose-300"}`}>
+                {toast.ok ? "Action Successful" : "Graduation Clearance Blocked"}
+              </h4>
+              <p className="text-xs font-semibold leading-relaxed text-foreground/80 whitespace-pre-line">
+                {toast.msg.replace(/^Clearance Error:\s*/i, "")}
+              </p>
+            </div>
+            <button
+              onClick={() => setToast(null)}
+              className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 shrink-0 cursor-pointer"
+              title="Dismiss Alert"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </motion.div>
         )}
       </AnimatePresence>

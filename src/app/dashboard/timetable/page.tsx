@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/axios";
 import {
   Clock,
-  User,
   MapPin,
   Download,
   Plus,
@@ -15,10 +14,9 @@ import {
   AlertTriangle,
   UserCheck,
   Loader2,
-  Lock,
-  Unlock,
   Palette,
   FileText,
+  CheckCircle2,
 } from "lucide-react";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { motion } from "framer-motion";
@@ -394,6 +392,7 @@ export default function TimetablePage() {
   const [autoGenDialogOpen, setAutoGenDialogOpen] = useState<boolean>(false);
   const [autoGenRoomsInput, setAutoGenRoomsInput] = useState<string>("Room 101, Room 102, Room 103");
   const [autoGenDays, setAutoGenDays] = useState<string[]>(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]);
+  const [selectedCourseIdsForAutoGen, setSelectedCourseIdsForAutoGen] = useState<string[]>([]);
   const [autoGenGenerating, setAutoGenGenerating] = useState<boolean>(false);
   const [autoGenError, setAutoGenError] = useState<string | null>(null);
 
@@ -621,6 +620,12 @@ export default function TimetablePage() {
       setForm((current) => ({ ...current, courseId: primaryCourses[0].id }));
     }
   }, [editingEntry, primaryCourses, form.courseId]);
+
+  useEffect(() => {
+    if (primaryCourses.length > 0 && selectedCourseIdsForAutoGen.length === 0) {
+      setSelectedCourseIdsForAutoGen(primaryCourses.map((c) => c.id));
+    }
+  }, [primaryCourses, selectedCourseIdsForAutoGen.length]);
 
   const openCreateDialog = (day?: TimetableDay, startTime?: string, endTime?: string) => {
     const defaultStart = gridStart;
@@ -1827,11 +1832,36 @@ export default function TimetablePage() {
                   primaryCourses.map((c) => {
                     const teacher = getTeacherForCourseAndShift(c, filterShift);
                     const isAssigned = teacher && teacher !== "Unassigned";
+                    const isChecked = selectedCourseIdsForAutoGen.length === 0 || selectedCourseIdsForAutoGen.includes(c.id);
+
                     return (
-                      <div key={c.id} className="flex items-center justify-between text-xs p-2.5 rounded-xl bg-muted/30 border border-border/50">
-                        <span className="font-bold text-foreground">
-                          {c.courseCode} - {c.courseName}
-                        </span>
+                      <div
+                        key={c.id}
+                        onClick={() => {
+                          setSelectedCourseIdsForAutoGen((prev) =>
+                            prev.includes(c.id) ? prev.filter((id) => id !== c.id) : [...prev, c.id]
+                          );
+                        }}
+                        className={`flex items-center justify-between text-xs p-2.5 rounded-xl border transition-all cursor-pointer select-none ${
+                          isChecked
+                            ? "bg-emerald-500/10 border-emerald-500/40 text-foreground"
+                            : "bg-muted/30 border-border/50 opacity-60"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {}}
+                            className="h-4 w-4 rounded accent-emerald-600 cursor-pointer"
+                          />
+                          {isChecked && (
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          )}
+                          <span className="font-bold text-foreground">
+                            {c.courseCode} - {c.courseName}
+                          </span>
+                        </div>
                         <span className={`inline-flex items-center gap-1 font-semibold text-[11px] px-2.5 py-0.5 rounded-md ${
                           isAssigned ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
                         }`}>

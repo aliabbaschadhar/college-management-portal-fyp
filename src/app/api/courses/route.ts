@@ -79,6 +79,11 @@ export async function GET() {
         },
         timetables: true,
         enrollments: {
+          where: {
+            student: {
+              NOT: { status: "Graduated" },
+            },
+          },
           include: {
             student: {
               select: {
@@ -94,7 +99,17 @@ export async function GET() {
             },
           },
         },
-        _count: { select: { enrollments: true } },
+        _count: {
+          select: {
+            enrollments: {
+              where: {
+                student: {
+                  NOT: { status: "Graduated" },
+                },
+              },
+            },
+          },
+        },
       },
     });
 

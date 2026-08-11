@@ -278,6 +278,8 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
       status: student.status,
       rollNo: student.rollNo,
       cgpa: student.cgpa,
+      gradesheetUrl: student.gradesheetUrl,
+      graduationDate: student.graduationDate?.toISOString(),
       enrollmentDate: student.enrollmentDate?.toISOString(),
     },
   };
@@ -288,6 +290,14 @@ export async function ensureStudentEnrollments(
   department: string,
   semester: number
 ): Promise<number> {
+  const studentRecord = await prisma.student.findUnique({
+    where: { id: studentId },
+    select: { status: true },
+  });
+  if (studentRecord?.status === "Graduated") {
+    return 0;
+  }
+
   // Check if student has any enrollments for this semester
   const count = await prisma.enrollment.count({
     where: { studentId, semester },

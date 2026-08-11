@@ -49,7 +49,7 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
     role: string;
     avatar?: string | null;
     faculty?: { department: string; specialization: string; avatar?: string | null } | null;
-    student?: { department: string; semester: number; shift: string; blocked?: boolean; readmitRequested?: boolean; avatar?: string | null } | null;
+    student?: { department: string; semester: number; shift: string; status?: string; blocked?: boolean; readmitRequested?: boolean; avatar?: string | null } | null;
   } | null>(null);
 
   const { user } = useUser();
@@ -221,11 +221,21 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
       {/* Student Profile Banner */}
       {role === "student" && dbProfile?.student && (
         <div className="hidden sm:flex items-center gap-2 text-xs md:text-sm font-black border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] select-none">
-          <span className="capitalize text-brand-primary">{dbProfile.student.department.toLowerCase()}</span>
-          <span className="text-muted-foreground">•</span>
-          <span>Semester {formatSemester(dbProfile.student.semester)}</span>
-          <span className="text-muted-foreground">•</span>
-          <span className="capitalize text-brand-secondary">{dbProfile.student.shift}</span>
+          {dbProfile.student.status === "Graduated" ? (
+            <>
+              <span className="capitalize text-amber-500 font-black">Graduated Alumnus</span>
+              <span className="text-muted-foreground">•</span>
+              <span className="capitalize text-brand-primary">{dbProfile.student.department.toLowerCase()}</span>
+            </>
+          ) : (
+            <>
+              <span className="capitalize text-brand-primary">{dbProfile.student.department.toLowerCase()}</span>
+              <span className="text-muted-foreground">•</span>
+              <span>Semester {formatSemester(dbProfile.student.semester)}</span>
+              <span className="text-muted-foreground">•</span>
+              <span className="capitalize text-brand-secondary">{dbProfile.student.shift}</span>
+            </>
+          )}
         </div>
       )}
 

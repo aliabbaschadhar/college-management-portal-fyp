@@ -34,8 +34,11 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    const includeGraduated = searchParams.get("includeGraduated") === "true";
+
     const students = await prisma.student.findMany({
       where: {
+        ...(includeGraduated ? {} : { NOT: { status: "Graduated" } }),
         ...(department ? { department } : {}),
         ...(semester ? { semester: Number(semester) } : {}),
         ...(search

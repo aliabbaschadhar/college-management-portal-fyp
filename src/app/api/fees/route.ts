@@ -154,6 +154,7 @@ export async function POST(request: NextRequest) {
           department: body.department!,
           semester: body.semester,
           shift: body.shift!,
+          NOT: { status: "Graduated" },
         },
         select: {
           id: true,

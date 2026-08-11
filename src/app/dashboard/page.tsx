@@ -29,6 +29,13 @@ export default async function DashboardPage() {
   }
 
   if (role === "student") {
+    const dbUserWithStudent = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { student: { select: { status: true } } },
+    });
+    if (dbUserWithStudent?.student?.status === "Graduated") {
+      redirect("/graduated");
+    }
     return <StudentDashboardHome />;
   }
 

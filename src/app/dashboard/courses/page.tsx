@@ -1238,7 +1238,7 @@ export default function ManageCoursesPage() {
               </Select>
             </div>
           </div>
-          <DialogFooter className="gap-2">
+          <DialogFooter className="flex flex-wrap items-center justify-between gap-2">
             {(selectedAssignShift === "Morning"
               ? Boolean(
                   assigningCourse?.assignedFacultyMorning ||
@@ -1253,37 +1253,41 @@ export default function ManageCoursesPage() {
                   assigningCourse?.assignedFaculty ||
                     assigningCourse?.assignedFacultyMorning ||
                     assigningCourse?.assignedFacultyEvening
-                )) && (
+                )) ? (
               <Button
                 variant="destructive"
                 onClick={() => handleUnassign(assigningCourse?.id, selectedAssignShift)}
                 disabled={assigning}
-                className="mr-auto"
+                className="text-xs px-3 h-9 flex items-center gap-1.5 shrink-0"
+                title="Unassign Faculty"
               >
-                Unassign {selectedAssignShift !== "Both" ? selectedAssignShift : ""} Faculty
+                <UserMinus className="h-3.5 w-3.5" />
+                Unassign
               </Button>
-            )}
-            <Button
-              variant="outline"
-              onClick={() => setAssignDialogOpen(false)}
-              disabled={assigning}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleAssign}
-              disabled={assigning || !selectedFaculty || selectedFaculty === "none"}
-              className="bg-brand-primary hover:bg-brand-primary/90 text-white min-w-20"
-            >
-              {assigning ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Assigning...
-                </>
-              ) : (
-                "Assign"
-              )}
-            </Button>
+            ) : <div />}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setAssignDialogOpen(false)}
+                disabled={assigning}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleAssign}
+                disabled={assigning || !selectedFaculty || selectedFaculty === "none"}
+                className="bg-brand-primary hover:bg-brand-primary/90 text-white min-w-20"
+              >
+                {assigning ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Assigning...
+                  </>
+                ) : (
+                  "Assign"
+                )}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -95,6 +95,8 @@ interface StudentDashboardResponse {
     status?: string;
     rollNo?: string;
     cgpa?: number;
+    gradesheetUrl?: string | null;
+    graduationDate?: string | null;
     enrollmentDate?: string;
   };
 }
@@ -228,14 +230,19 @@ export function StudentDashboardHome() {
     );
   }
 
-  // If student is graduated, render Alumni Portal Dashboard
+  // If student is graduated, redirect to /dashboard/graduated
   if (dashboardData?.studentProfile?.status === "Graduated") {
+    if (typeof window !== "undefined" && window.location.pathname !== "/dashboard/graduated") {
+      window.location.href = "/dashboard/graduated";
+    }
     return (
       <AlumniDashboardHome
         studentName={displayName}
         department={dashboardData.studentProfile.department}
         cgpa={dashboardData.studentProfile.cgpa ?? currentGpa ?? 3.8}
         rollNo={dashboardData.studentProfile.rollNo || "N/A"}
+        gradesheetUrl={dashboardData.studentProfile.gradesheetUrl}
+        graduationDate={dashboardData.studentProfile.graduationDate}
         enrollmentDate={dashboardData.studentProfile.enrollmentDate}
       />
     );
@@ -539,7 +546,6 @@ export function StudentDashboardHome() {
                   (new Date(quiz.dueDate).getTime() - now.getTime()) /
                     (1000 * 60 * 60 * 24),
                 );
-                const isAssignment = quiz.title.toLowerCase().includes("assignment");
                 return (
                   <div
                     key={quiz.id}

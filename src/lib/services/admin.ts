@@ -26,7 +26,11 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     studentsByDept,
     recentAnnouncements,
   ] = await Promise.all([
-    prisma.user.count({ where: { role: "STUDENT", student: { isNot: null } } }),
+    prisma.student.count({
+      where: {
+        status: { not: "Graduated" },
+      },
+    }),
     prisma.user.count({ where: { role: "FACULTY", faculty: { isNot: null } } }),
     prisma.course.count(),
     prisma.admission.count({ where: { status: "Pending" } }),
@@ -39,7 +43,11 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       by: ["status"],
       _count: { _all: true },
     }),
-    prisma.student.groupBy({ by: ["department"], _count: { _all: true } }),
+    prisma.student.groupBy({
+      where: { status: { not: "Graduated" } },
+      by: ["department"],
+      _count: { _all: true },
+    }),
     prisma.announcement.findMany({
       orderBy: { date: "desc" },
       take: 5,

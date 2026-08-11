@@ -29,7 +29,13 @@ export async function GET(request: NextRequest) {
     const semesterFilter = searchParams.get("semester");
     const search = searchParams.get("search") ?? "";
 
-    const whereClause: Record<string, unknown> = {};
+    const whereClause: Record<string, unknown> = {
+      NOT: {
+        student: {
+          status: "Graduated",
+        },
+      },
+    };
 
     if (roleFilter && roleFilter !== "ALL") {
       whereClause.role = roleFilter as "ADMIN" | "FACULTY" | "STUDENT";

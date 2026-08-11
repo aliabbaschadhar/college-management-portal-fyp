@@ -9,16 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  GraduationCap,
   Search,
-  Building2,
-  Award,
   Users,
   RefreshCw,
-  Mail,
   BookOpen,
   Calendar,
-  Sparkles,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
@@ -31,6 +26,7 @@ interface AlumniRecord {
   avatar: string | null;
   department: string;
   graduationYear: number;
+  batch?: string;
   cgpa: number;
   shift: string;
   status: string;
@@ -216,7 +212,7 @@ export default function AlumniDirectoryPage() {
                         </div>
                         <div className="flex items-center gap-1.5 justify-end">
                           <Calendar className="h-3 w-3 text-brand-primary shrink-0" />
-                          <span>Class &apos;{String(person.graduationYear).slice(-2)}</span>
+                          <span>{person.batch || `Batch ${person.graduationYear - 4}-${String(person.graduationYear).slice(-2)}`}</span>
                         </div>
                       </div>
 
@@ -251,9 +247,9 @@ export default function AlumniDirectoryPage() {
                           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground font-semibold truncate">
                             <span className="truncate">{person.department}</span>
                             <span>•</span>
-                            <span className="shrink-0">{person.shift}</span>
-                            <span>•</span>
-                            <span className="shrink-0 font-mono text-brand-primary">Class &apos;{String(person.graduationYear).slice(-2)}</span>
+                            <span className="shrink-0 font-mono text-brand-primary font-bold">
+                              {person.batch || `Batch ${person.graduationYear - 4}-${String(person.graduationYear).slice(-2)}`}
+                            </span>
                           </div>
                         </div>
                       </div>
