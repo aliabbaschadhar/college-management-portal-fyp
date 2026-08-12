@@ -14,6 +14,7 @@ import {
   RefreshCw,
   BookOpen,
   Calendar,
+  Mail,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
@@ -231,33 +232,48 @@ export default function AlumniDirectoryPage() {
                 ) : (
                   /* Faculty & Student Sleek Compact Linear Card */
                   <Card className="group relative border border-border/80 bg-card hover:border-amber-500/40 hover:shadow-md transition-all duration-200 rounded-2xl overflow-hidden">
-                    <div className="flex items-center justify-between p-3.5 gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="relative h-9 w-9 rounded-xl overflow-hidden bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shrink-0 font-extrabold text-xs flex items-center justify-center">
-                          {person.avatar ? (
-                            <Image src={person.avatar} alt={person.name} fill className="object-cover" />
-                          ) : (
-                            person.name.substring(0, 2).toUpperCase()
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <h4 className="font-bold text-xs sm:text-sm text-foreground truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                            {person.name}
-                          </h4>
-                          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground font-semibold truncate">
-                            <span className="truncate">{person.department}</span>
-                            <span>•</span>
-                            <span className="shrink-0 font-mono text-brand-primary font-bold">
-                              {person.batch || `Batch ${person.graduationYear - 4}-${String(person.graduationYear).slice(-2)}`}
-                            </span>
+                    <div className="p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="relative h-9 w-9 rounded-xl overflow-hidden bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shrink-0 font-extrabold text-xs flex items-center justify-center">
+                            {person.avatar ? (
+                              <Image src={person.avatar} alt={person.name} fill className="object-cover" />
+                            ) : (
+                              person.name.substring(0, 2).toUpperCase()
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-xs sm:text-sm text-foreground truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                              {person.name}
+                            </h4>
+                            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground font-semibold truncate">
+                              <span className="truncate">{person.department}</span>
+                              <span>•</span>
+                              <span className="shrink-0 font-mono text-brand-primary font-bold">
+                                {person.batch || `Batch ${person.graduationYear - 4}-${String(person.graduationYear).slice(-2)}`}
+                              </span>
+                            </div>
                           </div>
                         </div>
+
+                        {person.cgpa !== null && person.cgpa !== undefined && (
+                          <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-extrabold text-[11px] px-2.5 py-1 rounded-xl border border-emerald-500/20 shrink-0">
+                            CGPA {Number(person.cgpa).toFixed(2)}
+                          </Badge>
+                        )}
                       </div>
 
-                      {person.cgpa !== null && person.cgpa !== undefined && (
-                        <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-extrabold text-[11px] px-2.5 py-1 rounded-xl border border-emerald-500/20 shrink-0">
-                          CGPA {Number(person.cgpa).toFixed(2)}
-                        </Badge>
+                      {person.email && (
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono pt-2 border-t border-border/50">
+                          <Mail className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                          <a
+                            href={`mailto:${person.email}`}
+                            title={`Send email to ${person.email}`}
+                            className="hover:underline hover:text-brand-primary truncate text-[11px] font-semibold text-brand-primary"
+                          >
+                            {person.email}
+                          </a>
+                        </div>
                       )}
                     </div>
                   </Card>

@@ -56,12 +56,6 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const authUser = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { role: true },
-    });
-    const isAdmin = authUser?.role?.toUpperCase() === "ADMIN";
-
     const formatted = alumniList.map((a) => {
       const startYear = a.enrollmentDate ? new Date(a.enrollmentDate).getFullYear() : 2022;
       const endYear = startYear + 4;
@@ -70,7 +64,7 @@ export async function GET(request: NextRequest) {
         id: a.id,
         rollNo: a.rollNo,
         name: a.user?.name || "Alumni",
-        email: isAdmin ? (a.user?.email || "") : "",
+        email: a.user?.email || "",
         avatar: a.avatar || a.user?.avatar || null,
         department: a.department,
         graduationYear: endYear,

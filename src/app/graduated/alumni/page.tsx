@@ -7,7 +7,6 @@ import { motion } from "framer-motion";
 import {
   Users,
   Search,
-  Building2,
   GraduationCap,
   Award,
   ArrowLeft,
@@ -220,7 +219,13 @@ export default function StandaloneAlumniDirectoryPage() {
                           <span className="text-muted-foreground font-medium flex items-center gap-1.5">
                             <Mail className="h-3.5 w-3.5 text-indigo-500" /> Email
                           </span>
-                          <span className="font-mono text-[11px] text-brand-primary truncate max-w-[160px]">{item.email}</span>
+                          <a
+                            href={`mailto:${item.email}`}
+                            title={`Send email to ${item.email}`}
+                            className="font-mono text-[11px] text-brand-primary hover:underline font-semibold truncate max-w-[170px]"
+                          >
+                            {item.email}
+                          </a>
                         </div>
                       )}
                     </div>
