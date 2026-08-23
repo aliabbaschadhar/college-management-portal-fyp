@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { logAuditAction, getAdminName } from "@/lib/audit-log";
 
 export async function POST(request: NextRequest) {
@@ -24,6 +25,11 @@ export async function POST(request: NextRequest) {
       semester?: number;
       targetSemester: number;
       gradesheetUrl?: string;
+      totalMarks?: number;
+      obtainedMarks?: number;
+      percentage?: number;
+      grade?: string;
+      dropOffReason?: string;
     };
 
     if (!body || (!body.studentIds && (!body.department || !body.semester)) || !body.targetSemester) {
@@ -31,11 +37,12 @@ export async function POST(request: NextRequest) {
     }
 
     const targetSemester = Number(body.targetSemester);
-    if (isNaN(targetSemester) || targetSemester < 1 || targetSemester > 9) {
-      return NextResponse.json({ error: "targetSemester must be an integer between 1 and 9 (9 = Graduated)" }, { status: 400 });
+    if (isNaN(targetSemester) || targetSemester < 1 || targetSemester > 10) {
+      return NextResponse.json({ error: "targetSemester must be an integer between 1 and 10 (9 = Graduated, 10 = Drop Off)" }, { status: 400 });
     }
 
     const isGraduating = targetSemester === 9;
+    const isDroppingOff = targetSemester === 10;
 
     if (isGraduating && (!body.gradesheetUrl || typeof body.gradesheetUrl !== "string" || !body.gradesheetUrl.trim())) {
       return NextResponse.json(
@@ -76,6 +83,10 @@ export async function POST(request: NextRequest) {
             id: true,
             semester: true,
             department: true,
+            programLevel: true,
+            discipline: true,
+            part: true,
+            subjectSet: true,
             rollNo: true,
             status: true,
             blocked: true,
@@ -93,8 +104,10 @@ export async function POST(request: NextRequest) {
         }
 
         if (isGraduating) {
-          if (student.status === "Graduated") {
-            errors.push(`Student ${student.rollNo} is already Graduated`);
+          const completionStatus = student.programLevel === "INTERMEDIATE" ? "HSSC Completed" : "Graduated";
+
+          if (student.status === "Graduated" || student.status === "HSSC Completed") {
+            errors.push(`Student ${student.rollNo} is already marked as ${student.status}`);
             continue;
           }
 
@@ -110,7 +123,7 @@ export async function POST(request: NextRequest) {
 
           if (student.fees && student.fees.length > 0) {
             const totalPending = student.fees.reduce((sum, f) => sum + f.amount, 0);
-            errors.push(`Clearance Failed: Student ${student.rollNo} has ${student.fees.length} unpaid fee due(s) totaling PKR ${totalPending.toLocaleString()}. Graduation is blocked until cleared.`);
+            errors.push(`Clearance Failed: Student ${student.rollNo} has ${student.fees.length} unpaid fee due(s) totaling PKR ${totalPending.toLocaleString()}. Graduation/Completion is blocked until cleared.`);
             continue;
           }
 
@@ -118,10 +131,15 @@ export async function POST(request: NextRequest) {
             const updated = await tx.student.update({
               where: { id: studentId },
               data: {
-                status: "Graduated",
-                semester: 8,
+                status: completionStatus,
+                semester: student.programLevel === "BS" ? 8 : (student.semester ?? 2),
+                part: student.programLevel === "INTERMEDIATE" ? 2 : student.part,
                 gradesheetUrl: body.gradesheetUrl || null,
                 graduationDate: new Date(),
+                totalMarks: body.totalMarks ? Number(body.totalMarks) : null,
+                obtainedMarks: body.obtainedMarks ? Number(body.obtainedMarks) : null,
+                percentage: body.percentage ? Number(body.percentage) : null,
+                grade: body.grade || null,
               },
               include: { user: { select: { name: true } } },
             });
@@ -133,7 +151,7 @@ export async function POST(request: NextRequest) {
             action: "UPDATED",
             entity: "Student",
             entityId: studentId,
-            description: `Graduated student ${student.rollNo} from Semester 8 to Alumni status`,
+            description: `Updated student ${student.rollNo} status to ${completionStatus}`,
             adminClerkId: userId,
             adminName,
           });
@@ -142,16 +160,48 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
+        if (isDroppingOff) {
+          const droppedStudent = await prisma.$transaction(async (tx) => {
+            const updated = await tx.student.update({
+              where: { id: studentId },
+              data: {
+                status: "Left",
+                leftReason: body.dropOffReason || "Dropped off during class promotion",
+                leftDate: new Date(),
+              },
+              include: { user: { select: { name: true } } },
+            });
+            await tx.enrollment.deleteMany({ where: { studentId: student.id } });
+            return updated;
+          });
+
+          await logAuditAction({
+            action: "UPDATED",
+            entity: "Student",
+            entityId: studentId,
+            description: `Marked student ${student.rollNo} as Left/Dropped Out during class promotion. Reason: ${body.dropOffReason || "N/A"}`,
+            adminClerkId: userId,
+            adminName,
+          });
+
+          results.push(droppedStudent);
+          continue;
+        }
+
         if (student.semester === targetSemester && student.status === "Active") {
-          errors.push(`Student ${student.rollNo} is already in Semester ${targetSemester}`);
+          errors.push(`Student ${student.rollNo} is already in Semester/Part ${targetSemester}`);
           continue;
         }
 
         const updatedStudent = await prisma.$transaction(async (tx) => {
-          // Promote semester
+          // Promote semester / part
           const updated = await tx.student.update({
             where: { id: studentId },
-            data: { semester: targetSemester, status: "Active" },
+            data: {
+              semester: targetSemester,
+              part: student.programLevel === "INTERMEDIATE" ? targetSemester : student.part,
+              status: "Active",
+            },
             include: { user: { select: { name: true } } },
           });
 
@@ -160,13 +210,22 @@ export async function POST(request: NextRequest) {
             where: { studentId: student.id },
           });
 
-          // Auto-enroll in target semester courses
-          const courses = await tx.course.findMany({
-            where: {
-              department: student.department,
-              semester: targetSemester,
-            },
-          });
+          // Auto-enroll in target courses matching programLevel
+          const courseWhere: Prisma.CourseWhereInput = {
+            programLevel: student.programLevel,
+          };
+          if (student.programLevel === "INTERMEDIATE") {
+            courseWhere.discipline = student.discipline || student.department;
+            courseWhere.part = targetSemester;
+            if (student.subjectSet) {
+              courseWhere.subjectSet = student.subjectSet;
+            }
+          } else {
+            courseWhere.department = student.department;
+            courseWhere.semester = targetSemester;
+          }
+
+          const courses = await tx.course.findMany({ where: courseWhere });
 
           if (courses.length > 0) {
             await tx.enrollment.createMany({

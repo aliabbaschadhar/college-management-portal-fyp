@@ -38,7 +38,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { motion } from "framer-motion";
-import { DEPARTMENTS } from "@/lib/constants";
+import { useProgramLevel } from "@/context/program-level-context";
+import {
+  DEPARTMENTS,
+  getDisciplinesForLevel,
+  getTermOptionsForLevel,
+  formatTermLabel,
+  getSubjectSetFilterConfig,
+} from "@/lib/constants";
 
 interface FeeWithStudent {
   id: string;
@@ -96,6 +103,7 @@ const statusIcons = {
 
 export default function ManageDuesPage() {
   const router = useRouter();
+  const { programLevel } = useProgramLevel();
   const [fees, setFees] = useState<FeeWithStudent[]>([]);
   const [students, setStudents] = useState<StudentItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,6 +112,15 @@ export default function ManageDuesPage() {
   const [selectedDept, setSelectedDept] = useState<string | null>("Computer Science");
   const [selectedSemester, setSelectedSemester] = useState<number | null>(1);
   const [selectedShift, setSelectedShift] = useState<string>("Morning");
+  const [selectedSet, setSelectedSet] = useState<string>("Set 1");
+
+  useEffect(() => {
+    if (programLevel === "INTERMEDIATE") {
+      setSelectedDept("F.Sc Pre-Engineering");
+    } else {
+      setSelectedDept("Computer Science");
+    }
+  }, [programLevel]);
 
   // Dialog control states
   const [payDialogOpen, setPayDialogOpen] = useState(false);
@@ -156,10 +173,10 @@ export default function ManageDuesPage() {
         prev.map((f) =>
           f.id === feeId
             ? {
-                ...f,
-                status: "Paid" as const,
-                paidDate: new Date().toISOString(),
-              }
+              ...f,
+              status: "Paid" as const,
+              paidDate: new Date().toISOString(),
+            }
             : f
         )
       );
@@ -205,6 +222,7 @@ export default function ManageDuesPage() {
           department: selectedDept,
           semester: selectedSemester,
           shift: selectedShift,
+          subjectSet: selectedSet,
           type: newFee.type,
           amount: parseFloat(newFee.amount),
           dueDate: new Date(newFee.dueDate).toISOString(),
@@ -238,13 +256,21 @@ export default function ManageDuesPage() {
   // Filter students in the selected class/shift
   const classStudents = useMemo(() => {
     if (!selectedDept || !selectedSemester) return [];
-    return students.filter(
-      (s) =>
-        s.department === selectedDept &&
-        s.semester === selectedSemester &&
-        s.shift === selectedShift
-    );
-  }, [students, selectedDept, selectedSemester, selectedShift]);
+    return students.filter((s) => {
+      const matchesDept = s.department === selectedDept;
+      const matchesSem = s.semester === selectedSemester;
+      const matchesShift = programLevel === "BS" ? s.shift === selectedShift : true;
+
+      if (programLevel === "INTERMEDIATE") {
+        const setConfig = getSubjectSetFilterConfig(selectedDept || "");
+        const activeSet = setConfig.hasMultipleSets ? (selectedSet || "Set 1") : "Set 1";
+        const matchesSet = !(s as { subjectSet?: string }).subjectSet || (s as { subjectSet?: string }).subjectSet?.toLowerCase() === activeSet.toLowerCase();
+        return matchesDept && matchesSem && matchesSet;
+      }
+
+      return matchesDept && matchesSem && matchesShift;
+    });
+  }, [students, selectedDept, selectedSemester, selectedShift, selectedSet, programLevel]);
 
   // Compute dues statistics for each student in the selected class
   const studentDues = useMemo(() => {
@@ -413,13 +439,15 @@ export default function ManageDuesPage() {
             <div className="flex flex-col gap-4">
               <div className="flex flex-wrap items-center gap-4 bg-card p-4 rounded-xl border border-border w-full">
                 <div className="flex items-center gap-2">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase">Dept:</Label>
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase">
+                    {programLevel === "INTERMEDIATE" ? "Discipline:" : "Dept:"}
+                  </Label>
                   <Select value={selectedDept || ""} onValueChange={setSelectedDept}>
                     <SelectTrigger className="w-[180px] h-10 bg-card rounded-xl">
-                      <SelectValue placeholder="Select Department" />
+                      <SelectValue placeholder={programLevel === "INTERMEDIATE" ? "Select Discipline" : "Select Department"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {DEPARTMENTS.map((d) => (
+                      {getDisciplinesForLevel(programLevel).map((d) => (
                         <SelectItem key={d} value={d}>
                           {d}
                         </SelectItem>
@@ -429,36 +457,58 @@ export default function ManageDuesPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase">Sem:</Label>
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase">
+                    {programLevel === "INTERMEDIATE" ? "Part:" : "Sem:"}
+                  </Label>
                   <Select
                     value={String(selectedSemester || 1)}
                     onValueChange={(v) => setSelectedSemester(Number(v))}
                   >
-                    <SelectTrigger className="w-[120px] h-10 bg-card rounded-xl">
+                    <SelectTrigger className="w-[140px] h-10 bg-card rounded-xl">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                      {getTermOptionsForLevel(programLevel).map((s) => (
                         <SelectItem key={s} value={String(s)}>
-                          Semester {s}
+                          {formatTermLabel(programLevel, s)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase">Shift:</Label>
-                  <Select value={selectedShift} onValueChange={setSelectedShift}>
-                    <SelectTrigger className="w-[120px] h-10 bg-card rounded-xl">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Morning">Morning</SelectItem>
-                      <SelectItem value="Evening">Evening</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                {programLevel === "INTERMEDIATE" && getSubjectSetFilterConfig(selectedDept || "").hasMultipleSets && (
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase">Subject Set:</Label>
+                    <Select value={selectedSet || "Set 1"} onValueChange={setSelectedSet}>
+                      <SelectTrigger className="w-[140px] h-10 bg-card rounded-xl font-bold">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getSubjectSetFilterConfig(selectedDept || "").availableSets.map((set) => (
+                          <SelectItem key={set} value={set}>
+                            {set}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {programLevel === "BS" && (
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase">Shift:</Label>
+                    <Select value={selectedShift} onValueChange={setSelectedShift}>
+                      <SelectTrigger className="w-[120px] h-10 bg-card rounded-xl">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Morning">Morning</SelectItem>
+                        <SelectItem value="Evening">Evening</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 <div className="ml-auto">
                   <Button
@@ -599,11 +649,11 @@ export default function ManageDuesPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label>Semester</Label>
+                <Label>{programLevel === "INTERMEDIATE" ? "Part" : "Semester"}</Label>
                 <Input
                   type="text"
                   disabled
-                  value={`Semester ${selectedSemester}`}
+                  value={formatTermLabel(programLevel, selectedSemester ?? 1)}
                   className="h-10 rounded-xl bg-accent/40"
                 />
               </div>

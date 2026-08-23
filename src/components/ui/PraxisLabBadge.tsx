@@ -13,7 +13,7 @@ export function PraxisLabBadge({ className = "", showAgencyTag = false }: Praxis
       href="https://praxislabs.framer.website/"
       target="_blank"
       rel="noopener noreferrer"
-      className={`inline-flex items-center gap-2.5 px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 hover:border-blue-500/60 shadow-xs hover:shadow-md transition-all duration-300 group hover:scale-105 ${className}`}
+      className={`inline-flex items-center gap-2.5 px-1.5 py-0.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 hover:border-blue-500/60 shadow-xs hover:shadow-md transition-all duration-300 group hover:scale-105 ${className}`}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img

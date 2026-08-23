@@ -6,7 +6,7 @@ import { useUser, UserButton } from "@clerk/nextjs";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { api } from "@/lib/axios";
-import { DEPARTMENTS } from "@/lib/constants";
+import { DEPARTMENTS, INTERMEDIATE_DISCIPLINES } from "@/lib/constants";
 import {
   Clock,
   ArrowRight,
@@ -17,6 +17,8 @@ import {
   RefreshCw,
   BookOpen,
   ShieldOff,
+  GraduationCap,
+  BookMarked,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,14 +37,17 @@ interface Admission {
   studentName: string;
   email: string;
   phone: string;
-  appliedDepartment: string;
+  programLevel?: "BS" | "INTERMEDIATE";
+  appliedDepartment?: string | null;
+  discipline?: string | null;
   fatherName: string;
   cnic: string;
   previousInstitution: string;
   marksObtained: number;
   totalMarks: number;
-  shift: string;
-  semester: number;
+  shift?: string;
+  semester?: number | null;
+  part?: number | null;
   selectedCourses: string[];
   status: string;
 }
@@ -88,9 +93,12 @@ export default function StudentSetupPage() {
   const [phone, setPhone] = useState("");
   const [fatherName, setFatherName] = useState("");
   const [cnic, setCnic] = useState("");
-  const [appliedDepartment, setAppliedDepartment] = useState("");
+  const [programLevel, setProgramLevel] = useState<"BS" | "INTERMEDIATE">("BS");
+  const [appliedDepartment, setAppliedDepartment] = useState("Computer Science");
+  const [discipline, setDiscipline] = useState("ICS");
   const [shift, setShift] = useState("Morning");
   const [semester, setSemester] = useState("1");
+  const [part, setPart] = useState("1");
   const [previousInstitution, setPreviousInstitution] = useState("");
   const [marksObtained, setMarksObtained] = useState("");
   const [totalMarks, setTotalMarks] = useState("");
@@ -140,7 +148,8 @@ export default function StudentSetupPage() {
       !phone.trim() ||
       !fatherName.trim() ||
       !cnic.trim() ||
-      !appliedDepartment ||
+      (programLevel === "BS" && !appliedDepartment) ||
+      (programLevel === "INTERMEDIATE" && !discipline) ||
       !previousInstitution.trim() ||
       !marksObtained ||
       !totalMarks
@@ -174,21 +183,30 @@ export default function StudentSetupPage() {
 
     setSubmitLoading(true);
     try {
-      const response = await api.post("/api/admissions", {
+      const payload: Record<string, unknown> = {
         studentName: user.fullName || `${user.firstName} ${user.lastName}`,
         email: user.primaryEmailAddress?.emailAddress,
         phone,
         fatherName,
         cnic,
-        appliedDepartment,
+        programLevel,
         previousInstitution,
         marksObtained: marks,
         totalMarks: total,
-        shift,
-        semester: Number(semester),
         selectedCourses: [],
-      });
+      };
 
+      if (programLevel === "BS") {
+        payload.appliedDepartment = appliedDepartment || "Computer Science";
+        payload.semester = Number(semester);
+        payload.shift = shift;
+      } else {
+        payload.discipline = discipline || "ICS";
+        payload.part = Number(part);
+        payload.shift = "Morning";
+      }
+
+      const response = await api.post("/api/admissions", payload);
       setAdmission(response.data);
     } catch (err: unknown) {
       console.error("Error submitting admission:", err);
@@ -394,13 +412,29 @@ export default function StudentSetupPage() {
                       <span className="font-semibold text-zinc-900 dark:text-white text-right">{admission.studentName}</span>
                     </div>
                     <div className="grid grid-cols-2 py-1 border-b border-zinc-100 dark:border-white/5">
-                      <span className="text-zinc-500">Department</span>
-                      <span className="font-semibold text-zinc-900 dark:text-white text-right">{admission.appliedDepartment}</span>
+                      <span className="text-zinc-500">Program Level</span>
+                      <span className="font-semibold text-zinc-900 dark:text-white text-right font-bold text-brand-primary">
+                        {admission.programLevel === "INTERMEDIATE" ? "Intermediate (HSSC)" : "BS Degree"}
+                      </span>
                     </div>
                     <div className="grid grid-cols-2 py-1 border-b border-zinc-100 dark:border-white/5">
-                      <span className="text-zinc-500">Semester & Shift</span>
+                      <span className="text-zinc-500">
+                        {admission.programLevel === "INTERMEDIATE" ? "Discipline" : "Department"}
+                      </span>
                       <span className="font-semibold text-zinc-900 dark:text-white text-right">
-                        Semester {admission.semester} • {admission.shift}
+                        {admission.programLevel === "INTERMEDIATE"
+                          ? (admission.discipline || admission.appliedDepartment)
+                          : admission.appliedDepartment}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 py-1 border-b border-zinc-100 dark:border-white/5">
+                      <span className="text-zinc-500">
+                        {admission.programLevel === "INTERMEDIATE" ? "Part" : "Semester & Shift"}
+                      </span>
+                      <span className="font-semibold text-zinc-900 dark:text-white text-right">
+                        {admission.programLevel === "INTERMEDIATE"
+                          ? `Part ${admission.part || admission.semester || 1}`
+                          : `Semester ${admission.semester} • ${admission.shift}`}
                       </span>
                     </div>
                     <div className="grid grid-cols-2 py-1 border-b border-zinc-100 dark:border-white/5">
@@ -471,13 +505,23 @@ export default function StudentSetupPage() {
                       <span className="font-semibold text-zinc-900 dark:text-white text-right">{admission.studentName}</span>
                     </div>
                     <div className="grid grid-cols-2 py-1 border-b border-zinc-100 dark:border-white/5">
-                      <span className="text-zinc-500">Department</span>
-                      <span className="font-semibold text-zinc-900 dark:text-white text-right">{admission.appliedDepartment}</span>
+                      <span className="text-zinc-500">
+                        {admission.programLevel === "INTERMEDIATE" ? "Discipline" : "Department"}
+                      </span>
+                      <span className="font-semibold text-zinc-900 dark:text-white text-right">
+                        {admission.programLevel === "INTERMEDIATE"
+                          ? (admission.discipline || admission.appliedDepartment)
+                          : admission.appliedDepartment}
+                      </span>
                     </div>
                     <div className="grid grid-cols-2 py-1">
-                      <span className="text-zinc-500">Semester &amp; Shift</span>
+                      <span className="text-zinc-500">
+                        {admission.programLevel === "INTERMEDIATE" ? "Part" : "Semester & Shift"}
+                      </span>
                       <span className="font-semibold text-zinc-900 dark:text-white text-right">
-                        Semester {admission.semester} • {admission.shift}
+                        {admission.programLevel === "INTERMEDIATE"
+                          ? `Part ${admission.part || admission.semester || 1}`
+                          : `Semester ${admission.semester} • ${admission.shift}`}
                       </span>
                     </div>
                   </CardContent>
@@ -640,7 +684,7 @@ export default function StudentSetupPage() {
                     <form onSubmit={handleSubmit} className="space-y-5">
                       <AnimatePresence mode="wait">
                         
-                        {/* Step 1: Personal */}
+                        {/* Step 1: Personal & Level Choice */}
                         {step === 1 && (
                           <motion.div
                             key="step1"
@@ -650,6 +694,54 @@ export default function StudentSetupPage() {
                             className="space-y-4"
                           >
                             <h3 className="text-base font-bold text-zinc-800 dark:text-zinc-200 border-b border-zinc-100 dark:border-white/5 pb-2">
+                              1. Select Academic Program Level
+                            </h3>
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setProgramLevel("BS");
+                                  setAppliedDepartment("Computer Science");
+                                }}
+                                className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between group ${
+                                  programLevel === "BS"
+                                    ? "border-brand-primary bg-brand-primary/10 text-brand-primary font-bold shadow-md ring-2 ring-brand-primary/20"
+                                    : "border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-white/5 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <GraduationCap className="h-5 w-5 text-brand-primary shrink-0" />
+                                  <span className="font-extrabold text-sm text-zinc-900 dark:text-white">BS Degree</span>
+                                </div>
+                                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-2 leading-snug">
+                                  4-Year Undergraduate (8 Semesters, Shift choice)
+                                </p>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setProgramLevel("INTERMEDIATE");
+                                  setDiscipline("ICS");
+                                }}
+                                className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between group ${
+                                  programLevel === "INTERMEDIATE"
+                                    ? "border-brand-primary bg-brand-primary/10 text-brand-primary font-bold shadow-md ring-2 ring-brand-primary/20"
+                                    : "border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-white/5 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <BookMarked className="h-5 w-5 text-brand-primary shrink-0" />
+                                  <span className="font-extrabold text-sm text-zinc-900 dark:text-white">Intermediate</span>
+                                </div>
+                                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-2 leading-snug">
+                                  HSSC College Level (F.Sc, ICS, FA, I.Com - Part 1/2)
+                                </p>
+                              </button>
+                            </div>
+
+                            <h3 className="text-base font-bold text-zinc-800 dark:text-zinc-200 border-b border-zinc-100 dark:border-white/5 pb-2 pt-2">
                               Personal Information
                             </h3>
 
@@ -715,7 +807,7 @@ export default function StudentSetupPage() {
                           </motion.div>
                         )}
 
-                        {/* Step 2: Academic */}
+                        {/* Step 2: Academic Profile */}
                         {step === 2 && (
                           <motion.div
                             key="step2"
@@ -724,80 +816,122 @@ export default function StudentSetupPage() {
                             exit={{ opacity: 0, x: 10 }}
                             className="space-y-4"
                           >
-                            <h3 className="text-base font-bold text-zinc-800 dark:text-zinc-200 border-b border-zinc-100 dark:border-white/5 pb-2">
-                              Academic Profile
-                            </h3>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="space-y-1.5">
-                                <Label htmlFor="dept" className="text-zinc-600 dark:text-zinc-400 font-semibold text-xs">
-                                  Target Department
-                                </Label>
-                                <Select
-                                  value={appliedDepartment}
-                                  onValueChange={setAppliedDepartment}
-                                >
-                                  <SelectTrigger id="dept" className="bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white rounded-xl h-11 px-3">
-                                    <SelectValue placeholder="Select dept" />
-                                  </SelectTrigger>
-                                  <SelectContent className="bg-white dark:bg-[#110d22] border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white">
-                                    {DEPARTMENTS.map((dept) => (
-                                      <SelectItem key={dept} value={dept} className="focus:bg-brand-primary focus:text-white">
-                                        {dept}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-
-                              <div className="space-y-1.5">
-                                <Label htmlFor="semester" className="text-zinc-600 dark:text-zinc-400 font-semibold text-xs">
-                                  Semester
-                                </Label>
-                                <Select value={semester} onValueChange={setSemester}>
-                                  <SelectTrigger id="semester" className="bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white rounded-xl h-11 px-3">
-                                    <SelectValue placeholder="Select semester" />
-                                  </SelectTrigger>
-                                  <SelectContent className="bg-white dark:bg-[#110d22] border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white">
-                                    {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
-                                      <SelectItem key={sem} value={sem.toString()} className="focus:bg-brand-primary focus:text-white">
-                                        Semester {sem}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
+                            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-white/5 pb-2">
+                              <h3 className="text-base font-bold text-zinc-800 dark:text-zinc-200">
+                                Academic Profile ({programLevel === "BS" ? "BS Degree" : "Intermediate HSSC"})
+                              </h3>
+                              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-brand-primary/10 text-brand-primary">
+                                {programLevel === "BS" ? "Undergraduate" : "HSSC Level"}
+                              </span>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="space-y-1.5">
-                                <Label htmlFor="shift" className="text-zinc-600 dark:text-zinc-400 font-semibold text-xs">
-                                  Shift
-                                </Label>
-                                <Select value={shift} onValueChange={setShift}>
-                                  <SelectTrigger id="shift" className="bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white rounded-xl h-11 px-3">
-                                    <SelectValue placeholder="Select shift" />
-                                  </SelectTrigger>
-                                  <SelectContent className="bg-white dark:bg-[#110d22] border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white">
-                                    <SelectItem value="Morning" className="focus:bg-brand-primary focus:text-white">Morning</SelectItem>
-                                    <SelectItem value="Evening" className="focus:bg-brand-primary focus:text-white">Evening</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
+                            {programLevel === "BS" ? (
+                              <>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="space-y-1.5">
+                                    <Label htmlFor="dept" className="text-zinc-600 dark:text-zinc-400 font-semibold text-xs">
+                                      Target Department
+                                    </Label>
+                                    <Select
+                                      value={appliedDepartment}
+                                      onValueChange={setAppliedDepartment}
+                                    >
+                                      <SelectTrigger id="dept" className="bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white rounded-xl h-11 px-3">
+                                        <SelectValue placeholder="Select dept" />
+                                      </SelectTrigger>
+                                      <SelectContent className="bg-white dark:bg-[#110d22] border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white">
+                                        {DEPARTMENTS.map((dept) => (
+                                          <SelectItem key={dept} value={dept} className="focus:bg-brand-primary focus:text-white">
+                                            {dept}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
 
-                              <div className="space-y-1.5">
-                                <Label htmlFor="prevInst" className="text-zinc-600 dark:text-zinc-400 font-semibold text-xs">
-                                  Previous Institution
-                                </Label>
-                                <Input
-                                  id="prevInst"
-                                  type="text"
-                                  placeholder="College last attended"
-                                  value={previousInstitution}
-                                  onChange={(e) => setPreviousInstitution(e.target.value)}
-                                  className="bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:border-brand-primary rounded-xl h-11 px-3"
-                                />
+                                  <div className="space-y-1.5">
+                                    <Label htmlFor="semester" className="text-zinc-600 dark:text-zinc-400 font-semibold text-xs">
+                                      Semester
+                                    </Label>
+                                    <Select value={semester} onValueChange={setSemester}>
+                                      <SelectTrigger id="semester" className="bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white rounded-xl h-11 px-3">
+                                        <SelectValue placeholder="Select semester" />
+                                      </SelectTrigger>
+                                      <SelectContent className="bg-white dark:bg-[#110d22] border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white">
+                                        {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                                          <SelectItem key={sem} value={sem.toString()} className="focus:bg-brand-primary focus:text-white">
+                                            Semester {sem}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                  <Label htmlFor="shift" className="text-zinc-600 dark:text-zinc-400 font-semibold text-xs">
+                                    Shift
+                                  </Label>
+                                  <Select value={shift} onValueChange={setShift}>
+                                    <SelectTrigger id="shift" className="bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white rounded-xl h-11 px-3">
+                                      <SelectValue placeholder="Select shift" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-white dark:bg-[#110d22] border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white">
+                                      <SelectItem value="Morning" className="focus:bg-brand-primary focus:text-white">Morning</SelectItem>
+                                      <SelectItem value="Evening" className="focus:bg-brand-primary focus:text-white">Evening</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                  <Label htmlFor="discipline" className="text-zinc-600 dark:text-zinc-400 font-semibold text-xs">
+                                    Intermediate Field / Discipline
+                                  </Label>
+                                  <Select value={discipline} onValueChange={setDiscipline}>
+                                    <SelectTrigger id="discipline" className="bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white rounded-xl h-11 px-3">
+                                      <SelectValue placeholder="Select field" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-white dark:bg-[#110d22] border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white">
+                                      {INTERMEDIATE_DISCIPLINES.map((disc) => (
+                                        <SelectItem key={disc} value={disc} className="focus:bg-brand-primary focus:text-white">
+                                          {disc}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                  <Label htmlFor="part" className="text-zinc-600 dark:text-zinc-400 font-semibold text-xs">
+                                    Academic Part
+                                  </Label>
+                                  <Select value={part} onValueChange={setPart}>
+                                    <SelectTrigger id="part" className="bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white rounded-xl h-11 px-3">
+                                      <SelectValue placeholder="Select part" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-white dark:bg-[#110d22] border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white">
+                                      <SelectItem value="1" className="focus:bg-brand-primary focus:text-white">Part 1</SelectItem>
+                                      <SelectItem value="2" className="focus:bg-brand-primary focus:text-white">Part 2</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
                               </div>
+                            )}
+
+                            <div className="space-y-1.5">
+                              <Label htmlFor="prevInst" className="text-zinc-600 dark:text-zinc-400 font-semibold text-xs">
+                                Previous Institution / School
+                              </Label>
+                              <Input
+                                id="prevInst"
+                                type="text"
+                                placeholder="School or college last attended"
+                                value={previousInstitution}
+                                onChange={(e) => setPreviousInstitution(e.target.value)}
+                                className="bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:border-brand-primary rounded-xl h-11 px-3"
+                              />
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">

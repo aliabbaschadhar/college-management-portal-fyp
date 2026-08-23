@@ -7,7 +7,6 @@ import {
   Plus,
   Pencil,
   Trash2,
-  UserPlus,
   UserMinus,
   Laptop,
   Calculator,
@@ -34,7 +33,17 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
-import { DEPARTMENTS } from "@/lib/constants";
+import { useProgramLevel } from "@/context/program-level-context";
+import {
+  DEPARTMENTS,
+  INTERMEDIATE_DISCIPLINES,
+  getDisciplinesForLevel,
+  getTermOptionsForLevel,
+  formatTermLabel,
+  getSubjectSetsForDiscipline,
+  formatCourseCode,
+  getSubjectSetFilterConfig,
+} from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,8 +72,13 @@ interface CourseWithDetails {
   courseCode: string;
   courseName: string;
   creditHours: number;
+  totalMarks?: number | null;
   department: string;
   semester: number;
+  programLevel?: string;
+  discipline?: string | null;
+  part?: number | null;
+  subjectSet?: string | null;
   assignedFaculty: string | null;
   assignedFacultyMorning?: string | null;
   assignedFacultyEvening?: string | null;
@@ -85,8 +99,10 @@ interface CourseForm {
   courseCode: string;
   courseName: string;
   creditHours: number;
+  totalMarks: number;
   department: string;
   semester: number;
+  subjectSet: string;
 }
 
 interface AuditLogEntry {
@@ -104,8 +120,10 @@ const emptyCourse: CourseForm = {
   courseCode: "",
   courseName: "",
   creditHours: 3,
+  totalMarks: 100,
   department: "",
   semester: 1,
+  subjectSet: "Set 1",
 };
 
 const departmentMeta: Record<string, { icon: typeof Laptop; color: string; bg: string; border: string }> = {
@@ -195,8 +213,22 @@ export default function ManageCoursesPage() {
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
 
   // Drill-down states
+  const { programLevel } = useProgramLevel();
   const [selectedDept, setSelectedDept] = useState<string | null>("Computer Science");
   const [selectedSem, setSelectedSem] = useState<number | null>(1);
+  const [selectedSet, setSelectedSet] = useState<string | null>("all");
+
+  useEffect(() => {
+    if (programLevel === "INTERMEDIATE") {
+      setSelectedDept("F.Sc Pre-Medical");
+      setSelectedSem(1);
+      setSelectedSet("all");
+    } else {
+      setSelectedDept("Computer Science");
+      setSelectedSem(1);
+      setSelectedSet("all");
+    }
+  }, [programLevel]);
 
   // Bulk Upload states
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
@@ -408,8 +440,8 @@ export default function ManageCoursesPage() {
   const handleRefresh = useCallback(() => {
     setLoading(true);
     Promise.all([
-      api.get<CourseWithDetails[]>("/api/courses"),
-      api.get<FacultyOption[]>("/api/faculty"),
+      api.get<CourseWithDetails[]>(`/api/courses?programLevel=${programLevel}`),
+      api.get<FacultyOption[]>(`/api/faculty?programLevel=${programLevel}`),
     ])
       .then(([c, f]) => {
         setCourses(Array.isArray(c.data) ? c.data : []);
@@ -417,7 +449,7 @@ export default function ManageCoursesPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [programLevel]);
 
   useEffect(() => {
     handleRefresh();
@@ -429,8 +461,10 @@ export default function ManageCoursesPage() {
       courseCode: "",
       courseName: "",
       creditHours: 3,
-      department: selectedDept || "",
+      totalMarks: 100,
+      department: selectedDept || (programLevel === "INTERMEDIATE" ? "F.Sc Pre-Medical" : "Computer Science"),
       semester: selectedSem || 1,
+      subjectSet: selectedSet || "Set 1",
     });
     setDialogOpen(true);
   };
@@ -438,11 +472,13 @@ export default function ManageCoursesPage() {
   const openEdit = (c: CourseWithDetails) => {
     setEditingCourse(c);
     setForm({
-      courseCode: c.courseCode,
+      courseCode: formatCourseCode(c.courseCode, programLevel),
       courseName: c.courseName,
       creditHours: c.creditHours,
-      department: c.department,
-      semester: c.semester,
+      totalMarks: c.totalMarks || 100,
+      department: c.department || c.discipline || "Computer Science",
+      semester: c.semester || c.part || 1,
+      subjectSet: c.subjectSet || "Set 1",
     });
     setDialogOpen(true);
   };
@@ -470,7 +506,13 @@ export default function ManageCoursesPage() {
       if (editingCourse) {
         const { data: updated } = await api.patch<CourseWithDetails>(
           `/api/courses/${editingCourse.id}`,
-          form,
+          {
+            ...form,
+            programLevel,
+            ...(programLevel === "INTERMEDIATE"
+              ? { discipline: form.department, part: form.semester, subjectSet: form.subjectSet, totalMarks: form.totalMarks }
+              : { department: form.department, semester: form.semester, totalMarks: form.totalMarks }),
+          },
         );
         setCourses((prev) =>
           prev.map((c) => (c.id === updated.id ? updated : c)),
@@ -478,7 +520,13 @@ export default function ManageCoursesPage() {
       } else {
         const { data: created } = await api.post<CourseWithDetails>(
           "/api/courses",
-          form,
+          {
+            ...form,
+            programLevel,
+            ...(programLevel === "INTERMEDIATE"
+              ? { discipline: form.department, part: form.semester, subjectSet: form.subjectSet, totalMarks: form.totalMarks }
+              : { department: form.department, semester: form.semester, totalMarks: form.totalMarks }),
+          },
         );
         setCourses((prev) => [created, ...prev]);
       }
@@ -513,12 +561,12 @@ export default function ManageCoursesPage() {
     if (shift === "Morning") {
       setSelectedFaculty(
         course.assignedFacultyMorning ||
-          (course.shift === "Morning" ? course.assignedFaculty || "" : "")
+        (course.shift === "Morning" ? course.assignedFaculty || "" : "")
       );
     } else if (shift === "Evening") {
       setSelectedFaculty(
         course.assignedFacultyEvening ||
-          (course.shift === "Evening" ? course.assignedFaculty || "" : "")
+        (course.shift === "Evening" ? course.assignedFaculty || "" : "")
       );
     } else {
       setSelectedFaculty(course.assignedFaculty || "");
@@ -610,7 +658,7 @@ export default function ManageCoursesPage() {
       sortable: true,
       render: (row) => (
         <span className="font-mono font-semibold text-brand-primary">
-          {row.courseCode}
+          {formatCourseCode(row.courseCode, programLevel)}
         </span>
       ),
     },
@@ -619,16 +667,27 @@ export default function ManageCoursesPage() {
       header: "Course Name",
       sortable: true,
       render: (row) => (
-        <div>
+        <div className="flex items-center gap-2">
           <span className="font-semibold text-foreground">{row.courseName}</span>
+          {programLevel === "INTERMEDIATE" && row.subjectSet && (
+            <Badge variant="outline" className="text-[10px] bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20 font-bold">
+              {row.subjectSet}
+            </Badge>
+          )}
         </div>
       ),
     },
     {
       key: "creditHours",
-      header: "Credits",
+      header: programLevel === "INTERMEDIATE" ? "Total Marks" : "Credits",
       sortable: true,
-      render: (row) => <Badge variant="outline">{row.creditHours} CH</Badge>,
+      render: (row) => (
+        <Badge variant="outline" className="font-bold">
+          {programLevel === "INTERMEDIATE"
+            ? `${row.totalMarks || 100} Marks`
+            : `${row.creditHours} CH`}
+        </Badge>
+      ),
     },
     {
       key: "morningFaculty" as keyof CourseWithDetails,
@@ -639,8 +698,8 @@ export default function ManageCoursesPage() {
           (row.assignedFacultyMorning
             ? "Assigned"
             : row.assignedFaculty && (row.shift === "Morning" || row.shift === "Both")
-            ? row.faculty?.user?.name
-            : null);
+              ? row.faculty?.user?.name
+              : null);
         const morningDept =
           row.facultyMorning?.department ||
           (row.assignedFaculty && (row.shift === "Morning" || row.shift === "Both")
@@ -657,11 +716,10 @@ export default function ManageCoursesPage() {
                 e.stopPropagation();
                 openAssignModal(row, "Morning");
               }}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
-                isAssigned
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${isAssigned
                   ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/20"
                   : "bg-muted text-muted-foreground border-dashed border-border hover:bg-accent"
-              }`}
+                }`}
               title="Click to assign or change Morning Faculty"
             >
               <Sun className="h-3.5 w-3.5 text-amber-500 shrink-0" />
@@ -704,8 +762,8 @@ export default function ManageCoursesPage() {
           (row.assignedFacultyEvening
             ? "Assigned"
             : row.assignedFaculty && (row.shift === "Evening" || row.shift === "Both")
-            ? row.faculty?.user?.name
-            : null);
+              ? row.faculty?.user?.name
+              : null);
         const eveningDept =
           row.facultyEvening?.department ||
           (row.assignedFaculty && (row.shift === "Evening" || row.shift === "Both")
@@ -722,11 +780,10 @@ export default function ManageCoursesPage() {
                 e.stopPropagation();
                 openAssignModal(row, "Evening");
               }}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
-                isAssigned
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${isAssigned
                   ? "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/20"
                   : "bg-muted text-muted-foreground border-dashed border-border hover:bg-accent"
-              }`}
+                }`}
               title="Click to assign or change Evening Faculty"
             >
               <Moon className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
@@ -807,9 +864,17 @@ export default function ManageCoursesPage() {
     const matchesDept =
       !selectedDept ||
       selectedDept === "all" ||
-      c.department.toLowerCase() === selectedDept.toLowerCase();
+      c.department.toLowerCase() === selectedDept.toLowerCase() ||
+      (c.discipline && c.discipline.toLowerCase() === selectedDept.toLowerCase());
     const matchesSem =
-      !selectedSem || Number(c.semester) === Number(selectedSem);
+      !selectedSem || Number(c.semester) === Number(selectedSem) || Number(c.part) === Number(selectedSem);
+    
+    if (programLevel === "INTERMEDIATE") {
+      const setConfig = getSubjectSetFilterConfig(selectedDept || "");
+      const activeSet = setConfig.hasMultipleSets ? (selectedSet || "Set 1") : "Set 1";
+      const matchesSet = c.subjectSet ? c.subjectSet.toLowerCase() === activeSet.toLowerCase() : activeSet.toLowerCase() === "set 1";
+      return matchesDept && matchesSem && matchesSet;
+    }
     return matchesDept && matchesSem;
   });
 
@@ -856,7 +921,7 @@ export default function ManageCoursesPage() {
             />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {DEPARTMENTS.map((dept) => {
+              {getDisciplinesForLevel(programLevel).map((dept) => {
                 const meta = departmentMeta[dept] || defaultMeta;
                 const Icon = meta.icon;
                 const deptCount = courses.filter((c) => c.department === dept).length;
@@ -871,7 +936,7 @@ export default function ManageCoursesPage() {
                       <div className={`h-12 w-12 rounded-xl flex items-center justify-center border ${meta.bg} ${meta.border} ${meta.color} transition-transform duration-300 group-hover:scale-110`}>
                         <Icon className="h-6 w-6" />
                       </div>
-                      
+
                       <div className="space-y-1">
                         <h3 className="font-bold text-base text-foreground group-hover:text-brand-primary transition-colors line-clamp-1">
                           {dept}
@@ -904,7 +969,7 @@ export default function ManageCoursesPage() {
           >
             <PageHeader
               title={selectedDept}
-              subtitle="Select a semester to manage its subjects."
+              subtitle={programLevel === "INTERMEDIATE" ? "Select a part to manage its subjects." : "Select a semester to manage its subjects."}
               breadcrumbs={[
                 { label: "Dashboard", href: "/dashboard" },
                 { label: "Manage Courses", onClick: () => setSelectedDept(null), href: "#" },
@@ -916,13 +981,13 @@ export default function ManageCoursesPage() {
                   onClick={() => setSelectedDept(null)}
                   className="gap-2 border-border hover:bg-accent hover:text-accent-foreground"
                 >
-                  <ArrowLeft className="h-4 w-4" /> Back to Departments
+                  <ArrowLeft className="h-4 w-4" /> {programLevel === "INTERMEDIATE" ? "Back to Disciplines" : "Back to Departments"}
                 </Button>
               }
             />
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => {
+              {getTermOptionsForLevel(programLevel).map((sem) => {
                 const semCount = courses.filter(
                   (c) => c.department === selectedDept && c.semester === sem
                 ).length;
@@ -933,14 +998,17 @@ export default function ManageCoursesPage() {
                     onClick={() => setSelectedSem(sem)}
                     className="group border border-border bg-card hover:bg-accent/40 dark:hover:bg-accent/10 hover:border-brand-primary/20 hover:shadow-lg transition-all duration-300 cursor-pointer overflow-hidden rounded-xl"
                   >
-                    <CardContent className="p-6 flex flex-col gap-3 relative">
-                      <div className="h-10 w-10 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary transition-transform duration-300 group-hover:scale-110">
-                        <GraduationCap className="h-5.5 w-5.5" />
+                    <CardContent className="p-5 flex flex-col gap-3 relative">
+                      <div className="flex items-center justify-between">
+                        <Badge variant="outline" className="text-xs font-semibold bg-brand-primary/5 text-brand-primary border-brand-primary/20">
+                          {formatTermLabel(programLevel, sem)}
+                        </Badge>
+                        <GraduationCap className="h-5 w-5 text-muted-foreground/40 group-hover:text-brand-primary transition-colors" />
                       </div>
 
                       <div className="space-y-1">
                         <h4 className="font-bold text-sm text-foreground group-hover:text-brand-primary transition-colors">
-                          Semester {sem}
+                          {formatTermLabel(programLevel, sem)} Subjects
                         </h4>
                         <p className="text-xs text-muted-foreground font-medium">
                           {semCount} Course{semCount !== 1 ? "s" : ""}
@@ -1019,13 +1087,15 @@ export default function ManageCoursesPage() {
             <div className="flex flex-col gap-4">
               <div className="flex flex-wrap items-center gap-4 bg-card p-4 rounded-xl border border-border w-full">
                 <div className="flex items-center gap-2">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase">Dept:</Label>
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase">
+                    {programLevel === "INTERMEDIATE" ? "Discipline:" : "Dept:"}
+                  </Label>
                   <Select value={selectedDept || ""} onValueChange={setSelectedDept}>
-                    <SelectTrigger className="w-[180px] h-10 bg-card rounded-xl">
-                      <SelectValue placeholder="Select Department" />
+                    <SelectTrigger className="w-[200px] h-10 bg-card rounded-xl">
+                      <SelectValue placeholder={programLevel === "INTERMEDIATE" ? "Select Discipline" : "Select Department"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {DEPARTMENTS.map((d) => (
+                      {getDisciplinesForLevel(programLevel).map((d) => (
                         <SelectItem key={d} value={d}>
                           {d}
                         </SelectItem>
@@ -1035,23 +1105,43 @@ export default function ManageCoursesPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase">Sem:</Label>
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase">
+                    {programLevel === "INTERMEDIATE" ? "Part:" : "Sem:"}
+                  </Label>
                   <Select
                     value={String(selectedSem || 1)}
                     onValueChange={(v) => setSelectedSem(Number(v))}
                   >
-                    <SelectTrigger className="w-[120px] h-10 bg-card rounded-xl">
+                    <SelectTrigger className="w-[130px] h-10 bg-card rounded-xl">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                      {getTermOptionsForLevel(programLevel).map((s) => (
                         <SelectItem key={s} value={String(s)}>
-                          Semester {s}
+                          {formatTermLabel(programLevel, s)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
+
+                {programLevel === "INTERMEDIATE" && getSubjectSetFilterConfig(selectedDept || "").hasMultipleSets && (
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase">Subject Set:</Label>
+                    <Select value={selectedSet || "Set 1"} onValueChange={setSelectedSet}>
+                      <SelectTrigger className="w-[140px] h-10 bg-card rounded-xl font-bold">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getSubjectSetFilterConfig(selectedDept || "").availableSets.map((set) => (
+                          <SelectItem key={set} value={set}>
+                            {set}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1066,7 +1156,7 @@ export default function ManageCoursesPage() {
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[550px]">
           <DialogHeader>
             <DialogTitle>
               {editingCourse ? "Edit Subject" : "Add New Subject"}
@@ -1074,7 +1164,7 @@ export default function ManageCoursesPage() {
             <DialogDescription>
               {editingCourse
                 ? "Update subject details."
-                : `Add a subject to Semester ${form.semester} in ${form.department}.`}
+                : `Add a subject to ${formatTermLabel(programLevel, form.semester)} in ${form.department}.`}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -1087,7 +1177,7 @@ export default function ManageCoursesPage() {
                   onChange={(e) =>
                     setForm({ ...form, courseCode: e.target.value })
                   }
-                  placeholder="CS-301"
+                  placeholder={programLevel === "INTERMEDIATE" ? "PHY-11" : "CS-301"}
                 />
               </div>
               <div className="space-y-2">
@@ -1098,42 +1188,56 @@ export default function ManageCoursesPage() {
                   onChange={(e) =>
                     setForm({ ...form, courseName: e.target.value })
                   }
-                  placeholder="Database Systems"
+                  placeholder={programLevel === "INTERMEDIATE" ? "Physics" : "Database Systems"}
                 />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className={`grid ${programLevel === "INTERMEDIATE" ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"} gap-4`}>
+              {programLevel === "INTERMEDIATE" ? (
+                <div className="space-y-2">
+                  <Label htmlFor="totalMarks">Total Marks</Label>
+                  <Input
+                    id="totalMarks"
+                    type="number"
+                    value={form.totalMarks || 100}
+                    onChange={(e) => setForm({ ...form, totalMarks: Number(e.target.value) })}
+                    placeholder="100"
+                    className="bg-card text-xs font-semibold"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="creditHours">Credit Hours</Label>
+                  <Select
+                    value={String(form.creditHours)}
+                    onValueChange={(v) =>
+                      setForm({ ...form, creditHours: Number(v) })
+                    }
+                  >
+                    <SelectTrigger id="creditHours">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 4].map((c) => (
+                        <SelectItem key={c} value={String(c)}>
+                          {c} CH
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-2">
-                <Label htmlFor="creditHours">Credit Hours</Label>
-                <Select
-                  value={String(form.creditHours)}
-                  onValueChange={(v) =>
-                    setForm({ ...form, creditHours: Number(v) })
-                  }
-                >
-                  <SelectTrigger id="creditHours">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[1, 2, 3, 4].map((c) => (
-                      <SelectItem key={c} value={String(c)}>
-                        {c} CH
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="dept">Department</Label>
+                <Label htmlFor="dept">{programLevel === "INTERMEDIATE" ? "Discipline" : "Department"}</Label>
                 <Select
                   value={form.department}
                   onValueChange={(v) => setForm({ ...form, department: v })}
                 >
                   <SelectTrigger id="dept">
-                    <SelectValue placeholder="Select" />
+                    <SelectValue placeholder={programLevel === "INTERMEDIATE" ? "Select discipline" : "Select department"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {DEPARTMENTS.map((d) => (
+                    {getDisciplinesForLevel(programLevel).map((d) => (
                       <SelectItem key={d} value={d}>
                         {d}
                       </SelectItem>
@@ -1142,7 +1246,7 @@ export default function ManageCoursesPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="semester">Semester</Label>
+                <Label htmlFor="semester">{programLevel === "INTERMEDIATE" ? "Part" : "Semester"}</Label>
                 <Select
                   value={String(form.semester)}
                   onValueChange={(v) =>
@@ -1153,14 +1257,34 @@ export default function ManageCoursesPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                    {getTermOptionsForLevel(programLevel).map((s) => (
                       <SelectItem key={s} value={String(s)}>
-                        Sem {s}
+                        {formatTermLabel(programLevel, s)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+              {programLevel === "INTERMEDIATE" && (
+                <div className="space-y-2">
+                  <Label htmlFor="subjectSet">Subject Set</Label>
+                  <Select
+                    value={form.subjectSet || "Set 1"}
+                    onValueChange={(v) => setForm({ ...form, subjectSet: v })}
+                  >
+                    <SelectTrigger id="subjectSet">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getSubjectSetsForDiscipline(form.department || selectedDept || "").map((set) => (
+                        <SelectItem key={set} value={set}>
+                          {set}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -1208,11 +1332,10 @@ export default function ManageCoursesPage() {
                         <SelectItem key={f.id} value={f.id}>
                           <div className="flex items-center justify-between gap-3 w-full">
                             <span className="font-medium">{f.user.name ?? "—"}</span>
-                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded font-mono ${
-                              isCrossDept
+                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded font-mono ${isCrossDept
                                 ? "bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30"
                                 : "bg-brand-primary/10 text-brand-primary border border-brand-primary/20"
-                            }`}>
+                              }`}>
                               {f.department} {isCrossDept ? "(Cross-Dept)" : ""}
                             </span>
                           </div>
@@ -1241,18 +1364,18 @@ export default function ManageCoursesPage() {
           <DialogFooter className="flex flex-wrap items-center justify-between gap-2">
             {(selectedAssignShift === "Morning"
               ? Boolean(
-                  assigningCourse?.assignedFacultyMorning ||
-                    (assigningCourse?.assignedFaculty && assigningCourse.shift === "Morning")
-                )
+                assigningCourse?.assignedFacultyMorning ||
+                (assigningCourse?.assignedFaculty && assigningCourse.shift === "Morning")
+              )
               : selectedAssignShift === "Evening"
-              ? Boolean(
+                ? Boolean(
                   assigningCourse?.assignedFacultyEvening ||
-                    (assigningCourse?.assignedFaculty && assigningCourse.shift === "Evening")
+                  (assigningCourse?.assignedFaculty && assigningCourse.shift === "Evening")
                 )
-              : Boolean(
+                : Boolean(
                   assigningCourse?.assignedFaculty ||
-                    assigningCourse?.assignedFacultyMorning ||
-                    assigningCourse?.assignedFacultyEvening
+                  assigningCourse?.assignedFacultyMorning ||
+                  assigningCourse?.assignedFacultyEvening
                 )) ? (
               <Button
                 variant="destructive"
@@ -1365,6 +1488,38 @@ export default function ManageCoursesPage() {
                 </span>
               </div>
             </div>
+
+            {/* Audit Logs / Activity Section */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Activity History
+              </h4>
+              <div className="max-h-40 overflow-y-auto space-y-2 rounded-2xl bg-muted/20 p-3 border border-border">
+                {loadingAudit ? (
+                  <div className="flex items-center justify-center py-4 text-xs text-muted-foreground gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Loading audit logs...</span>
+                  </div>
+                ) : courseAuditLogs.length > 0 ? (
+                  courseAuditLogs.map((log) => (
+                    <div
+                      key={log.id}
+                      className="text-xs flex flex-col gap-0.5 pb-2 border-b border-border/50 last:border-0 last:pb-0"
+                    >
+                      <div className="flex items-center justify-between text-muted-foreground">
+                        <span className="font-semibold text-foreground">{log.action}</span>
+                        <span>{new Date(log.createdAt).toLocaleDateString()}</span>
+                      </div>
+                      <p className="text-muted-foreground">{log.description}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-muted-foreground py-2 text-center">
+                    No recent audit logs found.
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -1414,22 +1569,20 @@ export default function ManageCoursesPage() {
               <button
                 type="button"
                 onClick={() => setInputMode("file")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
-                  inputMode === "file"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${inputMode === "file"
                     ? "bg-card text-foreground shadow-xs font-bold"
                     : "text-muted-foreground hover:text-foreground"
-                }`}
+                  }`}
               >
                 <Upload className="h-3.5 w-3.5" /> Upload File
               </button>
               <button
                 type="button"
                 onClick={() => setInputMode("paste")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
-                  inputMode === "paste"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${inputMode === "paste"
                     ? "bg-card text-foreground shadow-xs font-bold"
                     : "text-muted-foreground hover:text-foreground"
-                }`}
+                  }`}
               >
                 <Clipboard className="h-3.5 w-3.5" /> Paste Raw CSV Text
               </button>
@@ -1491,11 +1644,10 @@ export default function ManageCoursesPage() {
             {/* Results / Status Callout */}
             {bulkResult && (
               <div
-                className={`p-4 rounded-2xl border ${
-                  bulkResult.imported > 0
+                className={`p-4 rounded-2xl border ${bulkResult.imported > 0
                     ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
                     : "bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300"
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-2 font-bold text-sm">
                   {bulkResult.imported > 0 ? (

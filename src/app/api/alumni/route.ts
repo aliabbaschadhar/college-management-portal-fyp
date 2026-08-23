@@ -11,10 +11,12 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const department = searchParams.get("department");
+    const programLevel = searchParams.get("programLevel") || "BS";
     const queryStr = searchParams.get("q")?.trim();
 
     const whereClause: Record<string, unknown> = {
-      status: "Graduated",
+      status: programLevel === "INTERMEDIATE" ? { in: ["HSSC Completed", "Graduated"] } : "Graduated",
+      programLevel: programLevel === "INTERMEDIATE" ? "INTERMEDIATE" : "BS",
     };
 
     if (department && department !== "all") {
@@ -56,14 +58,17 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    const isInter = programLevel === "INTERMEDIATE";
+
     const formatted = alumniList.map((a) => {
-      const startYear = a.enrollmentDate ? new Date(a.enrollmentDate).getFullYear() : 2022;
-      const endYear = startYear + 4;
+      const startYear = a.enrollmentDate ? new Date(a.enrollmentDate).getFullYear() : 2024;
+      const duration = isInter ? 2 : 4;
+      const endYear = startYear + duration;
       const batchStr = `Batch ${startYear}-${String(endYear).slice(-2)}`;
       return {
         id: a.id,
         rollNo: a.rollNo,
-        name: a.user?.name || "Alumni",
+        name: a.user?.name || (isInter ? "HSSC Graduate" : "Alumni"),
         email: a.user?.email || "",
         avatar: a.avatar || a.user?.avatar || null,
         department: a.department,

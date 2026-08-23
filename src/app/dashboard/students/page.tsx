@@ -4,11 +4,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/axios";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { Pencil, Trash2, Loader2, Eye, Calendar, Shield, RefreshCw, CheckCircle, BadgeCheck, Building2, BookOpen, GraduationCap, User, AlertOctagon, X } from "lucide-react";
+import { Pencil, Trash2, Loader2, Eye, Calendar, Shield, RefreshCw, CheckCircle, BadgeCheck, Building2, BookOpen, GraduationCap, User, AlertOctagon, X, UserX } from "lucide-react";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
-import { DEPARTMENTS } from "@/lib/constants";
+import { useProgramLevel } from "@/context/program-level-context";
+import {
+  DEPARTMENTS,
+  INTERMEDIATE_DISCIPLINES,
+  getDisciplinesForLevel,
+  getTermOptionsForLevel,
+  formatTermLabel,
+  getSubjectSetFilterConfig,
+} from "@/lib/constants";
 import type { UserRole } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,19 +54,13 @@ interface StudentWithUser {
   blocked?: boolean;
   readmitRequested?: boolean;
   status?: string;
+  subjectSet?: string | null;
   user: { name: string | null; email: string };
   _count: { enrollments: number };
 }
 
 const deptColors: Record<string, string> = {
-  "Computer Science":
-    "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  Mathematics:
-    "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-  Physics:
-    "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-  English:
-    "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+  English: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
   Chemistry: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
   Economics: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400",
   "Political Science": "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400",
@@ -100,6 +102,7 @@ const emptyForm: EditForm = {
 export default function ManageStudentsPage() {
   const { isLoaded, user } = useUser();
   const router = useRouter();
+  const { programLevel } = useProgramLevel();
 
   const role = useMemo<UserRole>(() => {
     const rawRole = user?.publicMetadata?.role;
@@ -134,8 +137,14 @@ export default function ManageStudentsPage() {
   const [selectedDept, setSelectedDept] = useState<string | null>(null);
   const [selectedSemester, setSelectedSemester] = useState<number | null>(null);
   const [selectedShift, setSelectedShift] = useState<string>("Morning");
+  const [selectedSet, setSelectedSet] = useState<string>("Set 1");
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    setSelectedDept(programLevel === "INTERMEDIATE" ? "F.Sc Pre-Medical" : "Computer Science");
+    setSelectedSemester(1);
+  }, [programLevel]);
 
   // Detail Dialog states
   const [detailStudent, setDetailStudent] = useState<StudentWithUser | null>(null);
@@ -153,6 +162,18 @@ export default function ManageStudentsPage() {
   const [bulkDeleteTarget, setBulkDeleteTarget] = useState<"selected" | "class" | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [readmittingStudentId, setReadmittingStudentId] = useState<string | null>(null);
+
+  // Certification & Drop Off details states
+  const [certTotalMarks, setCertTotalMarks] = useState<number>(1100);
+  const [certObtainedMarks, setCertObtainedMarks] = useState<number>(950);
+  const [certGrade, setCertGrade] = useState<string>("A+");
+  const [dropOffReason, setDropOffReason] = useState<string>("Left studies midway");
+
+  // Mark Left dialog states
+  const [markLeftDialogOpen, setMarkLeftDialogOpen] = useState(false);
+  const [targetStudentForLeft, setTargetStudentForLeft] = useState<StudentWithUser | null>(null);
+  const [leftReasonInput, setLeftReasonInput] = useState("Left studies midway");
+  const [markingLeft, setMarkingLeft] = useState(false);
 
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const showToast = (msg: string, ok = true) => {
@@ -186,28 +207,58 @@ export default function ManageStudentsPage() {
     }
   };
 
+  const handleMarkLeft = async () => {
+    if (!targetStudentForLeft) return;
+    setMarkingLeft(true);
+    try {
+      await api.patch("/api/students/left", {
+        studentId: targetStudentForLeft.id,
+        action: "mark_left",
+        reason: leftReasonInput || "Left studies midway",
+      });
+      setStudents((prev) => prev.filter((s) => s.id !== targetStudentForLeft.id));
+      setMarkLeftDialogOpen(false);
+      setTargetStudentForLeft(null);
+      showToast(`Student ${targetStudentForLeft.rollNo} marked as Left/Dropped Out`);
+    } catch (err) {
+      console.error("Failed to mark student as left:", err);
+      showToast("Failed to update student status", false);
+    } finally {
+      setMarkingLeft(false);
+    }
+  };
+
   const filteredStudents = useMemo(() => {
     if (!selectedDept || !selectedSemester) return [];
-    return students.filter(
-      (s) =>
-        s.department === selectedDept &&
-        s.semester === selectedSemester &&
-        s.shift === selectedShift &&
-        s.status !== "Graduated"
-    );
-  }, [students, selectedDept, selectedSemester, selectedShift]);
+    return students.filter((s) => {
+      const matchesDept = s.department === selectedDept;
+      const matchesSem = s.semester === selectedSemester;
+      const matchesShift = programLevel === "BS" ? s.shift === selectedShift : true;
+      const notGraduated = s.status !== "Graduated" && s.status !== "HSSC Completed" && s.status !== "Left" && s.status !== "Dropped Out";
+
+      if (programLevel === "INTERMEDIATE") {
+        const setConfig = getSubjectSetFilterConfig(selectedDept || "");
+        const activeSet = setConfig.hasMultipleSets ? (selectedSet || "Set 1") : "Set 1";
+        const matchesSet = !s.subjectSet || s.subjectSet.toLowerCase() === activeSet.toLowerCase();
+        return matchesDept && matchesSem && matchesSet && notGraduated;
+      }
+
+      return matchesDept && matchesSem && matchesShift && notGraduated;
+    });
+  }, [students, selectedDept, selectedSemester, selectedShift, selectedSet, programLevel]);
 
   const visibleDepartments = useMemo(() => {
-    if (isAdmin) return DEPARTMENTS;
+    const list = getDisciplinesForLevel(programLevel);
+    if (isAdmin) return list;
     if (isFaculty) {
       const facultyDepts = new Set(courses.map((c) => c.department));
-      return DEPARTMENTS.filter((dept) => facultyDepts.has(dept));
+      return list.filter((dept) => facultyDepts.has(dept));
     }
-    return DEPARTMENTS.filter((dept) => students.some((s) => s.department === dept && s.status !== "Graduated"));
-  }, [isAdmin, isFaculty, courses, students]);
+    return list.filter((dept) => students.some((s) => s.department === dept && s.status !== "Graduated" && s.status !== "HSSC Completed"));
+  }, [isAdmin, isFaculty, courses, students, programLevel]);
 
   const visibleSemesters = useMemo(() => {
-    const allSemesters = [1, 2, 3, 4, 5, 6, 7, 8];
+    const allSemesters = getTermOptionsForLevel(programLevel);
     if (isAdmin) return allSemesters;
     if (isFaculty) {
       const facultySemesters = new Set(
@@ -218,16 +269,16 @@ export default function ManageStudentsPage() {
       return allSemesters.filter((sem) => facultySemesters.has(sem));
     }
     return allSemesters.filter((sem) =>
-      students.some((s) => s.department === selectedDept && s.semester === sem && s.status !== "Graduated")
+      students.some((s) => s.department === selectedDept && s.semester === sem && s.status !== "Graduated" && s.status !== "HSSC Completed")
     );
-  }, [isAdmin, isFaculty, courses, selectedDept, students]);
+  }, [isAdmin, isFaculty, courses, selectedDept, students, programLevel]);
 
   useEffect(() => {
     if (isLoaded && isAdmin) {
-      if (!selectedDept) setSelectedDept("Computer Science");
+      if (!selectedDept) setSelectedDept(programLevel === "INTERMEDIATE" ? "F.Sc Pre-Medical" : "Computer Science");
       if (!selectedSemester) setSelectedSemester(1);
     }
-  }, [isLoaded, isAdmin, selectedDept, selectedSemester]);
+  }, [isLoaded, isAdmin, selectedDept, selectedSemester, programLevel]);
 
   useEffect(() => {
     setSelectedStudentIds([]);
@@ -274,14 +325,26 @@ export default function ManageStudentsPage() {
         targetSemester: Number(targetSemester),
       };
 
-      if (Number(targetSemester) === 9 && gradesheetFile) {
-        const base64Url = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(gradesheetFile);
-        });
-        payload.gradesheetUrl = base64Url;
+      if (Number(targetSemester) === 10) {
+        payload.dropOffReason = dropOffReason || "Left studies midway";
+      }
+
+      if (Number(targetSemester) === 9) {
+        if (gradesheetFile) {
+          const base64Url = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(gradesheetFile);
+          });
+          payload.gradesheetUrl = base64Url;
+        }
+        if (programLevel === "INTERMEDIATE") {
+          payload.totalMarks = certTotalMarks;
+          payload.obtainedMarks = certObtainedMarks;
+          payload.percentage = certTotalMarks > 0 ? Number(((certObtainedMarks / certTotalMarks) * 100).toFixed(2)) : 0;
+          payload.grade = certGrade;
+        }
       }
 
       if (isPromotingAllClass) {
@@ -320,9 +383,11 @@ export default function ManageStudentsPage() {
         }
       } else {
         showToast(
-          Number(targetSemester) === 9
-            ? "Students successfully graduated and converted to Alumni!"
-            : "Students successfully promoted!"
+          Number(targetSemester) === 10
+            ? "Student(s) marked as Left / Dropped Out"
+            : Number(targetSemester) === 9
+              ? (programLevel === "INTERMEDIATE" ? "Students successfully marked as HSSC Completed!" : "Students successfully graduated and converted to Alumni!")
+              : "Students successfully promoted!"
         );
       }
 
@@ -335,7 +400,7 @@ export default function ManageStudentsPage() {
             return {
               ...s,
               semester: updatedInfo.semester,
-              status: updatedInfo.status ?? (Number(targetSemester) === 9 ? "Graduated" : s.status),
+              status: updatedInfo.status ?? (Number(targetSemester) === 10 ? "Left" : Number(targetSemester) === 9 ? "Graduated" : s.status),
             };
           }
           return s;
@@ -366,8 +431,8 @@ export default function ManageStudentsPage() {
   const handleRefresh = useCallback(() => {
     setLoading(true);
     Promise.all([
-      api.get<unknown[]>("/api/students"),
-      api.get<CourseType[]>("/api/courses").catch(() => ({ data: [] }))
+      api.get<unknown[]>(`/api/students?programLevel=${programLevel}`),
+      api.get<CourseType[]>(`/api/courses?programLevel=${programLevel}`).catch(() => ({ data: [] }))
     ])
       .then(([studentsRes, coursesRes]) => {
         const d = studentsRes.data;
@@ -395,7 +460,7 @@ export default function ManageStudentsPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [programLevel]);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -549,7 +614,7 @@ export default function ManageStudentsPage() {
     { key: "rollNo", header: "Roll No", sortable: true },
     {
       key: "department",
-      header: "Department",
+      header: programLevel === "INTERMEDIATE" ? "Discipline" : "Department",
       sortable: true,
       render: (row) => (
         <Badge variant="secondary" className={deptColors[row.department] || ""}>
@@ -559,27 +624,31 @@ export default function ManageStudentsPage() {
     },
     {
       key: "semester",
-      header: "Semester",
+      header: programLevel === "INTERMEDIATE" ? "Part" : "Semester",
       sortable: true,
-      render: (row) => <span className="font-medium">{row.semester}</span>,
+      render: (row) => <span className="font-medium">{formatTermLabel(programLevel, row.semester)}</span>,
     },
-    {
-      key: "shift",
-      header: "Shift",
-      sortable: true,
-      render: (row) => (
-        <Badge
-          variant="outline"
-          className={
-            row.shift === "Morning"
-              ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-              : "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20"
-          }
-        >
-          {row.shift}
-        </Badge>
-      ),
-    },
+    ...(programLevel === "BS"
+      ? [
+          {
+            key: "shift" as keyof StudentWithUser,
+            header: "Shift",
+            sortable: true,
+            render: (row: StudentWithUser) => (
+              <Badge
+                variant="outline"
+                className={
+                  row.shift === "Morning"
+                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                    : "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20"
+                }
+              >
+                {row.shift}
+              </Badge>
+            ),
+          },
+        ]
+      : []),
     ...(isAdmin
       ? [
         {
@@ -640,6 +709,17 @@ export default function ManageStudentsPage() {
                 title="Edit"
               >
                 <Pencil className="h-4 w-4 text-muted-foreground" />
+              </button>
+              <button
+                onClick={() => {
+                  setTargetStudentForLeft(row);
+                  setLeftReasonInput("Left studies midway");
+                  setMarkLeftDialogOpen(true);
+                }}
+                className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-rose-500/10 transition-colors"
+                title="Mark as Left / Dropped Out"
+              >
+                <UserX className="h-4 w-4 text-rose-600 dark:text-rose-400" />
               </button>
               <button
                 onClick={() => {
@@ -732,7 +812,9 @@ export default function ManageStudentsPage() {
                         <h3 className="text-xl font-bold text-foreground group-hover:text-brand-primary transition-colors">
                           {dept}
                         </h3>
-                        <p className="text-sm text-muted-foreground mt-2">Department</p>
+                        <p className="text-sm text-muted-foreground mt-2">
+                          {programLevel === "INTERMEDIATE" ? "Discipline" : "Department"}
+                        </p>
                       </div>
                       <div className="flex items-center justify-between mt-4">
                         <span className="text-sm font-semibold bg-brand-primary/10 text-brand-primary px-3 py-1 rounded-full">
@@ -758,7 +840,7 @@ export default function ManageStudentsPage() {
           >
             <PageHeader
               title={selectedDept}
-              subtitle="Select a semester to view the class list"
+              subtitle={programLevel === "INTERMEDIATE" ? "Select a part to view the class list" : "Select a semester to view the class list"}
               breadcrumbs={[
                 { label: "Dashboard", href: "/dashboard" },
                 {
@@ -779,7 +861,7 @@ export default function ManageStudentsPage() {
                   onClick={() => setSelectedDept(null)}
                   className="rounded-xl border-2"
                 >
-                  ← Back to Departments
+                  {programLevel === "INTERMEDIATE" ? "← Back to Disciplines" : "← Back to Departments"}
                 </Button>
               </div>
 
@@ -797,7 +879,9 @@ export default function ManageStudentsPage() {
                       className="cursor-pointer p-6 bg-card border-2 border-border rounded-2xl shadow-sm hover:shadow-md hover:border-brand-primary transition-all duration-200 flex flex-col justify-between h-36 group relative overflow-hidden"
                     >
                       <div>
-                        <h3 className="text-lg font-bold text-foreground">Semester {sem}</h3>
+                        <h3 className="text-lg font-bold text-foreground">
+                          {formatTermLabel(programLevel, sem)}
+                        </h3>
                         <p className="text-xs text-muted-foreground mt-1">Active Class</p>
                       </div>
                       <div className="flex items-center justify-between mt-4">
@@ -823,7 +907,7 @@ export default function ManageStudentsPage() {
             className="space-y-6"
           >
             <PageHeader
-              title={isAdmin ? "Manage Students" : `${selectedDept} - Semester ${selectedSemester}`}
+              title={isAdmin ? "Manage Students" : `${selectedDept} - ${formatTermLabel(programLevel, selectedSemester)}`}
               subtitle={isAdmin ? `${filteredStudents.length} students found` : `${filteredStudents.length} students enrolled in this class`}
               breadcrumbs={
                 isAdmin
@@ -846,7 +930,7 @@ export default function ManageStudentsPage() {
                         setSelectedSemester(null);
                       },
                     },
-                    { label: `Semester ${selectedSemester}` },
+                    { label: formatTermLabel(programLevel, selectedSemester) },
                   ]
               }
               action={
@@ -911,13 +995,15 @@ export default function ManageStudentsPage() {
                   {isAdmin ? (
                     <div className="flex flex-wrap items-center gap-4 bg-card p-4 rounded-xl border border-border w-full">
                       <div className="flex items-center gap-2">
-                        <Label className="text-xs font-semibold text-muted-foreground uppercase">Dept:</Label>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase">
+                          {programLevel === "INTERMEDIATE" ? "Discipline:" : "Dept:"}
+                        </Label>
                         <Select value={selectedDept || ""} onValueChange={setSelectedDept}>
                           <SelectTrigger className="w-[180px] h-10 bg-card rounded-xl">
-                            <SelectValue placeholder="Select Department" />
+                            <SelectValue placeholder={programLevel === "INTERMEDIATE" ? "Select Discipline" : "Select Department"} />
                           </SelectTrigger>
                           <SelectContent>
-                            {DEPARTMENTS.map((d) => (
+                            {getDisciplinesForLevel(programLevel).map((d) => (
                               <SelectItem key={d} value={d}>
                                 {d}
                               </SelectItem>
@@ -927,36 +1013,57 @@ export default function ManageStudentsPage() {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <Label className="text-xs font-semibold text-muted-foreground uppercase">Sem:</Label>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase">
+                          {programLevel === "INTERMEDIATE" ? "Part:" : "Sem:"}
+                        </Label>
                         <Select
                           value={String(selectedSemester || 1)}
                           onValueChange={(v) => setSelectedSemester(Number(v))}
                         >
-                          <SelectTrigger className="w-[120px] h-10 bg-card rounded-xl">
+                          <SelectTrigger className="w-[140px] h-10 bg-card rounded-xl">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                            {getTermOptionsForLevel(programLevel).map((s) => (
                               <SelectItem key={s} value={String(s)}>
-                                Semester {s}
+                                {formatTermLabel(programLevel, s)}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
+                      {programLevel === "INTERMEDIATE" && getSubjectSetFilterConfig(selectedDept || "").hasMultipleSets && (
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs font-semibold text-muted-foreground uppercase">Subject Set:</Label>
+                          <Select value={selectedSet || "Set 1"} onValueChange={setSelectedSet}>
+                            <SelectTrigger className="w-[140px] h-10 bg-card rounded-xl font-bold">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getSubjectSetFilterConfig(selectedDept || "").availableSets.map((set) => (
+                                <SelectItem key={set} value={set}>
+                                  {set}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
 
-                      <div className="flex items-center gap-2">
-                        <Label className="text-xs font-semibold text-muted-foreground uppercase">Shift:</Label>
-                        <Select value={selectedShift} onValueChange={setSelectedShift}>
-                          <SelectTrigger className="w-[120px] h-10 bg-card rounded-xl">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Morning">Morning</SelectItem>
-                            <SelectItem value="Evening">Evening</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      {programLevel === "BS" && (
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs font-semibold text-muted-foreground uppercase">Shift:</Label>
+                          <Select value={selectedShift} onValueChange={setSelectedShift}>
+                            <SelectTrigger className="w-[120px] h-10 bg-card rounded-xl">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Morning">Morning</SelectItem>
+                              <SelectItem value="Evening">Evening</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="flex items-center gap-3">
@@ -1019,29 +1126,29 @@ export default function ManageStudentsPage() {
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img src={detailStudent.avatar} alt={detailStudent.user.name ?? "Avatar"} className="object-cover h-full w-full" />
                     ) : (
-                      <User className="w-10 h-10 text-white" />
+                      <User className="w-10 h-10 text-white/80" />
                     )}
                   </div>
-
-                  <h2 className="text-xl font-black text-white mb-0.5 leading-snug">
-                    {detailStudent.user.name ?? "—"}
-                  </h2>
-                  <p className="text-xs text-white/80 font-mono font-semibold mb-2">{detailStudent.rollNo}</p>
-
-                  <span className="inline-flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-3 py-0.5 text-[11px] text-white font-bold">
-                    <GraduationCap className="w-3.5 h-3.5" /> Student
-                  </span>
+                  <h3 className="text-lg font-bold text-white tracking-tight">{detailStudent.user.name ?? "Unnamed Student"}</h3>
+                  <p className="text-xs text-white/80 font-mono mt-0.5">{detailStudent.rollNo}</p>
                 </div>
 
-                {/* Profile & Academic Stack */}
                 <div className="w-full space-y-2 pt-3 border-t border-white/20 text-left text-xs text-white/90">
                   <div>
-                    <p className="text-white/60 text-[10px] uppercase font-bold tracking-wider">Department</p>
+                    <p className="text-white/60 text-[10px] uppercase font-bold tracking-wider">
+                      {programLevel === "INTERMEDIATE" ? "Discipline" : "Department"}
+                    </p>
                     <p className="font-semibold text-white truncate">{detailStudent.department}</p>
                   </div>
                   <div>
-                    <p className="text-white/60 text-[10px] uppercase font-bold tracking-wider">Semester &amp; Shift</p>
-                    <p className="font-semibold text-white">Semester {detailStudent.semester} ({detailStudent.shift ?? "Morning"})</p>
+                    <p className="text-white/60 text-[10px] uppercase font-bold tracking-wider">
+                      {programLevel === "INTERMEDIATE" ? "Part" : "Semester & Shift"}
+                    </p>
+                    <p className="font-semibold text-white">
+                      {programLevel === "INTERMEDIATE"
+                        ? formatTermLabel("INTERMEDIATE", detailStudent.semester)
+                        : `Semester ${detailStudent.semester} (${detailStudent.shift ?? "Morning"})`}
+                    </p>
                   </div>
                   {detailStudent.phone && (
                     <div>
@@ -1175,16 +1282,16 @@ export default function ManageStudentsPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Department</Label>
+                    <Label>{programLevel === "INTERMEDIATE" ? "Discipline" : "Department"}</Label>
                     <Select
                       value={form.department}
                       onValueChange={(v) => setForm({ ...form, department: v })}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select department" />
+                        <SelectValue placeholder={programLevel === "INTERMEDIATE" ? "Select discipline" : "Select department"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {DEPARTMENTS.map((d) => (
+                        {getDisciplinesForLevel(programLevel).map((d) => (
                           <SelectItem key={d} value={d}>
                             {d}
                           </SelectItem>
@@ -1193,7 +1300,7 @@ export default function ManageStudentsPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Semester</Label>
+                    <Label>{programLevel === "INTERMEDIATE" ? "Part" : "Semester"}</Label>
                     <Select
                       value={String(form.semester)}
                       onValueChange={(v) =>
@@ -1204,32 +1311,34 @@ export default function ManageStudentsPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                        {getTermOptionsForLevel(programLevel).map((s) => (
                           <SelectItem key={s} value={String(s)}>
-                            Semester {s}
+                            {formatTermLabel(programLevel, s)}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2 col-span-2">
-                    <Label>Shift</Label>
-                    <Select
-                      value={form.shift}
-                      onValueChange={(v) => setForm({ ...form, shift: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select shift" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-white dark:bg-[#110d22] border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white">
-                        <SelectItem value="Morning">Morning</SelectItem>
-                        <SelectItem value="Evening">Evening</SelectItem>
-                      </SelectContent>
-                    </Select>
+                {programLevel === "BS" && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2 col-span-2">
+                      <Label>Shift</Label>
+                      <Select
+                        value={form.shift}
+                        onValueChange={(v) => setForm({ ...form, shift: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select shift" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white dark:bg-[#110d22] border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white">
+                          <SelectItem value="Morning">Morning</SelectItem>
+                          <SelectItem value="Evening">Evening</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
               <DialogFooter>
                 <Button variant="outline" disabled={submitting} onClick={() => setDialogOpen(false)}>
@@ -1285,55 +1394,130 @@ export default function ManageStudentsPage() {
                 <DialogTitle>Promote Students</DialogTitle>
                 <DialogDescription>
                   {isPromotingAllClass
-                    ? `You are about to promote the entire class in ${selectedDept} Semester ${selectedSemester}.`
+                    ? `You are about to promote the entire class in ${selectedDept} ${formatTermLabel(programLevel, selectedSemester ?? 1)}.`
                     : "You are about to promote selected students."}
                 </DialogDescription>
               </DialogHeader>
               <div className="py-4 space-y-4">
                 <div className="space-y-2">
-                  <Label>Target Semester</Label>
+                  <Label>{programLevel === "INTERMEDIATE" ? "Target Part / Status" : "Target Semester"}</Label>
                   <Select value={targetSemester} onValueChange={setTargetSemester}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select target semester" />
                     </SelectTrigger>
                     <SelectContent className="bg-white dark:bg-[#110d22] border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white">
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((sem) => (
+                      {(programLevel === "INTERMEDIATE" ? [1, 2, 9, 10] : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]).map((sem) => (
                         <SelectItem key={sem} value={String(sem)}>
-                          {sem === 9 ? "🎓 Graduate to Alumni Status" : `Semester ${sem}`}
+                          {sem === 10
+                            ? "❌ Drop Off / Left College"
+                            : sem === 9
+                              ? (programLevel === "INTERMEDIATE" ? "🎓 HSSC Completed" : "🎓 Graduate to Alumni Status")
+                              : formatTermLabel(programLevel, sem)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
 
-                {Number(targetSemester) === 9 && (
-                  <div className="space-y-2 p-4 bg-amber-500/10 border-2 border-amber-500/30 rounded-2xl">
-                    <Label className="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-2">
-                      <BookOpen className="h-4 w-4" />
-                      Mandatory Complete Grade Sheet (PDF File Only) *
+                {Number(targetSemester) === 10 && (
+                  <div className="space-y-2 p-4 bg-rose-500/10 border-2 border-rose-500/30 rounded-2xl">
+                    <Label className="text-xs font-bold text-rose-700 dark:text-rose-300 flex items-center gap-2">
+                      <UserX className="h-4 w-4" />
+                      Reason for Drop Off / Leaving *
                     </Label>
                     <Input
-                      type="file"
-                      accept="application/pdf,.pdf"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        if (file && !file.name.toLowerCase().endsWith(".pdf") && file.type !== "application/pdf") {
-                          setGradesheetError("Only PDF files (.pdf) are allowed");
-                          setGradesheetFile(null);
-                        } else {
-                          setGradesheetError(null);
-                          setGradesheetFile(file);
-                        }
-                      }}
-                      className="bg-card border-border text-xs cursor-pointer file:bg-brand-primary file:text-white file:border-0 file:rounded-lg file:px-3 file:py-1"
+                      type="text"
+                      value={dropOffReason}
+                      onChange={(e) => setDropOffReason(e.target.value)}
+                      placeholder="e.g., Financial hardship, Transferred, Personal reason"
+                      className="bg-card text-xs font-semibold"
                     />
-                    {gradesheetError && (
-                      <p className="text-xs text-rose-600 dark:text-rose-400 font-bold">{gradesheetError}</p>
-                    )}
-                    {gradesheetFile && (
-                      <p className="text-xs text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
-                        ✓ Selected: {gradesheetFile.name} ({(gradesheetFile.size / 1024).toFixed(1)} KB)
-                      </p>
+                    <p className="text-xs text-muted-foreground">
+                      Selected student(s) will be marked as <strong>Left / Dropped Out</strong> and transferred to the <strong>Left Students</strong> directory.
+                    </p>
+                  </div>
+                )}
+
+                {Number(targetSemester) === 9 && (
+                  <div className="space-y-4">
+                    <div className="space-y-2 p-4 bg-amber-500/10 border-2 border-amber-500/30 rounded-2xl">
+                      <Label className="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                        <BookOpen className="h-4 w-4" />
+                        Mandatory Complete Grade Sheet / Certificate (PDF File Only) *
+                      </Label>
+                      <Input
+                        type="file"
+                        accept="application/pdf,.pdf"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null;
+                          if (file && !file.name.toLowerCase().endsWith(".pdf") && file.type !== "application/pdf") {
+                            setGradesheetError("Only PDF files (.pdf) are allowed");
+                            setGradesheetFile(null);
+                          } else {
+                            setGradesheetError(null);
+                            setGradesheetFile(file);
+                          }
+                        }}
+                        className="bg-card border-border text-xs cursor-pointer file:cursor-pointer file:hover:cursor-pointer hover:cursor-pointer file:bg-brand-primary file:text-white file:border-0 file:rounded-lg file:px-3 file:py-1 transition-all"
+                      />
+                      {gradesheetError && (
+                        <p className="text-xs text-rose-600 dark:text-rose-400 font-bold">{gradesheetError}</p>
+                      )}
+                      {gradesheetFile && (
+                        <p className="text-xs text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                          ✓ Selected: {gradesheetFile.name} ({(gradesheetFile.size / 1024).toFixed(1)} KB)
+                        </p>
+                      )}
+                    </div>
+
+                    {programLevel === "INTERMEDIATE" && (
+                      <div className="p-4 bg-card border-2 border-brand-primary/30 rounded-2xl space-y-3">
+                        <h4 className="text-xs font-black uppercase text-brand-primary tracking-wider">HSSC Board Examination Results</h4>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs font-bold">Total Marks *</Label>
+                            <Input
+                              type="number"
+                              value={certTotalMarks}
+                              onChange={(e) => setCertTotalMarks(Number(e.target.value))}
+                              placeholder="1100"
+                              className="bg-card h-9 text-xs font-semibold"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs font-bold">Obtained Marks *</Label>
+                            <Input
+                              type="number"
+                              value={certObtainedMarks}
+                              onChange={(e) => setCertObtainedMarks(Number(e.target.value))}
+                              placeholder="950"
+                              className="bg-card h-9 text-xs font-semibold"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs font-bold">Board Grade *</Label>
+                            <Select value={certGrade} onValueChange={setCertGrade}>
+                              <SelectTrigger className="h-9 bg-card text-xs font-semibold">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {["A+", "A", "B", "C", "D", "E"].map((g) => (
+                                  <SelectItem key={g} value={g}>{g} Grade</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs font-bold text-muted-foreground">Percentage (%)</Label>
+                            <div className="h-9 px-3 bg-muted rounded-xl text-xs font-extrabold flex items-center text-emerald-600 dark:text-emerald-400 border">
+                              {certTotalMarks > 0 ? ((certObtainedMarks / certTotalMarks) * 100).toFixed(2) : 0}%
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}
@@ -1345,7 +1529,9 @@ export default function ManageStudentsPage() {
                   <ul className="list-disc list-inside text-sm space-y-1 text-muted-foreground pl-2">
                     <li>
                       {Number(targetSemester) === 9
-                        ? "Change student status to Graduated (Alumni Directory)"
+                        ? (programLevel === "INTERMEDIATE"
+                            ? "Mark student status as HSSC Completed"
+                            : "Change student status to Graduated (Alumni Directory)")
                         : `Update their semesters to Semester ${targetSemester}`}
                     </li>
                     <li>
@@ -1421,6 +1607,49 @@ export default function ManageStudentsPage() {
                 >
                   {bulkDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
                   {bulkDeleting ? "Deleting..." : "Confirm Delete Students"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Mark Student as Left/Dropped Out Dialog */}
+          <Dialog open={markLeftDialogOpen} onOpenChange={setMarkLeftDialogOpen}>
+            <DialogContent className="sm:max-w-[420px]">
+              <DialogHeader>
+                <DialogTitle className="text-rose-600 dark:text-rose-400 flex items-center gap-2">
+                  <UserX className="h-5 w-5" /> Mark Student as Left
+                </DialogTitle>
+                <DialogDescription>
+                  Mark <strong>{targetStudentForLeft?.user.name}</strong> ({targetStudentForLeft?.rollNo}) as having left their academic journey.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="py-3 space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="leftReason" className="text-xs font-bold">Reason for Leaving *</Label>
+                  <Input
+                    id="leftReason"
+                    value={leftReasonInput}
+                    onChange={(e) => setLeftReasonInput(e.target.value)}
+                    placeholder="e.g., Financial hardship, Transferred, Personal reason"
+                    className="bg-card text-xs"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  This student will be moved to the <strong>Left Students</strong> directory. Administrators can readmit them at any time.
+                </p>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" disabled={markingLeft} onClick={() => setMarkLeftDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleMarkLeft}
+                  disabled={markingLeft || !leftReasonInput.trim()}
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-bold cursor-pointer"
+                >
+                  {markingLeft ? "Updating..." : "Mark as Left"}
                 </Button>
               </DialogFooter>
             </DialogContent>

@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 async function resolveDashboardUser(clerkId: string, email?: string | null) {
   const include = {
@@ -287,32 +288,46 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
 
 export async function ensureStudentEnrollments(
   studentId: string,
-  department: string,
-  semester: number
+  department?: string | null,
+  semester?: number | null
 ): Promise<number> {
   const studentRecord = await prisma.student.findUnique({
     where: { id: studentId },
-    select: { status: true },
+    select: { status: true, programLevel: true, department: true, semester: true, discipline: true, part: true, subjectSet: true },
   });
-  if (studentRecord?.status === "Graduated") {
+  if (studentRecord?.status === "Graduated" || studentRecord?.status === "HSSC Completed") {
     return 0;
   }
 
-  // Check if student has any enrollments for this semester
+  const targetTerm = studentRecord?.programLevel === "INTERMEDIATE" ? (studentRecord.part ?? 1) : (studentRecord?.semester ?? semester ?? 1);
+
+  // Check if student has any enrollments for this term
   const count = await prisma.enrollment.count({
-    where: { studentId, semester },
+    where: { studentId, semester: targetTerm },
   });
 
   if (count > 0) {
     return 0;
   }
 
-  // Find all courses matching department and semester
+  // Find courses matching programLevel and domain fields
+  const courseWhere: Prisma.CourseWhereInput = {
+    programLevel: studentRecord?.programLevel || "BS",
+  };
+
+  if (studentRecord?.programLevel === "INTERMEDIATE") {
+    courseWhere.discipline = studentRecord.discipline || department || "F.Sc Pre-Medical";
+    courseWhere.part = studentRecord.part || targetTerm;
+    if (studentRecord.subjectSet) {
+      courseWhere.subjectSet = studentRecord.subjectSet;
+    }
+  } else {
+    courseWhere.department = studentRecord?.department || department || "Computer Science";
+    courseWhere.semester = studentRecord?.semester || targetTerm;
+  }
+
   const courses = await prisma.course.findMany({
-    where: {
-      department,
-      semester,
-    },
+    where: courseWhere,
   });
 
   if (courses.length === 0) {
@@ -323,7 +338,7 @@ export async function ensureStudentEnrollments(
   const enrollmentData = courses.map((course) => ({
     studentId,
     courseId: course.id,
-    semester,
+    semester: targetTerm,
   }));
 
   const created = await prisma.enrollment.createMany({

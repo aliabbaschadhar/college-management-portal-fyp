@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { DEPARTMENTS } from "@/lib/constants";
 import { api } from "@/lib/axios";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -19,6 +18,9 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 
+import { useProgramLevel } from "@/context/program-level-context";
+import { getDisciplinesForLevel } from "@/lib/constants";
+
 interface AlumniRecord {
   id: string;
   rollNo: string;
@@ -34,11 +36,16 @@ interface AlumniRecord {
 }
 
 export default function AlumniDirectoryPage() {
+  const { programLevel } = useProgramLevel();
   const [alumni, setAlumni] = useState<AlumniRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDept, setSelectedDept] = useState<string>("all");
   const [userRole, setUserRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedDept("all");
+  }, [programLevel]);
 
   useEffect(() => {
     api.get("/api/me")
@@ -55,6 +62,7 @@ export default function AlumniDirectoryPage() {
     try {
       let url = "/api/alumni";
       const params = new URLSearchParams();
+      params.append("programLevel", programLevel);
       if (selectedDept !== "all") params.append("department", selectedDept);
       if (searchQuery.trim()) params.append("q", searchQuery.trim());
 
@@ -68,7 +76,7 @@ export default function AlumniDirectoryPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedDept, searchQuery]);
+  }, [selectedDept, searchQuery, programLevel]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -87,11 +95,11 @@ export default function AlumniDirectoryPage() {
       className="space-y-6"
     >
       <PageHeader
-        title="Alumni Directory"
-        subtitle="Connect with graduated students across all departments and graduation batches."
+        title={programLevel === "INTERMEDIATE" ? "HSSC Completed Directory" : "Alumni Directory"}
+        subtitle={programLevel === "INTERMEDIATE" ? "Connect with HSSC Completed students." : "Connect with graduated BS students."}
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
-          { label: "Alumni Directory" },
+          { label: programLevel === "INTERMEDIATE" ? "HSSC Completed Directory" : "Alumni Directory" },
         ]}
         action={
           <Button
@@ -113,7 +121,7 @@ export default function AlumniDirectoryPage() {
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={isAdmin ? "Search by name, roll no, or email..." : "Search by name or department..."}
+            placeholder={isAdmin ? "Search by name, roll no, or email..." : "Search by name..."}
             className="pl-9 h-10 rounded-xl bg-background border-border"
           />
         </div>
@@ -122,24 +130,22 @@ export default function AlumniDirectoryPage() {
           <Badge
             onClick={() => setSelectedDept("all")}
             variant={selectedDept === "all" ? "default" : "outline"}
-            className={`cursor-pointer px-3 py-1.5 rounded-xl font-semibold transition-all whitespace-nowrap ${
-              selectedDept === "all"
+            className={`cursor-pointer px-3 py-1.5 rounded-xl font-semibold transition-all whitespace-nowrap ${selectedDept === "all"
                 ? "bg-brand-primary text-white"
                 : "hover:bg-accent text-muted-foreground"
-            }`}
+              }`}
           >
-            All Departments
+            {programLevel === "INTERMEDIATE" ? "All Disciplines" : "All Departments"}
           </Badge>
-          {DEPARTMENTS.map((dept) => (
+          {getDisciplinesForLevel(programLevel).map((dept) => (
             <Badge
               key={dept}
               onClick={() => setSelectedDept(dept)}
               variant={selectedDept === dept ? "default" : "outline"}
-              className={`cursor-pointer px-3 py-1.5 rounded-xl font-semibold transition-all whitespace-nowrap ${
-                selectedDept === dept
+              className={`cursor-pointer px-3 py-1.5 rounded-xl font-semibold transition-all whitespace-nowrap ${selectedDept === dept
                   ? "bg-brand-primary text-white"
                   : "hover:bg-accent text-muted-foreground"
-              }`}
+                }`}
             >
               {dept}
             </Badge>
@@ -157,9 +163,13 @@ export default function AlumniDirectoryPage() {
       ) : alumni.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-12 text-center bg-card border border-border rounded-2xl space-y-3">
           <Users className="h-12 w-12 text-muted-foreground/40" />
-          <h3 className="text-lg font-bold text-foreground">No Alumni Found</h3>
+          <h3 className="text-lg font-bold text-foreground">
+            {programLevel === "INTERMEDIATE" ? "No HSSC Passed Students Found" : "No Alumni Found"}
+          </h3>
           <p className="text-sm text-muted-foreground max-w-md">
-            No graduated students match your search criteria. When 8th semester students are promoted, they will automatically appear in this directory.
+            {programLevel === "INTERMEDIATE"
+              ? "No HSSC completed students match your search criteria. When Part 2 students are promoted to HSSC Completed status, they will automatically appear here."
+              : "No graduated students match your search criteria. When 8th semester students are promoted, they will automatically appear in this directory."}
           </p>
         </div>
       ) : (

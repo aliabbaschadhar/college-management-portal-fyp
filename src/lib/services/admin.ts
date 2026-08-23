@@ -15,7 +15,9 @@ interface AdminDashboardData {
   recentAnnouncements: { id: string; title: string; priority: string; date: string }[];
 }
 
-export async function getAdminDashboardData(): Promise<AdminDashboardData> {
+export async function getAdminDashboardData(programLevel?: string): Promise<AdminDashboardData> {
+  const levelFilter = programLevel === "INTERMEDIATE" ? "INTERMEDIATE" : "BS";
+
   const [
     totalStudents,
     totalFaculty,
@@ -29,22 +31,28 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     prisma.student.count({
       where: {
         status: { not: "Graduated" },
+        programLevel: levelFilter,
       },
     }),
     prisma.user.count({ where: { role: "FACULTY", faculty: { isNot: null } } }),
-    prisma.course.count(),
-    prisma.admission.count({ where: { status: "Pending" } }),
+    prisma.course.count({
+      where: { programLevel: levelFilter },
+    }),
+    prisma.admission.count({
+      where: { status: "Pending", programLevel: levelFilter },
+    }),
     prisma.fee.groupBy({
+      where: { student: { programLevel: levelFilter } },
       by: ["status"],
       _sum: { amount: true },
     }),
     prisma.attendance.groupBy({
-      where: { course: { assignedFaculty: { not: null } } },
+      where: { student: { programLevel: levelFilter } },
       by: ["status"],
       _count: { _all: true },
     }),
     prisma.student.groupBy({
-      where: { status: { not: "Graduated" } },
+      where: { status: { not: "Graduated" }, programLevel: levelFilter },
       by: ["department"],
       _count: { _all: true },
     }),

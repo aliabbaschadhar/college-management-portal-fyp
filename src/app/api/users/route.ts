@@ -27,14 +27,21 @@ export async function GET(request: NextRequest) {
     const roleFilter = searchParams.get("role");
     const departmentFilter = searchParams.get("department");
     const semesterFilter = searchParams.get("semester");
+    const programLevel = searchParams.get("programLevel") || "BS";
     const search = searchParams.get("search") ?? "";
 
+    const targetLevel = programLevel === "INTERMEDIATE" ? "INTERMEDIATE" : "BS";
     const whereClause: Record<string, unknown> = {
       NOT: {
         student: {
           status: "Graduated",
         },
       },
+      OR: [
+        { student: { programLevel: targetLevel } },
+        { faculty: { isNot: null } },
+        { admin: { isNot: null } },
+      ],
     };
 
     if (roleFilter && roleFilter !== "ALL") {

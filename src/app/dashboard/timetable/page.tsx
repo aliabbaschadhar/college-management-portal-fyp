@@ -21,7 +21,13 @@ import {
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { motion } from "framer-motion";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { DEPARTMENTS } from "@/lib/constants";
+import {
+  DEPARTMENTS,
+  INTERMEDIATE_DISCIPLINES,
+  getDisciplinesForLevel,
+  getTermOptionsForLevel,
+  formatTermLabel,
+} from "@/lib/constants";
 import { TIMETABLE_DAYS } from "@/lib/timetable";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -118,8 +124,11 @@ function getTeacherForCourseAndShift(course: CourseOption, shift: string): strin
   return course.facultyName || course.facultyMorningName || course.facultyEveningName || "Unassigned";
 }
 
+import { useProgramLevel } from "@/context/program-level-context";
+
 export default function TimetablePage() {
   const router = useRouter();
+  const { programLevel } = useProgramLevel();
   const [timetable, setTimetable] = useState<TimetableApiEntry[]>([]);
   const [courses, setCourses] = useState<CourseOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,6 +137,18 @@ export default function TimetablePage() {
   const [filterDept, setFilterDept] = useState<string>("Computer Science");
   const [filterSemester, setFilterSemester] = useState<string>("1");
   const [filterShift, setFilterShift] = useState<string>("Morning");
+
+  useEffect(() => {
+    if (programLevel === "INTERMEDIATE") {
+      if (!(INTERMEDIATE_DISCIPLINES as readonly string[]).includes(filterDept)) {
+        setFilterDept("ICS");
+      }
+    } else {
+      if (!(DEPARTMENTS as readonly string[]).includes(filterDept)) {
+        setFilterDept("Computer Science");
+      }
+    }
+  }, [programLevel, filterDept]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<TimetableApiEntry | null>(
     null,
@@ -849,14 +870,14 @@ export default function TimetablePage() {
         <div className="flex flex-wrap items-center gap-4 p-4 bg-card border rounded-2xl shadow-sm">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-muted-foreground">
-              Department:
+              {programLevel === "INTERMEDIATE" ? "Discipline:" : "Department:"}
             </span>
             <Select value={filterDept} onValueChange={setFilterDept}>
               <SelectTrigger className="w-50 bg-transparent border-none focus:ring-0 font-semibold text-brand-primary">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {DEPARTMENTS.map((department) => (
+                {getDisciplinesForLevel(programLevel).map((department) => (
                   <SelectItem key={department} value={department}>
                     {department}
                   </SelectItem>
@@ -869,38 +890,42 @@ export default function TimetablePage() {
 
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-muted-foreground">
-              Semester:
+              {programLevel === "INTERMEDIATE" ? "Part:" : "Semester:"}
             </span>
             <Select value={filterSemester} onValueChange={setFilterSemester}>
-              <SelectTrigger className="w-30 bg-transparent border-none focus:ring-0 font-semibold text-brand-secondary">
+              <SelectTrigger className="w-36 bg-transparent border-none focus:ring-0 font-semibold text-brand-secondary">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((semester) => (
+                {getTermOptionsForLevel(programLevel).map((semester) => (
                   <SelectItem key={semester} value={String(semester)}>
-                    Sem {semester}
+                    {formatTermLabel(programLevel, semester)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          <div className="h-6 w-px bg-border hidden sm:block" />
+          {programLevel === "BS" && (
+            <>
+              <div className="h-6 w-px bg-border hidden sm:block" />
 
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-muted-foreground">
-              Shift:
-            </span>
-            <Select value={filterShift} onValueChange={setFilterShift}>
-              <SelectTrigger className="w-32 bg-transparent border-none focus:ring-0 font-semibold text-brand-primary">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Morning">Morning</SelectItem>
-                <SelectItem value="Evening">Evening</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-muted-foreground">
+                  Shift:
+                </span>
+                <Select value={filterShift} onValueChange={setFilterShift}>
+                  <SelectTrigger className="w-32 bg-transparent border-none focus:ring-0 font-semibold text-brand-primary">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Morning">Morning</SelectItem>
+                    <SelectItem value="Evening">Evening</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
         </div>
 
         {error && (
@@ -945,11 +970,10 @@ export default function TimetablePage() {
                               initial={{ opacity: 0, scale: 0.9 }}
                               animate={{ opacity: 1, scale: 1 }}
                               onClick={() => handleToggleSelectSlot(cls.id)}
-                              className={`group p-3.5 border-l-4 rounded-xl m-1 transition-all duration-300 shadow-xs hover:shadow-md h-full min-h-25 cursor-pointer select-none ${
-                                isSelected
+                              className={`group p-3.5 border-l-4 rounded-xl m-1 transition-all duration-300 shadow-xs hover:shadow-md h-full min-h-25 cursor-pointer select-none ${isSelected
                                   ? "bg-brand-primary/15 border-l-brand-primary ring-2 ring-brand-primary/50 shadow-md"
                                   : "bg-brand-primary/5 border-l-brand-primary hover:bg-brand-primary/10"
-                              }`}
+                                }`}
                             >
                               <div className="space-y-1.5">
                                 {/* 1. Day Badge & Actions */}
@@ -1016,8 +1040,8 @@ export default function TimetablePage() {
                                   {cls.shift === "Morning"
                                     ? cls.course.facultyMorning?.user?.name || cls.course.faculty?.user?.name || "Unassigned"
                                     : cls.shift === "Evening"
-                                    ? cls.course.facultyEvening?.user?.name || cls.course.faculty?.user?.name || "Unassigned"
-                                    : cls.course.faculty?.user?.name || cls.course.facultyMorning?.user?.name || cls.course.facultyEvening?.user?.name || "Unassigned"}
+                                      ? cls.course.facultyEvening?.user?.name || cls.course.faculty?.user?.name || "Unassigned"
+                                      : cls.course.faculty?.user?.name || cls.course.facultyMorning?.user?.name || cls.course.facultyEvening?.user?.name || "Unassigned"}
                                 </div>
 
                                 {/* 4. Time */}
@@ -1303,7 +1327,7 @@ export default function TimetablePage() {
           <div className="space-y-4 py-2">
             <div className="text-xs text-muted-foreground bg-muted/40 p-3 rounded-xl flex items-center justify-between flex-wrap gap-2">
               <span>Target Shift: <strong className="text-foreground">{filterShift}</strong></span>
-              
+
               <div className="flex items-center gap-2">
                 <span className="font-bold text-foreground">Batch Day:</span>
                 <Select
@@ -1409,11 +1433,10 @@ export default function TimetablePage() {
                 return (
                   <div
                     key={entry.id || `batch-${idx}`}
-                    className={`p-4 border rounded-2xl shadow-xs transition-all ${
-                      entry.enabled
+                    className={`p-4 border rounded-2xl shadow-xs transition-all ${entry.enabled
                         ? "bg-card border-border"
                         : "bg-muted/30 border-dashed border-border/60 opacity-60"
-                    }`}
+                      }`}
                   >
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                       {/* Left: Include checkbox & Course Select & Teacher info */}
@@ -1657,22 +1680,20 @@ export default function TimetablePage() {
                   <button
                     type="button"
                     onClick={() => setExportMode("color")}
-                    className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                      exportMode === "color"
+                    className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${exportMode === "color"
                         ? "bg-brand-primary text-white shadow-xs"
                         : "text-muted-foreground hover:text-foreground"
-                    }`}
+                      }`}
                   >
                     <Palette className="h-3.5 w-3.5" /> Color
                   </button>
                   <button
                     type="button"
                     onClick={() => setExportMode("bw")}
-                    className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                      exportMode === "bw"
+                    className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${exportMode === "bw"
                         ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-xs"
                         : "text-muted-foreground hover:text-foreground"
-                    }`}
+                      }`}
                   >
                     <FileText className="h-3.5 w-3.5" /> Black & White
                   </button>
@@ -1704,11 +1725,10 @@ export default function TimetablePage() {
 
           <div
             id="printable-timetable-area"
-            className={`p-5 rounded-2xl border transition-all space-y-4 ${
-              exportMode === "bw"
+            className={`p-5 rounded-2xl border transition-all space-y-4 ${exportMode === "bw"
                 ? "bg-white text-black border-zinc-400"
                 : "bg-white dark:bg-zinc-900 text-foreground border-border"
-            }`}
+              }`}
           >
             <div className="border-b pb-3 flex justify-between items-end">
               <div>
@@ -1749,9 +1769,8 @@ export default function TimetablePage() {
                 <tbody>
                   {sequentialLecturesByDay.rows.map((lectureIdx) => (
                     <tr key={`print-lecture-${lectureIdx}`}>
-                      <td className={`border p-2 font-bold text-center whitespace-nowrap ${
-                        exportMode === "bw" ? "bg-zinc-100 text-black border-zinc-400" : "bg-muted/40 text-muted-foreground"
-                      }`}>
+                      <td className={`border p-2 font-bold text-center whitespace-nowrap ${exportMode === "bw" ? "bg-zinc-100 text-black border-zinc-400" : "bg-muted/40 text-muted-foreground"
+                        }`}>
                         Lecture {lectureIdx + 1}
                       </td>
                       {DAYS.map((day) => {
@@ -1765,13 +1784,13 @@ export default function TimetablePage() {
                             style={
                               exportMode === "color"
                                 ? {
-                                    backgroundColor: "#eff6ff",
-                                    borderColor: "#bfdbfe",
-                                  }
+                                  backgroundColor: "#eff6ff",
+                                  borderColor: "#bfdbfe",
+                                }
                                 : {
-                                    backgroundColor: "#ffffff",
-                                    borderColor: "#71717a",
-                                  }
+                                  backgroundColor: "#ffffff",
+                                  borderColor: "#71717a",
+                                }
                             }
                             className="border p-2.5 align-top transition-all"
                           >
@@ -1973,9 +1992,8 @@ export default function TimetablePage() {
                         </div>
 
                         <div className="flex items-center gap-3">
-                          <span className={`inline-flex items-center gap-1 font-semibold text-[11px] px-2.5 py-1 rounded-md ${
-                            isAssigned ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
-                          }`}>
+                          <span className={`inline-flex items-center gap-1 font-semibold text-[11px] px-2.5 py-1 rounded-md ${isAssigned ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                            }`}>
                             {isAssigned ? teacher : "Unassigned"}
                           </span>
 

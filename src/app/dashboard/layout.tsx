@@ -1,6 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
+import { ProgramLevelProvider } from "@/context/program-level-context";
 
 export const dynamic = "force-dynamic";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
@@ -190,8 +191,10 @@ export default async function DashboardLayout({
   const roleLabel = getRoleLabel(role);
 
   return (
-    <DashboardShell role={role} roleLabel={roleLabel}>
-      {children}
-    </DashboardShell>
+    <ProgramLevelProvider>
+      <DashboardShell role={role} roleLabel={roleLabel}>
+        {children}
+      </DashboardShell>
+    </ProgramLevelProvider>
   );
 }

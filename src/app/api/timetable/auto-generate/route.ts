@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { Prisma, ProgramLevel } from "@prisma/client";
 import { TIMETABLE_DAYS } from "@/lib/timetable";
 import { logAuditAction, getAdminName } from "@/lib/audit-log";
 import {
@@ -36,9 +37,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as {
-      department: string;
-      semester: number;
-      shift: string;
+      programLevel?: "BS" | "INTERMEDIATE";
+      department?: string;
+      semester?: number;
+      discipline?: string;
+      part?: number;
+      shift?: string;
       rooms?: string[];
       startTime?: string;
       duration?: number;
@@ -48,9 +52,13 @@ export async function POST(request: NextRequest) {
       overwriteExisting?: boolean;
     };
 
-    const department = body.department;
-    const semester = Number(body.semester);
+    const programLevel = body.programLevel || "BS";
+    const department = body.department || "";
+    const semester = Number(body.semester) || 1;
+    const discipline = body.discipline || department || "";
+    const part = Number(body.part) || semester || 1;
     const shift = body.shift || "Morning";
+
     const rooms =
       body.rooms && body.rooms.length > 0
         ? body.rooms.map((r) => r.trim()).filter(Boolean)
@@ -66,16 +74,34 @@ export async function POST(request: NextRequest) {
     const overwriteExisting =
       typeof body.overwriteExisting === "boolean" ? body.overwriteExisting : true;
 
-    if (!department || isNaN(semester)) {
+    if (programLevel === "BS" && (!department || isNaN(semester))) {
       return NextResponse.json(
-        { error: "Department and semester are required" },
+        { error: "Department and semester are required for BS timetables" },
         { status: 400 }
       );
     }
 
-    // 1. Fetch courses for this department & semester
+    if (programLevel === "INTERMEDIATE" && (!discipline || isNaN(part))) {
+      return NextResponse.json(
+        { error: "Discipline and part are required for Intermediate timetables" },
+        { status: 400 }
+      );
+    }
+
+    // 1. Fetch courses for target academic group
+    const courseWhere: Prisma.CourseWhereInput = {
+      programLevel: programLevel as ProgramLevel,
+    };
+    if (programLevel === "INTERMEDIATE") {
+      courseWhere.discipline = discipline;
+      courseWhere.part = part;
+    } else {
+      courseWhere.department = department;
+      courseWhere.semester = semester;
+    }
+
     const courses = await prisma.course.findMany({
-      where: { department, semester },
+      where: courseWhere,
       include: {
         faculty: { include: { user: { select: { name: true } } } },
         facultyMorning: { include: { user: { select: { name: true } } } },
@@ -84,8 +110,12 @@ export async function POST(request: NextRequest) {
     });
 
     if (courses.length === 0) {
+      const targetLabel =
+        programLevel === "INTERMEDIATE"
+          ? `${discipline} - Part ${part}`
+          : `${department} - Semester ${semester}`;
       return NextResponse.json(
-        { error: `No courses found for ${department} - Semester ${semester}` },
+        { error: `No courses found for ${targetLabel}` },
         { status: 404 }
       );
     }
@@ -149,14 +179,17 @@ export async function POST(request: NextRequest) {
       };
     });
 
-    // 4. Fetch all existing timetable entries across ALL departments for global conflict detection
+    // 4. Fetch all existing timetable entries across ALL programs for global conflict detection
     const allExistingEntries = await prisma.timetable.findMany({
       include: {
         course: {
           select: {
             id: true,
+            programLevel: true,
             department: true,
             semester: true,
+            discipline: true,
+            part: true,
             assignedFaculty: true,
             assignedFacultyMorning: true,
             assignedFacultyEvening: true,
@@ -181,8 +214,11 @@ export async function POST(request: NextRequest) {
         endTime: e.endTime,
         room: e.room,
         facultyId: facId,
+        programLevel: e.course?.programLevel || "BS",
         department: e.course?.department,
         semester: e.course?.semester,
+        discipline: e.course?.discipline,
+        part: e.course?.part,
         shift: e.shift,
         courseId: e.courseId,
       };
@@ -190,8 +226,11 @@ export async function POST(request: NextRequest) {
 
     // 5. Solve using CSP Engine
     const cspResult = solveTimetableCSP({
+      programLevel,
       department,
       semester,
+      discipline,
+      part,
       shift,
       days,
       rooms,
@@ -216,23 +255,36 @@ export async function POST(request: NextRequest) {
 
     const result = await prisma.$transaction(async (tx) => {
       if (overwriteExisting) {
-        // Delete previous timetable entries for this specific section
-        await tx.timetable.deleteMany({
-          where: {
-            shift,
-            course: {
-              department,
-              semester,
+        // Delete previous timetable entries ONLY for target academic group
+        if (programLevel === "INTERMEDIATE") {
+          await tx.timetable.deleteMany({
+            where: {
+              course: {
+                programLevel: "INTERMEDIATE",
+                discipline,
+                part,
+              },
             },
-          },
-        });
+          });
+        } else {
+          await tx.timetable.deleteMany({
+            where: {
+              shift,
+              course: {
+                programLevel: "BS",
+                department,
+                semester,
+              },
+            },
+          });
+        }
       }
 
       const createdEntries = await Promise.all(
         assignments.map((entry) =>
           tx.timetable.create({
             data: {
-              shift,
+              shift: programLevel === "BS" ? shift : "Morning",
               courseId: entry.courseId,
               day: entry.day,
               startTime: entry.startTime,
@@ -247,11 +299,16 @@ export async function POST(request: NextRequest) {
     });
 
     const adminName = await getAdminName(userId);
+    const targetGroupLabel =
+      programLevel === "INTERMEDIATE"
+        ? `${discipline} Part ${part}`
+        : `${department} Sem ${semester} (${shift})`;
+
     await logAuditAction({
       action: overwriteExisting ? "UPDATED" : "CREATED",
       entity: "Timetable",
-      entityId: `AUTO_${department}_SEM${semester}_${shift}`,
-      description: `Auto-generated ${result.length} conflict-free timetable slots for ${department} Sem ${semester} (${shift})`,
+      entityId: `AUTO_${programLevel}_${discipline || department}_${part || semester}`,
+      description: `Auto-generated ${result.length} conflict-free timetable slots for ${targetGroupLabel}`,
       adminClerkId: userId,
       adminName,
     });

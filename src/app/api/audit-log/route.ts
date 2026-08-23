@@ -10,15 +10,27 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl;
     const entity = searchParams.get("entity");
     const entityId = searchParams.get("entityId");
+    const programLevel = searchParams.get("programLevel") || "BS";
 
-    const whereClause: { entity?: string; entityId?: string } = {};
+    const targetLevel = programLevel === "INTERMEDIATE" ? "INTERMEDIATE" : "BS";
+
+    const whereClause: Record<string, unknown> = {
+      ...(programLevel !== "ALL"
+        ? {
+            OR: [
+              { programLevel: targetLevel },
+              { programLevel: "BS" },
+            ],
+          }
+        : {}),
+    };
     if (entity) whereClause.entity = entity;
     if (entityId) whereClause.entityId = entityId;
 
     const logs = await prisma.auditLog.findMany({
       where: whereClause,
       orderBy: { createdAt: "desc" },
-      take: 50,
+      take: 100,
     });
 
     return NextResponse.json(logs);

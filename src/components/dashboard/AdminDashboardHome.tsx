@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useProgramLevel } from "@/context/program-level-context";
 import { api } from "@/lib/axios";
 import {
   Users,
@@ -181,16 +182,17 @@ function normalizeAdminDashboardData(
 }
 
 export default function AdminDashboardHome() {
+  const { programLevel } = useProgramLevel();
   const [data, setData] = useState<AdminDashboardData>(defaultData);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [dbName, setDbName] = useState<string | null>(null);
 
-  const fetchData = async (isRefresh = false) => {
+  const fetchData = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
     try {
       const [r, meRes] = await Promise.all([
-        api.get<AdminDashboardApiResponse>("/api/dashboard/admin"),
+        api.get<AdminDashboardApiResponse>(`/api/dashboard/admin?programLevel=${programLevel}`),
         api.get("/api/me").catch(() => null),
       ]);
       const payload = r.data;
@@ -212,11 +214,11 @@ export default function AdminDashboardHome() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [programLevel]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   const handleRefresh = () => {
     setLoading(true);

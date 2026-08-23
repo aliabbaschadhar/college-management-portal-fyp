@@ -1,4 +1,5 @@
 import { hasTimeOverlap } from "@/lib/timetable";
+import { ProgramLevel } from "@prisma/client";
 
 export interface CSPSlotRequest {
   courseId: string;
@@ -21,16 +22,22 @@ export interface ExistingBooking {
   endTime: string;
   room: string;
   facultyId?: string | null;
-  department?: string;
-  semester?: number;
+  programLevel?: ProgramLevel | string;
+  department?: string | null;
+  semester?: number | null;
+  discipline?: string | null;
+  part?: number | null;
   shift?: string;
   courseId?: string;
 }
 
 export interface CSPSolveOptions {
-  department: string;
-  semester: number;
-  shift: string;
+  programLevel?: ProgramLevel | string;
+  department?: string;
+  semester?: number;
+  discipline?: string;
+  part?: number;
+  shift?: string;
   days: string[];
   rooms: string[];
   timeslots: CSPTimeSlot[];
@@ -90,9 +97,12 @@ function isVirtualRoom(roomName: string): boolean {
 
 export function solveTimetableCSP(options: CSPSolveOptions): CSPSolveResult {
   const {
-    department,
-    semester,
-    shift,
+    programLevel = "BS",
+    department = "",
+    semester = 1,
+    discipline = "",
+    part = 1,
+    shift = "Morning",
     days,
     rooms,
     timeslots,
@@ -114,14 +124,24 @@ export function solveTimetableCSP(options: CSPSolveOptions): CSPSolveResult {
     return { success: false, assignments: [], error: "No courses provided." };
   }
 
-  // Filter existing bookings to keep active external conflicts
+  // Filter existing bookings: Exclude Target Academic Group entries when overwriteExisting is true
   const relevantExisting = existingBookings.filter((b) => {
     if (overwriteExisting) {
-      const isSameTargetSection =
-        b.department?.trim().toLowerCase() === department.trim().toLowerCase() &&
-        b.semester === semester &&
-        b.shift?.trim().toLowerCase() === shift.trim().toLowerCase();
-      if (isSameTargetSection) return false;
+      const bLevel = b.programLevel ? String(b.programLevel).toUpperCase() : "BS";
+      const targetLevel = String(programLevel).toUpperCase();
+
+      if (bLevel === "INTERMEDIATE" && targetLevel === "INTERMEDIATE") {
+        const isSameIntermediateGroup =
+          b.discipline?.trim().toLowerCase() === discipline.trim().toLowerCase() &&
+          b.part === part;
+        if (isSameIntermediateGroup) return false;
+      } else if (bLevel === "BS" && targetLevel === "BS") {
+        const isSameBSGroup =
+          b.department?.trim().toLowerCase() === department.trim().toLowerCase() &&
+          b.semester === semester &&
+          b.shift?.trim().toLowerCase() === shift.trim().toLowerCase();
+        if (isSameBSGroup) return false;
+      }
     }
     return true;
   });

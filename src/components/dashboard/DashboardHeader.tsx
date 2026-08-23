@@ -34,11 +34,14 @@ function formatSemester(sem: number) {
   return `${sem}th`;
 }
 
+import { useProgramLevel } from "@/context/program-level-context";
+
 interface DashboardHeaderProps {
   onMenuClick: () => void;
 }
 
 export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
+  const { programLevel, setProgramLevel } = useProgramLevel();
   const [allAnnouncements, setAllAnnouncements] = useState<Announcement[]>([]);
   const [unpaidFees, setUnpaidFees] = useState<Fee[]>([]);
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
@@ -255,7 +258,39 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
         <div className="hidden sm:flex items-center gap-2 text-xs md:text-sm font-black border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] select-none">
           <span className="text-foreground font-black">{dbProfile.name}</span>
           <span className="text-muted-foreground">•</span>
-          <span className="text-brand-primary font-bold">Administrator</span>
+          <span className="text-brand-primary font-black">Administrator</span>
+        </div>
+      )}
+
+      {/* Global Admin Academic Level Toggle Switcher (Centered in top bar) */}
+      {role === "admin" && (
+        <div className="absolute left-1/2 -translate-x-1/2 hidden md:flex items-center z-10">
+          <div className="inline-flex items-center p-1 rounded-2xl border-2 border-border bg-card shadow-[2px_2px_0px_0px_var(--border)] gap-1.5 select-none">
+            <button
+              type="button"
+              onClick={() => setProgramLevel("BS")}
+              className={`px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 ${
+                programLevel === "BS"
+                  ? "bg-brand-primary text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,0.25)] border border-brand-primary/50"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+              } active:translate-y-0.5`}
+            >
+              <span className={`w-2.5 h-2.5 rounded-full ${programLevel === "BS" ? "bg-emerald-400 animate-pulse ring-2 ring-emerald-400/40" : "bg-muted-foreground/40"}`} />
+              BS Programs
+            </button>
+            <button
+              type="button"
+              onClick={() => setProgramLevel("INTERMEDIATE")}
+              className={`px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 ${
+                programLevel === "INTERMEDIATE"
+                  ? "bg-brand-primary text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,0.25)] border border-brand-primary/50"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+              } active:translate-y-0.5`}
+            >
+              <span className={`w-2.5 h-2.5 rounded-full ${programLevel === "INTERMEDIATE" ? "bg-amber-400 animate-pulse ring-2 ring-amber-400/40" : "bg-muted-foreground/40"}`} />
+              Intermediate (HSSC)
+            </button>
+          </div>
         </div>
       )}
 

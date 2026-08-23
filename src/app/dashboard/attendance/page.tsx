@@ -28,7 +28,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { motion, AnimatePresence } from "framer-motion";
-import { DEPARTMENTS } from "@/lib/constants";
+import { useProgramLevel } from "@/context/program-level-context";
+import {
+  getDisciplinesForLevel,
+  getTermOptionsForLevel,
+  formatTermLabel,
+  getSubjectSetFilterConfig,
+} from "@/lib/constants";
 
 interface AttendanceWithDetails {
   id: string;
@@ -110,6 +116,7 @@ interface TimetableItem {
 
 export default function ManageAttendancePage() {
   const { user, isLoaded } = useUser();
+  const { programLevel } = useProgramLevel();
   const [students, setStudents] = useState<StudentItem[]>([]);
   const [attendance, setAttendance] = useState<AttendanceWithDetails[]>([]);
   const [courses, setCourses] = useState<CourseType[]>([]);
@@ -120,6 +127,7 @@ export default function ManageAttendancePage() {
   const [selectedDept, setSelectedDept] = useStoredState<string | null>("admin_att_dept", null);
   const [selectedSemester, setSelectedSemester] = useStoredState<number | null>("admin_att_sem", null);
   const [selectedShift, setSelectedShift] = useStoredState<string>("admin_att_shift", "Morning");
+  const [selectedSet, setSelectedSet] = useStoredState<string>("admin_att_set", "Set 1");
 
   // Detailed Log dialog
   const [logDialogOpen, setLogDialogOpen] = useState(false);
@@ -139,11 +147,16 @@ export default function ManageAttendancePage() {
   const isFaculty = role === "faculty";
 
   useEffect(() => {
+    setSelectedDept(null);
+    setSelectedSemester(null);
+  }, [programLevel]);
+
+  useEffect(() => {
     if (isLoaded && isAdmin) {
-      if (!selectedDept) setSelectedDept("Computer Science");
+      if (!selectedDept) setSelectedDept(getDisciplinesForLevel(programLevel)[0] || "Computer Science");
       if (!selectedSemester) setSelectedSemester(1);
     }
-  }, [isLoaded, isAdmin, selectedDept, selectedSemester]);
+  }, [isLoaded, isAdmin, selectedDept, selectedSemester, programLevel]);
 
   // Faculty Struck Off dialog states
   const [struckOffDialogOpen, setStruckOffDialogOpen] = useState(false);
@@ -302,16 +315,17 @@ export default function ManageAttendancePage() {
   };
 
   const visibleDepartments = useMemo(() => {
-    if (isAdmin) return DEPARTMENTS;
+    const list = getDisciplinesForLevel(programLevel);
+    if (isAdmin) return list;
     if (isFaculty) {
       const facultyDepts = new Set(courses.map((c) => c.department));
-      return DEPARTMENTS.filter((dept) => facultyDepts.has(dept));
+      return list.filter((dept) => facultyDepts.has(dept));
     }
-    return DEPARTMENTS.filter((dept) => students.some((s) => s.department === dept));
-  }, [isAdmin, isFaculty, courses, students]);
+    return list.filter((dept) => students.some((s) => s.department === dept));
+  }, [isAdmin, isFaculty, courses, students, programLevel]);
 
   const visibleSemesters = useMemo(() => {
-    const allSemesters = [1, 2, 3, 4, 5, 6, 7, 8];
+    const allSemesters = getTermOptionsForLevel(programLevel);
     if (isAdmin) return allSemesters;
     if (isFaculty) {
       const facultySemesters = new Set(
@@ -324,18 +338,26 @@ export default function ManageAttendancePage() {
     return allSemesters.filter((sem) =>
       students.some((s) => s.department === selectedDept && s.semester === sem)
     );
-  }, [isAdmin, isFaculty, courses, selectedDept, students]);
+  }, [isAdmin, isFaculty, courses, selectedDept, students, programLevel]);
 
   // Filter students in the selected class/shift
   const classStudents = useMemo(() => {
     if (!selectedDept || !selectedSemester) return [];
-    return students.filter(
-      (s) =>
-        s.department === selectedDept &&
-        s.semester === selectedSemester &&
-        s.shift === selectedShift
-    );
-  }, [students, selectedDept, selectedSemester, selectedShift]);
+    return students.filter((s) => {
+      const matchesDept = s.department === selectedDept;
+      const matchesSem = s.semester === selectedSemester;
+      const matchesShift = programLevel === "BS" ? s.shift === selectedShift : true;
+
+      if (programLevel === "INTERMEDIATE") {
+        const setConfig = getSubjectSetFilterConfig(selectedDept || "");
+        const activeSet = setConfig.hasMultipleSets ? (selectedSet || "Set 1") : "Set 1";
+        const matchesSet = !(s as { subjectSet?: string }).subjectSet || (s as { subjectSet?: string }).subjectSet?.toLowerCase() === activeSet.toLowerCase();
+        return matchesDept && matchesSem && matchesSet;
+      }
+
+      return matchesDept && matchesSem && matchesShift;
+    });
+  }, [students, selectedDept, selectedSemester, selectedShift, selectedSet, programLevel]);
 
   // Selected student state for top stats boxes
   const [selectedStudentForStatsId, setSelectedStudentForStatsId] = useState<string | null>(null);
@@ -631,7 +653,7 @@ export default function ManageAttendancePage() {
             ? "Manage Attendance"
             : selectedSemester === null
             ? selectedDept
-            : `${selectedDept} - Semester ${selectedSemester}`
+            : `${selectedDept} - ${formatTermLabel(programLevel, selectedSemester)}`
         }
         subtitle={
           isAdmin
@@ -639,7 +661,9 @@ export default function ManageAttendancePage() {
             : selectedDept === null
             ? "Track and audit attendance histories across departments"
             : selectedSemester === null
-            ? "Select a semester to inspect student stats"
+            ? programLevel === "INTERMEDIATE"
+              ? "Select a part to inspect student stats"
+              : "Select a semester to inspect student stats"
             : `Class Attendance Details (${selectedShift} Shift)`
         }
         breadcrumbs={
@@ -669,7 +693,7 @@ export default function ManageAttendancePage() {
                                 setSelectedSemester(null);
                               },
                             },
-                            { label: `Semester ${selectedSemester}` },
+                            { label: formatTermLabel(programLevel, selectedSemester) },
                           ]),
                     ]),
               ]
@@ -725,7 +749,9 @@ export default function ManageAttendancePage() {
                     <h3 className="text-xl font-bold text-foreground group-hover:text-brand-primary transition-colors">
                       {dept}
                     </h3>
-                    <p className="text-sm text-muted-foreground mt-2">Department</p>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      {programLevel === "INTERMEDIATE" ? "Discipline" : "Department"}
+                    </p>
                   </div>
                   <div className="flex items-center justify-between mt-4">
                     <span className="text-sm font-semibold bg-brand-primary/10 text-brand-primary px-3 py-1 rounded-full">
@@ -752,7 +778,7 @@ export default function ManageAttendancePage() {
                 onClick={() => setSelectedDept(null)}
                 className="rounded-xl border-2"
               >
-                ← Back to Departments
+                {programLevel === "INTERMEDIATE" ? "← Back to Disciplines" : "← Back to Departments"}
               </Button>
             </div>
 
@@ -770,7 +796,9 @@ export default function ManageAttendancePage() {
                     className="cursor-pointer p-6 bg-card border-2 border-border rounded-2xl shadow-sm hover:shadow-md hover:border-brand-primary transition-all duration-200 flex flex-col justify-between h-36 group relative overflow-hidden"
                   >
                     <div>
-                      <h3 className="text-lg font-bold text-foreground">Semester {sem}</h3>
+                      <h3 className="text-lg font-bold text-foreground">
+                        {formatTermLabel(programLevel, sem)}
+                      </h3>
                       <p className="text-xs text-muted-foreground mt-1">Active Class</p>
                     </div>
                     <div className="flex items-center justify-between mt-4">
@@ -798,13 +826,15 @@ export default function ManageAttendancePage() {
               {isAdmin ? (
                 <div className="flex flex-wrap items-center gap-4 bg-card p-4 rounded-xl border border-border w-full">
                   <div className="flex items-center gap-2">
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase">Dept:</Label>
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase">
+                      {programLevel === "INTERMEDIATE" ? "Discipline:" : "Dept:"}
+                    </Label>
                     <Select value={selectedDept || ""} onValueChange={setSelectedDept}>
                       <SelectTrigger className="w-[180px] h-10 bg-card rounded-xl">
-                        <SelectValue placeholder="Select Department" />
+                        <SelectValue placeholder={programLevel === "INTERMEDIATE" ? "Select Discipline" : "Select Department"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {DEPARTMENTS.map((d) => (
+                        {getDisciplinesForLevel(programLevel).map((d) => (
                           <SelectItem key={d} value={d}>
                             {d}
                           </SelectItem>
@@ -814,36 +844,58 @@ export default function ManageAttendancePage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase">Sem:</Label>
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase">
+                      {programLevel === "INTERMEDIATE" ? "Part:" : "Sem:"}
+                    </Label>
                     <Select
                       value={String(selectedSemester || 1)}
                       onValueChange={(v) => setSelectedSemester(Number(v))}
                     >
-                      <SelectTrigger className="w-[120px] h-10 bg-card rounded-xl">
+                      <SelectTrigger className="w-[140px] h-10 bg-card rounded-xl">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                        {getTermOptionsForLevel(programLevel).map((s) => (
                           <SelectItem key={s} value={String(s)}>
-                            Semester {s}
+                            {formatTermLabel(programLevel, s)}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase">Shift:</Label>
-                    <Select value={selectedShift} onValueChange={setSelectedShift}>
-                      <SelectTrigger className="w-[120px] h-10 bg-card rounded-xl">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Morning">Morning</SelectItem>
-                        <SelectItem value="Evening">Evening</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {programLevel === "INTERMEDIATE" && getSubjectSetFilterConfig(selectedDept || "").hasMultipleSets && (
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase">Subject Set:</Label>
+                      <Select value={selectedSet || "Set 1"} onValueChange={setSelectedSet}>
+                        <SelectTrigger className="w-[140px] h-10 bg-card rounded-xl font-bold">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getSubjectSetFilterConfig(selectedDept || "").availableSets.map((set) => (
+                            <SelectItem key={set} value={set}>
+                              {set}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {programLevel === "BS" && (
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase">Shift:</Label>
+                      <Select value={selectedShift} onValueChange={setSelectedShift}>
+                        <SelectTrigger className="w-[120px] h-10 bg-card rounded-xl">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Morning">Morning</SelectItem>
+                          <SelectItem value="Evening">Evening</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>

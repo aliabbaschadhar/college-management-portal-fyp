@@ -5,11 +5,13 @@ import { Prisma } from "@prisma/client";
 import { ensureStudentEnrollments } from "@/lib/services/student";
 import { requireRole } from "@/lib/auth-guard";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
+    const programLevel = request.nextUrl.searchParams.get("programLevel") || "BS";
+
     // Load user to determine filtering
     let user = await prisma.user.findUnique({
       where: { clerkId: userId },
@@ -48,7 +50,9 @@ export async function GET() {
 
     // Build where clause based on role
     const userRole = user.role?.toUpperCase();
-    const whereClause: Prisma.CourseWhereInput = {};
+    const whereClause: Prisma.CourseWhereInput = {
+      programLevel: programLevel === "INTERMEDIATE" ? "INTERMEDIATE" : "BS",
+    };
 
     if (userRole === "FACULTY" && user.faculty) {
       // Faculty see strictly courses explicitly assigned to them by an admin
@@ -120,6 +124,10 @@ export async function GET() {
       creditHours: c.creditHours,
       department: c.department,
       semester: c.semester,
+      programLevel: c.programLevel,
+      discipline: c.discipline,
+      part: c.part,
+      subjectSet: c.subjectSet,
       assignedFaculty: c.assignedFaculty,
       assignedFacultyMorning: c.assignedFacultyMorning,
       assignedFacultyEvening: c.assignedFacultyEvening,
@@ -170,13 +178,38 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as {
+      programLevel?: "BS" | "INTERMEDIATE";
       courseCode: string;
       courseName: string;
       creditHours: number;
-      department: string;
-      semester?: number;
+      department?: string | null;
+      semester?: number | null;
+      discipline?: string | null;
+      part?: number | null;
+      subjectSet?: string | null;
       assignedFaculty?: string;
     };
+
+    const programLevel = body.programLevel || "BS";
+
+    if (programLevel === "BS") {
+      if (!body.department) {
+        return NextResponse.json({ error: "BS Department is required" }, { status: 400 });
+      }
+      if (!body.semester || body.semester < 1 || body.semester > 8) {
+        return NextResponse.json({ error: "BS Semester must be between 1 and 8" }, { status: 400 });
+      }
+      if (body.discipline != null || body.part != null) {
+        return NextResponse.json({ error: "Intermediate fields are not allowed for BS courses" }, { status: 400 });
+      }
+    } else if (programLevel === "INTERMEDIATE") {
+      if (!body.discipline) {
+        return NextResponse.json({ error: "Intermediate Discipline is required" }, { status: 400 });
+      }
+      if (body.part !== 1 && body.part !== 2) {
+        return NextResponse.json({ error: "Intermediate Part must be 1 (Part 1) or 2 (Part 2)" }, { status: 400 });
+      }
+    }
 
     // If assignedFaculty is provided, validate it exists and has FACULTY role
     if (body.assignedFaculty) {
@@ -195,11 +228,15 @@ export async function POST(request: NextRequest) {
 
     const course = await prisma.course.create({
       data: {
+        programLevel,
         courseCode: body.courseCode,
         courseName: body.courseName,
         creditHours: body.creditHours,
-        department: body.department,
-        semester: body.semester ?? 1,
+        department: body.department || body.discipline || "Intermediate",
+        semester: body.semester ?? body.part ?? 1,
+        discipline: programLevel === "INTERMEDIATE" ? body.discipline : null,
+        part: programLevel === "INTERMEDIATE" ? body.part : null,
+        subjectSet: programLevel === "INTERMEDIATE" ? (body.subjectSet || "Set 1") : null,
         assignedFaculty: body.assignedFaculty ?? null,
       },
       include: {
@@ -208,12 +245,23 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Automatically fetch and enroll all students belonging to this semester and department
+    // Automatically fetch and enroll all matching students for this course
+    const studentWhere: Prisma.StudentWhereInput = {
+      programLevel,
+    };
+    if (programLevel === "INTERMEDIATE") {
+      studentWhere.discipline = course.discipline;
+      studentWhere.part = course.part;
+      if (course.subjectSet) {
+        studentWhere.subjectSet = course.subjectSet;
+      }
+    } else {
+      studentWhere.department = course.department;
+      studentWhere.semester = course.semester;
+    }
+
     const matchingStudents = await prisma.student.findMany({
-      where: {
-        department: course.department,
-        semester: course.semester,
-      },
+      where: studentWhere,
       select: { id: true },
     });
 
@@ -222,7 +270,7 @@ export async function POST(request: NextRequest) {
         data: matchingStudents.map((st) => ({
           studentId: st.id,
           courseId: course.id,
-          semester: course.semester,
+          semester: course.semester || (course.part ?? 1),
         })),
         skipDuplicates: true,
       });

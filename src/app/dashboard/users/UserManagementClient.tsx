@@ -35,7 +35,13 @@ import {
 } from "@/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
 
-import { DEPARTMENTS as DOMAIN_DEPARTMENTS } from "@/lib/constants";
+import { useProgramLevel } from "@/context/program-level-context";
+import {
+  DEPARTMENTS as DOMAIN_DEPARTMENTS,
+  getDisciplinesForLevel,
+  getTermOptionsForLevel,
+  formatTermLabel,
+} from "@/lib/constants";
 
 type Role = "ADMIN" | "FACULTY" | "STUDENT";
 
@@ -64,10 +70,6 @@ const roleBadgeClass: Record<Role, string> = {
     "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
 };
 
-const DEPARTMENTS = ["ALL", ...DOMAIN_DEPARTMENTS];
-
-const SEMESTERS = ["ALL", "1", "2", "3", "4", "5", "6", "7", "8"];
-
 function AvatarCircle({ name, role }: { name: string | null; role: Role }) {
   const initials = (name ?? "?")
     .split(" ")
@@ -91,6 +93,7 @@ function AvatarCircle({ name, role }: { name: string | null; role: Role }) {
 }
 
 export function UserManagementClient() {
+  const { programLevel } = useProgramLevel();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -101,6 +104,11 @@ export function UserManagementClient() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<UserRow | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    setFilterDept("ALL");
+    setFilterSem("ALL");
+  }, [programLevel]);
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
@@ -130,6 +138,7 @@ export function UserManagementClient() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
+      params.set("programLevel", programLevel);
       if (filterRole !== "ALL") params.set("role", filterRole);
       if (filterDept !== "ALL") params.set("department", filterDept);
       if (filterSem !== "ALL") params.set("semester", filterSem);
@@ -140,7 +149,7 @@ export function UserManagementClient() {
     } finally {
       setLoading(false);
     }
-  }, [filterRole, filterDept, filterSem, search]);
+  }, [filterRole, filterDept, filterSem, search, programLevel]);
 
   useEffect(() => {
     const timer = setTimeout(fetchUsers, 300);
@@ -274,13 +283,14 @@ export function UserManagementClient() {
               <SelectTrigger id="dept-filter" className="h-10 rounded-xl">
                 <div className="flex items-center gap-2 truncate">
                   <Filter className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <SelectValue placeholder="All Departments" />
+                  <SelectValue placeholder={programLevel === "INTERMEDIATE" ? "All Disciplines" : "All Departments"} />
                 </div>
               </SelectTrigger>
               <SelectContent>
-                {DEPARTMENTS.map((dept) => (
+                <SelectItem value="ALL">{programLevel === "INTERMEDIATE" ? "All Disciplines" : "All Departments"}</SelectItem>
+                {getDisciplinesForLevel(programLevel).map((dept) => (
                   <SelectItem key={dept} value={dept}>
-                    {dept === "ALL" ? "All Departments" : dept}
+                    {dept}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -298,13 +308,14 @@ export function UserManagementClient() {
               <SelectTrigger id="sem-filter" className="h-10 rounded-xl">
                 <div className="flex items-center gap-2 truncate">
                   <Filter className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <SelectValue placeholder="All Semesters" />
+                  <SelectValue placeholder={programLevel === "INTERMEDIATE" ? "All Parts" : "All Semesters"} />
                 </div>
               </SelectTrigger>
               <SelectContent>
-                {SEMESTERS.map((sem) => (
-                  <SelectItem key={sem} value={sem}>
-                    {sem === "ALL" ? "All Semesters" : `Semester ${sem}`}
+                <SelectItem value="ALL">{programLevel === "INTERMEDIATE" ? "All Parts" : "All Semesters"}</SelectItem>
+                {getTermOptionsForLevel(programLevel).map((sem) => (
+                  <SelectItem key={sem} value={String(sem)}>
+                    {formatTermLabel(programLevel, sem)}
                   </SelectItem>
                 ))}
               </SelectContent>

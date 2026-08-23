@@ -17,6 +17,7 @@ import {
   User,
   Shield,
   UserCheck,
+  UserX,
 } from "lucide-react";
 import type { UserRole } from "@/types";
 
@@ -30,6 +31,7 @@ export interface NavItem {
 const adminNav: NavItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { title: "Manage Students", href: "/dashboard/students", icon: Users },
+  { title: "Left Students", href: "/dashboard/left-students", icon: UserX },
   { title: "Alumni Directory", href: "/dashboard/alumni", icon: GraduationCap },
   { title: "Student Attendance", href: "/dashboard/attendance", icon: ClipboardCheck },
   { title: "Manage Faculty", href: "/dashboard/faculty", icon: GraduationCap },
