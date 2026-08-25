@@ -44,6 +44,7 @@ model Student {
   graduationDate DateTime?
   totalMarks     Int?
   obtainedMarks  Int?
+  part1Marks     Int?
   percentage     Float?
   grade          String?
   leftReason     String?

@@ -118,6 +118,8 @@ export default function ManageStudentsPage() {
   interface CourseType {
     id: string;
     department: string;
+    discipline?: string;
+    part?: number;
     semester: number;
     courseCode: string;
     courseName: string;
@@ -167,12 +169,13 @@ export default function ManageStudentsPage() {
   const [certTotalMarks, setCertTotalMarks] = useState<number>(1100);
   const [certObtainedMarks, setCertObtainedMarks] = useState<number>(950);
   const [certGrade, setCertGrade] = useState<string>("A+");
-  const [dropOffReason, setDropOffReason] = useState<string>("Left studies midway");
+  const [dropOffReason, setDropOffReason] = useState<string>("Dropped out midway");
+  const [part1MarksMap, setPart1MarksMap] = useState<Record<string, number>>({});
 
-  // Mark Left dialog states
+  // Mark Dropped dialog states
   const [markLeftDialogOpen, setMarkLeftDialogOpen] = useState(false);
   const [targetStudentForLeft, setTargetStudentForLeft] = useState<StudentWithUser | null>(null);
-  const [leftReasonInput, setLeftReasonInput] = useState("Left studies midway");
+  const [leftReasonInput, setLeftReasonInput] = useState("Dropped out midway");
   const [markingLeft, setMarkingLeft] = useState(false);
 
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
@@ -219,7 +222,7 @@ export default function ManageStudentsPage() {
       setStudents((prev) => prev.filter((s) => s.id !== targetStudentForLeft.id));
       setMarkLeftDialogOpen(false);
       setTargetStudentForLeft(null);
-      showToast(`Student ${targetStudentForLeft.rollNo} marked as Left/Dropped Out`);
+      showToast(`Student ${targetStudentForLeft.rollNo} marked as Dropped`);
     } catch (err) {
       console.error("Failed to mark student as left:", err);
       showToast("Failed to update student status", false);
@@ -251,10 +254,10 @@ export default function ManageStudentsPage() {
     const list = getDisciplinesForLevel(programLevel);
     if (isAdmin) return list;
     if (isFaculty) {
-      const facultyDepts = new Set(courses.map((c) => c.department));
+      const facultyDepts = new Set(courses.map((c) => (c.discipline || c.department)));
       return list.filter((dept) => facultyDepts.has(dept));
     }
-    return list.filter((dept) => students.some((s) => s.department === dept && s.status !== "Graduated" && s.status !== "HSSC Completed"));
+    return list.filter((dept) => students.some((s) => ((s as unknown as { discipline?: string }).discipline || s.department) === dept && s.status !== "Graduated" && s.status !== "HSSC Completed"));
   }, [isAdmin, isFaculty, courses, students, programLevel]);
 
   const visibleSemesters = useMemo(() => {
@@ -263,13 +266,13 @@ export default function ManageStudentsPage() {
     if (isFaculty) {
       const facultySemesters = new Set(
         courses
-          .filter((c) => c.department === selectedDept)
-          .map((c) => c.semester)
+          .filter((c) => ((c as unknown as { discipline?: string }).discipline || c.department) === selectedDept)
+          .map((c) => (c as unknown as { part?: number }).part || c.semester)
       );
       return allSemesters.filter((sem) => facultySemesters.has(sem));
     }
     return allSemesters.filter((sem) =>
-      students.some((s) => s.department === selectedDept && s.semester === sem && s.status !== "Graduated" && s.status !== "HSSC Completed")
+      students.some((s) => ((s as unknown as { discipline?: string }).discipline || s.department) === selectedDept && ((s as unknown as { part?: number }).part || s.semester) === sem && s.status !== "Graduated" && s.status !== "HSSC Completed")
     );
   }, [isAdmin, isFaculty, courses, selectedDept, students, programLevel]);
 
@@ -347,6 +350,10 @@ export default function ManageStudentsPage() {
         }
       }
 
+      if (programLevel === "INTERMEDIATE" && Number(targetSemester) === 2) {
+        payload.part1MarksMap = part1MarksMap;
+      }
+
       if (isPromotingAllClass) {
         payload = {
           ...payload,
@@ -384,7 +391,7 @@ export default function ManageStudentsPage() {
       } else {
         showToast(
           Number(targetSemester) === 10
-            ? "Student(s) marked as Left / Dropped Out"
+            ? "Student(s) marked as Dropped"
             : Number(targetSemester) === 9
               ? (programLevel === "INTERMEDIATE" ? "Students successfully marked as HSSC Completed!" : "Students successfully graduated and converted to Alumni!")
               : "Students successfully promoted!"
@@ -713,11 +720,11 @@ export default function ManageStudentsPage() {
               <button
                 onClick={() => {
                   setTargetStudentForLeft(row);
-                  setLeftReasonInput("Left studies midway");
+                  setLeftReasonInput("Dropped out midway");
                   setMarkLeftDialogOpen(true);
                 }}
                 className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-rose-500/10 transition-colors"
-                title="Mark as Left / Dropped Out"
+                title="Mark as Dropped"
               >
                 <UserX className="h-4 w-4 text-rose-600 dark:text-rose-400" />
               </button>
@@ -1409,7 +1416,7 @@ export default function ManageStudentsPage() {
                       {(programLevel === "INTERMEDIATE" ? [1, 2, 9, 10] : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]).map((sem) => (
                         <SelectItem key={sem} value={String(sem)}>
                           {sem === 10
-                            ? "❌ Drop Off / Left College"
+                            ? "❌ Drop Off / Dropped Student"
                             : sem === 9
                               ? (programLevel === "INTERMEDIATE" ? "🎓 HSSC Completed" : "🎓 Graduate to Alumni Status")
                               : formatTermLabel(programLevel, sem)}
@@ -1418,6 +1425,44 @@ export default function ManageStudentsPage() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {programLevel === "INTERMEDIATE" && Number(targetSemester) === 2 && (
+                  <div className="space-y-3 p-4 bg-brand-primary/10 border-2 border-brand-primary/30 rounded-2xl">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-black uppercase text-brand-primary tracking-wider flex items-center gap-2">
+                        <GraduationCap className="h-4 w-4" />
+                        Part 1 Examination Obtained Marks (out of 550) *
+                      </Label>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Please enter the Part 1 examination marks for each student before promoting to Part 2:
+                    </p>
+                    <div className="max-h-56 overflow-y-auto space-y-2 pr-1 pt-1">
+                      {(isPromotingAllClass ? filteredStudents : selectedStudents).map((st) => (
+                        <div key={st.id} className="flex items-center justify-between gap-3 bg-card p-2.5 rounded-xl border border-border">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold text-foreground truncate">{st.user.name ?? "Student"}</p>
+                            <p className="text-[10px] font-mono text-muted-foreground">{st.rollNo}</p>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Input
+                              type="number"
+                              min={0}
+                              max={550}
+                              value={part1MarksMap[st.id] ?? 450}
+                              onChange={(e) => {
+                                const val = Number(e.target.value);
+                                setPart1MarksMap((prev) => ({ ...prev, [st.id]: val }));
+                              }}
+                              className="w-24 h-8 text-center text-xs font-bold bg-background"
+                            />
+                            <span className="text-xs text-muted-foreground font-bold">/ 550</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {Number(targetSemester) === 10 && (
                   <div className="space-y-2 p-4 bg-rose-500/10 border-2 border-rose-500/30 rounded-2xl">
@@ -1433,7 +1478,7 @@ export default function ManageStudentsPage() {
                       className="bg-card text-xs font-semibold"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Selected student(s) will be marked as <strong>Left / Dropped Out</strong> and transferred to the <strong>Left Students</strong> directory.
+                      Selected student(s) will be marked as <strong>Dropped</strong> and transferred to the <strong>Dropped Students</strong> directory.
                     </p>
                   </div>
                 )}
@@ -1617,16 +1662,16 @@ export default function ManageStudentsPage() {
             <DialogContent className="sm:max-w-[420px]">
               <DialogHeader>
                 <DialogTitle className="text-rose-600 dark:text-rose-400 flex items-center gap-2">
-                  <UserX className="h-5 w-5" /> Mark Student as Left
+                  <UserX className="h-5 w-5" /> Mark Student as Dropped
                 </DialogTitle>
                 <DialogDescription>
-                  Mark <strong>{targetStudentForLeft?.user.name}</strong> ({targetStudentForLeft?.rollNo}) as having left their academic journey.
+                  Mark <strong>{targetStudentForLeft?.user.name}</strong> ({targetStudentForLeft?.rollNo}) as dropped from their academic journey.
                 </DialogDescription>
               </DialogHeader>
 
               <div className="py-3 space-y-3">
                 <div className="space-y-2">
-                  <Label htmlFor="leftReason" className="text-xs font-bold">Reason for Leaving *</Label>
+                  <Label htmlFor="leftReason" className="text-xs font-bold">Reason for Drop *</Label>
                   <Input
                     id="leftReason"
                     value={leftReasonInput}
@@ -1636,7 +1681,7 @@ export default function ManageStudentsPage() {
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  This student will be moved to the <strong>Left Students</strong> directory. Administrators can readmit them at any time.
+                  This student will be moved to the <strong>Dropped Students</strong> directory. Administrators can readmit them at any time.
                 </p>
               </div>
 

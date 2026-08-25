@@ -43,6 +43,8 @@ import {
   Cell,
 } from "recharts";
 
+import { useProgramLevel } from "@/context/program-level-context";
+
 interface FacultyCourse {
   id: string;
   courseCode: string;
@@ -135,6 +137,7 @@ const defaultData: FacultyDashboardData = {
 
 export function FacultyDashboardHome() {
   useUser(); // Ensure user is authenticated
+  const { programLevel } = useProgramLevel();
   const [data, setData] = useState<FacultyDashboardData>(defaultData);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
@@ -144,7 +147,7 @@ export function FacultyDashboardHome() {
     if (!isRefresh) setLoading(true);
     try {
       const [dashData, quizData, meRes] = await Promise.all([
-        api.get("/api/dashboard/faculty").then((r) => r.data),
+        api.get(`/api/dashboard/faculty?programLevel=${programLevel}`).then((r) => r.data),
         api
           .get("/api/quizzes")
           .then((r) => r.data)
@@ -171,7 +174,7 @@ export function FacultyDashboardHome() {
 
   useEffect(() => {
     fetchDashboard();
-  }, []);
+  }, [programLevel]);
 
   const handleRefresh = () => {
     setLoading(true);

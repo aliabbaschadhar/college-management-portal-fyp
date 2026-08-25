@@ -52,7 +52,7 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
     role: string;
     avatar?: string | null;
     faculty?: { department: string; specialization: string; avatar?: string | null } | null;
-    student?: { department: string; semester: number; shift: string; status?: string; blocked?: boolean; readmitRequested?: boolean; avatar?: string | null } | null;
+    student?: { department: string; semester: number; shift: string; status?: string; blocked?: boolean; readmitRequested?: boolean; avatar?: string | null; programLevel?: string; discipline?: string | null; part?: number | null } | null;
   } | null>(null);
 
   const { user } = useUser();
@@ -224,11 +224,23 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
       {/* Student Profile Banner */}
       {role === "student" && dbProfile?.student && (
         <div className="hidden sm:flex items-center gap-2 text-xs md:text-sm font-black border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] select-none">
-          {dbProfile.student.status === "Graduated" ? (
+          {dbProfile.student.status === "Graduated" || dbProfile.student.status === "HSSC Completed" ? (
             <>
-              <span className="capitalize text-amber-500 font-black">Graduated Alumnus</span>
+              <span className="capitalize text-amber-500 font-black">
+                {dbProfile.student.status === "HSSC Completed" ? "HSSC Completed Alumnus" : "Graduated Alumnus"}
+              </span>
               <span className="text-muted-foreground">•</span>
-              <span className="capitalize text-brand-primary">{dbProfile.student.department.toLowerCase()}</span>
+              <span className="capitalize text-brand-primary">
+                {dbProfile.student.discipline || dbProfile.student.department}
+              </span>
+            </>
+          ) : dbProfile.student.programLevel === "INTERMEDIATE" ? (
+            <>
+              <span className="capitalize text-brand-primary">
+                {dbProfile.student.discipline || dbProfile.student.department}
+              </span>
+              <span className="text-muted-foreground">•</span>
+              <span>Part {dbProfile.student.part || (dbProfile.student.semester >= 2 ? 2 : 1)}</span>
             </>
           ) : (
             <>
@@ -262,8 +274,8 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
         </div>
       )}
 
-      {/* Global Admin Academic Level Toggle Switcher (Centered in top bar) */}
-      {role === "admin" && (
+      {/* Global Academic Level Toggle Switcher for Admin & Faculty (Centered in top bar) */}
+      {(role === "admin" || role === "faculty") && (
         <div className="absolute left-1/2 -translate-x-1/2 hidden md:flex items-center z-10">
           <div className="inline-flex items-center p-1 rounded-2xl border-2 border-border bg-card shadow-[2px_2px_0px_0px_var(--border)] gap-1.5 select-none">
             <button

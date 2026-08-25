@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const programLevel = request.nextUrl.searchParams.get("programLevel") || "BS";
+    const programLevelParam = request.nextUrl.searchParams.get("programLevel");
 
     // Load user to determine filtering
     let user = await prisma.user.findUnique({
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     // Build where clause based on role
     const userRole = user.role?.toUpperCase();
     const whereClause: Prisma.CourseWhereInput = {
-      programLevel: programLevel === "INTERMEDIATE" ? "INTERMEDIATE" : "BS",
+      ...(programLevelParam ? { programLevel: (programLevelParam.toUpperCase() === "INTERMEDIATE" ? "INTERMEDIATE" : "BS") as Prisma.EnumProgramLevelFilter } : {}),
     };
 
     if (userRole === "FACULTY" && user.faculty) {

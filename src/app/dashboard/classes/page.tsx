@@ -23,13 +23,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { DEPARTMENTS } from "@/lib/constants";
+import { useProgramLevel } from "@/context/program-level-context";
+import { DEPARTMENTS, INTERMEDIATE_DISCIPLINES } from "@/lib/constants";
 
 interface StudentInCourse {
   id: string;
   rollNo: string;
   phone: string | null;
   department: string;
+  discipline?: string;
+  part?: number;
   semester: number;
   shift: string;
   enrollmentDate?: string;
@@ -51,6 +54,8 @@ interface CourseWithEnrollments {
   courseName: string;
   creditHours: number;
   department: string;
+  discipline?: string;
+  part?: number;
   semester: number;
   shift?: string;
   enrollments: { student: StudentInCourse }[];
@@ -58,6 +63,9 @@ interface CourseWithEnrollments {
 }
 
 export default function ClassesPage() {
+  const { programLevel } = useProgramLevel();
+  const isInter = programLevel === "INTERMEDIATE";
+
   const [courses, setCourses] = useState<CourseWithEnrollments[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -77,7 +85,7 @@ export default function ClassesPage() {
     else setRefreshing(true);
 
     try {
-      const r = await api.get<CourseWithEnrollments[]>("/api/courses");
+      const r = await api.get<CourseWithEnrollments[]>(`/api/courses?programLevel=${programLevel}`);
       const list = Array.isArray(r.data) ? r.data : [];
       setCourses(list);
     } catch (err) {
@@ -87,7 +95,7 @@ export default function ClassesPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [programLevel]);
 
   useEffect(() => {
     fetchClasses();
@@ -97,10 +105,12 @@ export default function ClassesPage() {
     fetchClasses(true);
   };
 
-  // Filter courses by department, semester, and shift
+  // Filter courses by department/discipline, semester/part, and shift
   const filteredCourses = courses.filter((c) => {
-    if (selectedDept !== "ALL" && c.department !== selectedDept) return false;
-    if (selectedSemester !== "ALL" && c.semester !== Number(selectedSemester)) return false;
+    const deptOrDisc = isInter ? (c.discipline || c.department) : c.department;
+    const semOrPart = isInter ? (c.part || c.semester) : c.semester;
+    if (selectedDept !== "ALL" && deptOrDisc !== selectedDept) return false;
+    if (selectedSemester !== "ALL" && semOrPart !== Number(selectedSemester)) return false;
     if (selectedShift !== "ALL" && c.shift?.toLowerCase() !== selectedShift.toLowerCase()) return false;
     return true;
   });
@@ -128,6 +138,9 @@ export default function ClassesPage() {
     );
   }
 
+  const deptList = isInter ? INTERMEDIATE_DISCIPLINES : DEPARTMENTS;
+  const termList = isInter ? [1, 2] : [1, 2, 3, 4, 5, 6, 7, 8];
+
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-6">
       <PageHeader
@@ -145,14 +158,16 @@ export default function ClassesPage() {
       {/* Single-Row Top Filter Bar */}
       <div className="flex flex-wrap items-center gap-4 bg-card p-4 rounded-2xl border border-border shadow-sm">
         <div className="flex items-center gap-2">
-          <Label className="text-xs font-semibold text-muted-foreground uppercase">Dept:</Label>
+          <Label className="text-xs font-semibold text-muted-foreground uppercase">
+            {isInter ? "Discipline:" : "Dept:"}
+          </Label>
           <Select value={selectedDept} onValueChange={setSelectedDept}>
             <SelectTrigger className="w-[180px] h-10 bg-card rounded-xl">
-              <SelectValue placeholder="Select Department" />
+              <SelectValue placeholder={isInter ? "Select Discipline" : "Select Department"} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL">All Departments</SelectItem>
-              {DEPARTMENTS.map((d) => (
+              <SelectItem value="ALL">{isInter ? "All Disciplines" : "All Departments"}</SelectItem>
+              {deptList.map((d) => (
                 <SelectItem key={d} value={d}>{d}</SelectItem>
               ))}
             </SelectContent>
@@ -160,15 +175,19 @@ export default function ClassesPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Label className="text-xs font-semibold text-muted-foreground uppercase">Sem:</Label>
+          <Label className="text-xs font-semibold text-muted-foreground uppercase">
+            {isInter ? "Part:" : "Sem:"}
+          </Label>
           <Select value={selectedSemester} onValueChange={setSelectedSemester}>
             <SelectTrigger className="w-[130px] h-10 bg-card rounded-xl">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL">All Semesters</SelectItem>
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
-                <SelectItem key={s} value={String(s)}>Semester {s}</SelectItem>
+              <SelectItem value="ALL">{isInter ? "All Parts" : "All Semesters"}</SelectItem>
+              {termList.map((s) => (
+                <SelectItem key={s} value={String(s)}>
+                  {isInter ? `Part ${s}` : `Semester ${s}`}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -217,7 +236,7 @@ export default function ClassesPage() {
                     {course.courseName}
                   </h3>
                   <p className="text-xs text-muted-foreground mt-0.5 font-medium">
-                    {course.courseCode} • {course.department} • Semester {course.semester}
+                    {course.courseCode} • {isInter ? (course.discipline || course.department) : course.department} • {isInter ? `Part ${course.part || course.semester}` : `Semester ${course.semester}`}
                   </p>
 
                   {/* Lecture Timetable & Location Schedule Badges */}
@@ -376,12 +395,12 @@ export default function ClassesPage() {
 
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div className="p-3 rounded-xl bg-card border border-border space-y-1">
-                  <span className="text-muted-foreground font-medium uppercase tracking-wider text-[10px] block">Department</span>
-                  <span className="font-bold text-foreground">{selectedStudent.department}</span>
+                  <span className="text-muted-foreground font-medium uppercase tracking-wider text-[10px] block">{isInter ? "Discipline" : "Department"}</span>
+                  <span className="font-bold text-foreground">{isInter ? (selectedStudent.discipline || selectedStudent.department) : selectedStudent.department}</span>
                 </div>
                 <div className="p-3 rounded-xl bg-card border border-border space-y-1">
-                  <span className="text-muted-foreground font-medium uppercase tracking-wider text-[10px] block">Semester & Shift</span>
-                  <span className="font-bold text-foreground">Sem {selectedStudent.semester} ({selectedStudent.shift})</span>
+                  <span className="text-muted-foreground font-medium uppercase tracking-wider text-[10px] block">{isInter ? "Part & Shift" : "Semester & Shift"}</span>
+                  <span className="font-bold text-foreground">{isInter ? `Part ${selectedStudent.part || selectedStudent.semester}` : `Sem ${selectedStudent.semester}`} ({selectedStudent.shift})</span>
                 </div>
                 <div className="p-3 rounded-xl bg-card border border-border space-y-1 col-span-2">
                   <span className="text-muted-foreground font-medium uppercase tracking-wider text-[10px] flex items-center gap-1">

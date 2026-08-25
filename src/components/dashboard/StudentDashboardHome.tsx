@@ -88,13 +88,19 @@ interface StudentDashboardResponse {
   }>;
   studentProfile?: {
     department: string;
+    discipline?: string | null;
+    programLevel?: string;
     semester: number;
+    part?: number | null;
     shift: string;
     blocked?: boolean;
     readmitRequested?: boolean;
     status?: string;
     rollNo?: string;
     cgpa?: number;
+    obtainedMarks?: number | null;
+    totalMarks?: number | null;
+    part1Marks?: number | null;
     gradesheetUrl?: string | null;
     graduationDate?: string | null;
     enrollmentDate?: string;
@@ -189,6 +195,13 @@ export function StudentDashboardHome() {
   const attendanceRate = stats?.attendanceRate ?? stats?.attendancePercent;
   const totalDues = stats?.totalDues ?? stats?.pendingDues;
   const totalCourses = stats?.totalCourses ?? stats?.enrolledCourses;
+
+  const isInter = dashboardData?.studentProfile?.programLevel?.toUpperCase() === "INTERMEDIATE";
+
+  const gradeChartConfig = {
+    mid: { label: isInter ? "Obtained Marks" : "Midterm", color: "var(--color-data-3)" },
+    sessional: { label: "Sessional", color: "var(--color-data-4)" },
+  } satisfies ChartConfig;
 
   const displayName = dbName || user?.firstName || "Student";
 
@@ -359,16 +372,59 @@ export function StudentDashboardHome() {
         className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4"
       >
         <Link href="/dashboard/my-grades" className="block transition-transform hover:scale-[1.02]">
-          <StatsCard
-            title="Previous CGPA"
-            value={currentGpa === null || currentGpa === undefined ? "—" : currentGpa.toFixed(2)}
-            trend={gpaTrend}
-            trendDirection={gpaTrendDir}
-            trendLabel="Academic Status"
-            icon={GraduationCap}
-            iconColor="var(--color-brand-primary)"
-            iconBg="rgb(var(--color-brand-primary-rgb) / 0.1)"
-          />
+          {isInter ? (
+            (() => {
+              const profile = dashboardData.studentProfile;
+              const isPart2 = (profile?.part === 2) || ((profile?.semester ?? 1) >= 2);
+              const cardTitle = isPart2 ? "Part 1 Board Marks" : "Entrance Marks";
+              
+              let cardValue = "—";
+              let percentLabel = "Academic Record";
+              
+              if (isPart2) {
+                if (profile?.part1Marks !== undefined && profile?.part1Marks !== null) {
+                  cardValue = `${profile.part1Marks} / 550`;
+                  const pct = ((profile.part1Marks / 550) * 100).toFixed(1);
+                  percentLabel = `${pct}% Score`;
+                } else if (profile?.obtainedMarks !== undefined && profile?.obtainedMarks !== null && profile.obtainedMarks <= 550) {
+                  cardValue = `${profile.obtainedMarks} / 550`;
+                  const pct = ((profile.obtainedMarks / 550) * 100).toFixed(1);
+                  percentLabel = `${pct}% Score`;
+                }
+              } else {
+                if (profile?.obtainedMarks !== undefined && profile?.obtainedMarks !== null) {
+                  const tot = profile.totalMarks || 1100;
+                  cardValue = `${profile.obtainedMarks} / ${tot}`;
+                  const pct = ((profile.obtainedMarks / tot) * 100).toFixed(1);
+                  percentLabel = `${pct}% Score`;
+                }
+              }
+
+              return (
+                <StatsCard
+                  title={cardTitle}
+                  value={cardValue}
+                  trend={percentLabel}
+                  trendDirection="up"
+                  trendLabel="Marks Record"
+                  icon={GraduationCap}
+                  iconColor="var(--color-brand-primary)"
+                  iconBg="rgb(var(--color-brand-primary-rgb) / 0.1)"
+                />
+              );
+            })()
+          ) : (
+            <StatsCard
+              title="Previous CGPA"
+              value={currentGpa === null || currentGpa === undefined ? "—" : currentGpa.toFixed(2)}
+              trend={gpaTrend}
+              trendDirection={gpaTrendDir}
+              trendLabel="Academic Status"
+              icon={GraduationCap}
+              iconColor="var(--color-brand-primary)"
+              iconBg="rgb(var(--color-brand-primary-rgb) / 0.1)"
+            />
+          )}
         </Link>
         <Link href="/dashboard/my-attendance" className="block transition-transform hover:scale-[1.02]">
           <StatsCard
@@ -476,7 +532,7 @@ export function StudentDashboardHome() {
               <YAxis tickLine={false} axisLine={false} />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Bar dataKey="mid" fill="var(--color-mid)" radius={4} />
-              <Bar dataKey="sessional" fill="var(--color-final)" radius={4} />
+              {!isInter && <Bar dataKey="sessional" fill="var(--color-final)" radius={4} />}
             </BarChart>
           </ChartContainer>
         </div>

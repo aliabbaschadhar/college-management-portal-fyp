@@ -27,12 +27,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { TableSkeleton } from "@/components/ui";
 import { Label } from "@/components/ui/label";
+import { useProgramLevel } from "@/context/program-level-context";
+import { DEPARTMENTS, INTERMEDIATE_DISCIPLINES } from "@/lib/constants";
 
 interface CourseOption {
   id: string;
   courseCode: string;
   courseName: string;
   department: string;
+  discipline?: string;
+  part?: number;
   semester: number;
 }
 
@@ -73,6 +77,9 @@ const statusColors: Record<AttendanceStatus, string> = {
 
 export default function MarkAttendancePage() {
   useUser();
+  const { programLevel } = useProgramLevel();
+  const isInter = programLevel === "INTERMEDIATE";
+
   const [courses, setCourses] = useState<CourseOption[]>([]);
   const [selectedDept, setSelectedDept] = useStoredState("mark_att_dept", "");
   const [selectedSemester, setSelectedSemester] = useStoredState("mark_att_sem", "");
@@ -134,16 +141,16 @@ export default function MarkAttendancePage() {
   // Fetch initial assigned courses list and set defaults
   const fetchCourses = useCallback(async () => {
     try {
-      const res = await api.get<CourseOption[]>("/api/courses");
+      const res = await api.get<CourseOption[]>(`/api/courses?programLevel=${programLevel}`);
       const list = Array.isArray(res.data) ? res.data : [];
       setCourses(list);
       if (list.length > 0) {
         setSelectedDept((prevDept) => {
-          const currentDept = prevDept && list.some((c) => c.department === prevDept) ? prevDept : list[0].department;
+          const currentDept = prevDept && list.some((c) => (c.discipline || c.department) === prevDept) ? prevDept : (list[0].discipline || list[0].department);
 
           setSelectedSemester((prevSem) => {
             const deptSemesters = Array.from(
-              new Set(list.filter((c) => c.department === currentDept).map((c) => c.semester))
+              new Set(list.filter((c) => (c.discipline || c.department) === currentDept).map((c) => c.part || c.semester))
             ).sort((a, b) => a - b);
             const currentSem =
               prevSem && deptSemesters.includes(Number(prevSem))
@@ -154,7 +161,7 @@ export default function MarkAttendancePage() {
 
             setSelectedCourse((prevCourse) => {
               const matchingCourses = list.filter(
-                (c) => c.department === currentDept && c.semester === Number(currentSem)
+                (c) => (c.discipline || c.department) === currentDept && (c.part || c.semester) === Number(currentSem)
               );
               const currentCourse =
                 prevCourse && matchingCourses.some((c) => c.id === prevCourse)
@@ -172,7 +179,7 @@ export default function MarkAttendancePage() {
     } catch {
       /* ignore */
     }
-  }, [setSelectedDept, setSelectedSemester, setSelectedCourse]);
+  }, [programLevel, setSelectedDept, setSelectedSemester, setSelectedCourse]);
 
   useEffect(() => {
     fetchCourses();
@@ -246,21 +253,21 @@ export default function MarkAttendancePage() {
     setRefreshing(false);
   };
 
-  // Compute unique departments from assigned courses
-  const depts = Array.from(new Set(courses.map((c) => c.department))).sort();
+  // Compute unique departments/disciplines from assigned courses
+  const depts = Array.from(new Set(courses.map((c) => (c.discipline || c.department)))).sort();
 
-  // Compute unique semesters for chosen department
+  // Compute unique semesters/parts for chosen department/discipline
   const semesters = Array.from(
     new Set(
       courses
-        .filter((c) => c.department === selectedDept)
-        .map((c) => c.semester)
+        .filter((c) => (c.discipline || c.department) === selectedDept)
+        .map((c) => c.part || c.semester)
     )
   ).sort((a, b) => a - b);
 
-  // Filter courses by department and semester
+  // Filter courses by department/discipline and semester/part
   const filteredCourses = courses.filter(
-    (c) => c.department === selectedDept && c.semester === Number(selectedSemester)
+    (c) => (c.discipline || c.department) === selectedDept && (c.part || c.semester) === Number(selectedSemester)
   );
 
   // Determine day of week for selected date and verify if class is scheduled
@@ -389,7 +396,7 @@ export default function MarkAttendancePage() {
       <div className="rounded-xl border border-border bg-card p-5 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
           <div>
-            <Label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Department</Label>
+            <Label className="text-xs font-semibold text-muted-foreground mb-1.5 block">{isInter ? "Discipline" : "Department"}</Label>
             <Select
               value={selectedDept}
               onValueChange={(val) => {
@@ -399,7 +406,7 @@ export default function MarkAttendancePage() {
               }}
             >
               <SelectTrigger className="bg-card">
-                <SelectValue placeholder="Select Department" />
+                <SelectValue placeholder={isInter ? "Select Discipline" : "Select Department"} />
               </SelectTrigger>
               <SelectContent>
                 {depts.map((d) => (
@@ -412,7 +419,7 @@ export default function MarkAttendancePage() {
           </div>
 
           <div>
-            <Label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Semester</Label>
+            <Label className="text-xs font-semibold text-muted-foreground mb-1.5 block">{isInter ? "Part" : "Semester"}</Label>
             <Select
               value={selectedSemester}
               onValueChange={(val) => {
@@ -422,12 +429,12 @@ export default function MarkAttendancePage() {
               disabled={!selectedDept}
             >
               <SelectTrigger className="bg-card">
-                <SelectValue placeholder="Select Semester" />
+                <SelectValue placeholder={isInter ? "Select Part" : "Select Semester"} />
               </SelectTrigger>
               <SelectContent>
                 {semesters.map((s) => (
                   <SelectItem key={s} value={s.toString()}>
-                    Semester {s}
+                    {isInter ? `Part ${s}` : `Semester ${s}`}
                   </SelectItem>
                 ))}
               </SelectContent>

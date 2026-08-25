@@ -229,13 +229,12 @@ export default async function VerifyPage({ params }: VerifyPageProps) {
     name: user.name ?? "Unknown",
     role: user.role as "STUDENT" | "FACULTY" | "ADMIN",
     institution: "Govt. Graduate College, Hafizabad",
-    email: user.email,
+    email: user.role !== "STUDENT" ? user.email : undefined,
     avatarUrl: user.avatar ?? user.student?.avatar ?? user.faculty?.avatar ?? null,
     currentLecture,
     ...(user.role === "STUDENT" && user.student
       ? {
           rollNo: user.student.rollNo,
-          phone: user.student.phone,
           department: user.student.department,
           semester: user.student.semester,
           shift: user.student.shift,
@@ -270,10 +269,10 @@ export default async function VerifyPage({ params }: VerifyPageProps) {
             semester: c.semester,
             shift: c.shift,
           })),
-          todayAttendance: user.faculty.attendances[0]
+          todayAttendance: user.faculty.attendances[0] && user.faculty.attendances[0].checkInTime
             ? {
                 status: user.faculty.attendances[0].status,
-                checkInTime: user.faculty.attendances[0].checkInTime?.toISOString() ?? null,
+                checkInTime: user.faculty.attendances[0].checkInTime.toISOString(),
                 checkOutTime: user.faculty.attendances[0].checkOutTime?.toISOString() ?? null,
               }
             : null,

@@ -102,11 +102,11 @@ export default function LeftStudentsPage() {
       className="space-y-6"
     >
       <PageHeader
-        title={programLevel === "INTERMEDIATE" ? "Left Intermediate Students" : "Left BS Students"}
-        subtitle="Manage students who left their academic journey midway and process readmission requests."
+        title={programLevel === "INTERMEDIATE" ? "Dropped Intermediate Students" : "Dropped BS Students"}
+        subtitle="Manage students who dropped out from their academic journey midway and process readmission requests."
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
-          { label: "Left Students" },
+          { label: "Dropped Students" },
         ]}
         action={
           <Button
@@ -162,7 +162,7 @@ export default function LeftStudentsPage() {
         </div>
       </div>
 
-      {/* Left Students Cards Grid */}
+      {/* Dropped Students Cards Grid */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
@@ -172,9 +172,9 @@ export default function LeftStudentsPage() {
       ) : students.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-12 text-center bg-card border border-border rounded-2xl space-y-3">
           <UserX className="h-12 w-12 text-muted-foreground/40" />
-          <h3 className="text-lg font-bold text-foreground">No Left Students Found</h3>
+          <h3 className="text-lg font-bold text-foreground">No Dropped Students Found</h3>
           <p className="text-sm text-muted-foreground max-w-md">
-            There are currently no students recorded as having left their journey midway for this level.
+            There are currently no students recorded as dropped midway for this level.
           </p>
         </div>
       ) : (

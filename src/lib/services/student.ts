@@ -52,6 +52,29 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
 
   const student = user.student;
 
+  // Self-heal entrance marks for intermediate students if missing on student record
+  if (
+    student.programLevel === "INTERMEDIATE" &&
+    (student.obtainedMarks === null || student.obtainedMarks === undefined) &&
+    user.email
+  ) {
+    const adm = await prisma.admission.findFirst({
+      where: { email: user.email },
+      select: { marksObtained: true, totalMarks: true },
+    });
+    if (adm && adm.marksObtained) {
+      student.obtainedMarks = Math.round(adm.marksObtained);
+      student.totalMarks = adm.totalMarks ? Math.round(adm.totalMarks) : 1100;
+      prisma.student.update({
+        where: { id: student.id },
+        data: {
+          obtainedMarks: student.obtainedMarks,
+          totalMarks: student.totalMarks,
+        },
+      }).catch(() => null);
+    }
+  }
+
   // Fetch all other components in parallel to reduce sequential RTT delay
   const [
     grades,
@@ -272,13 +295,19 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
     gradeChartData,
     studentProfile: {
       department: student.department,
+      discipline: student.discipline,
+      programLevel: student.programLevel,
       semester: student.semester,
+      part: student.part,
       shift: student.shift,
       blocked: student.blocked,
       readmitRequested: student.readmitRequested,
       status: student.status,
       rollNo: student.rollNo,
       cgpa: student.cgpa,
+      obtainedMarks: student.obtainedMarks,
+      totalMarks: student.totalMarks,
+      part1Marks: student.part1Marks,
       gradesheetUrl: student.gradesheetUrl,
       graduationDate: student.graduationDate?.toISOString(),
       enrollmentDate: student.enrollmentDate?.toISOString(),

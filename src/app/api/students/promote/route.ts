@@ -30,6 +30,8 @@ export async function POST(request: NextRequest) {
       percentage?: number;
       grade?: string;
       dropOffReason?: string;
+      part1Marks?: number;
+      part1MarksMap?: Record<string, number>;
     };
 
     if (!body || (!body.studentIds && (!body.department || !body.semester)) || !body.targetSemester) {
@@ -194,12 +196,19 @@ export async function POST(request: NextRequest) {
         }
 
         const updatedStudent = await prisma.$transaction(async (tx) => {
+          const studentPart1Marks =
+            body.part1MarksMap?.[studentId] ??
+            (body.part1Marks !== undefined ? Number(body.part1Marks) : undefined);
+
           // Promote semester / part
           const updated = await tx.student.update({
             where: { id: studentId },
             data: {
               semester: targetSemester,
               part: student.programLevel === "INTERMEDIATE" ? targetSemester : student.part,
+              ...(student.programLevel === "INTERMEDIATE" && targetSemester === 2 && studentPart1Marks !== undefined
+                ? { part1Marks: studentPart1Marks }
+                : {}),
               status: "Active",
             },
             include: { user: { select: { name: true } } },
