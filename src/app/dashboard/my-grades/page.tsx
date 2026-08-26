@@ -48,11 +48,6 @@ interface CourseOption {
   courseName: string;
 }
 
-const chartConfig = {
-  mid: { label: "Midterm", color: "var(--color-data-3)" },
-  final: { label: "Sessional", color: "var(--color-data-4)" },
-} satisfies ChartConfig;
-
 export default function MyGradesPage() {
   const { programLevel } = useProgramLevel();
 

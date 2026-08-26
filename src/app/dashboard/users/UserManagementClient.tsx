@@ -37,7 +37,6 @@ import { motion, AnimatePresence } from "framer-motion";
 
 import { useProgramLevel } from "@/context/program-level-context";
 import {
-  DEPARTMENTS as DOMAIN_DEPARTMENTS,
   getDisciplinesForLevel,
   getTermOptionsForLevel,
   formatTermLabel,

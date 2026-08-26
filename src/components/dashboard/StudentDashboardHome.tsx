@@ -122,11 +122,6 @@ const attendanceChartConfig = {
   late: { label: "Late", color: "var(--color-system-warning)" },
 } satisfies ChartConfig;
 
-const gradeChartConfig = {
-  mid: { label: "Midterm", color: "var(--color-data-3)" },
-  sessional: { label: "Sessional", color: "var(--color-data-4)" },
-} satisfies ChartConfig;
-
 export function StudentDashboardHome() {
   const { user } = useUser();
   const [timetable, setTimetable] = useState<TimetableEntry[]>([]);

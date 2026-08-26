@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useStoredState } from "@/hooks/useStoredState";
 import { api } from "@/lib/axios";
 import { getLocalTodayString } from "@/lib/utils";
-import { ClipboardCheck, Filter, Eye, Loader2, Calendar, RefreshCw, CheckCircle } from "lucide-react";
+import { ClipboardCheck, Eye, Loader2, Calendar, RefreshCw, CheckCircle } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
 import { Badge } from "@/components/ui/badge";
@@ -89,13 +89,6 @@ interface CourseType {
   courseName: string;
 }
 
-const statusColors: Record<"Present" | "Absent" | "Late", string> = {
-  Present:
-    "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-  Absent: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
-  Late: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-};
-
 const departmentIcons: Record<string, string> = {
   "Computer Science": "💻",
   "Mathematics": "📐",
@@ -120,7 +113,7 @@ export default function ManageAttendancePage() {
   const [students, setStudents] = useState<StudentItem[]>([]);
   const [attendance, setAttendance] = useState<AttendanceWithDetails[]>([]);
   const [courses, setCourses] = useState<CourseType[]>([]);
-  const [timetables, setTimetables] = useState<TimetableItem[]>([]);
+  const [timetables] = useState<TimetableItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Drill-down states with sessionStorage persistence
@@ -133,7 +126,6 @@ export default function ManageAttendancePage() {
   const [logDialogOpen, setLogDialogOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<StudentStatsItem | null>(null);
   const [selectedLogCourseId, setSelectedLogCourseId] = useState<string>("all");
-  const [updatingLogId, setUpdatingLogId] = useState<string | null>(null);
 
   const role = useMemo(() => {
     const rawRole = user?.publicMetadata?.role as string | undefined;
@@ -149,14 +141,14 @@ export default function ManageAttendancePage() {
   useEffect(() => {
     setSelectedDept(null);
     setSelectedSemester(null);
-  }, [programLevel]);
+  }, [programLevel, setSelectedDept, setSelectedSemester]);
 
   useEffect(() => {
     if (isLoaded && isAdmin) {
       if (!selectedDept) setSelectedDept(getDisciplinesForLevel(programLevel)[0] || "Computer Science");
       if (!selectedSemester) setSelectedSemester(1);
     }
-  }, [isLoaded, isAdmin, selectedDept, selectedSemester, programLevel]);
+  }, [isLoaded, isAdmin, selectedDept, selectedSemester, programLevel, setSelectedDept, setSelectedSemester]);
 
   // Faculty Struck Off dialog states
   const [struckOffDialogOpen, setStruckOffDialogOpen] = useState(false);
@@ -238,23 +230,6 @@ export default function ManageAttendancePage() {
   useEffect(() => {
     handleRefresh();
   }, []);
-
-  const handleStatusChange = async (
-    id: string,
-    newStatus: "Present" | "Absent" | "Late"
-  ) => {
-    setUpdatingLogId(id);
-    try {
-      await api.patch(`/api/attendance/${id}`, { status: newStatus });
-      setAttendance((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, status: newStatus } : a))
-      );
-    } catch {
-      /* ignore */
-    } finally {
-      setUpdatingLogId(null);
-    }
-  };
 
   const [actionLoadingStudentId, setActionLoadingStudentId] = useState<string | null>(null);
 

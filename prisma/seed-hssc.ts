@@ -431,7 +431,8 @@ const HSSC_DISCIPLINES: DisciplineDefinition[] = [
   },
 ];
 
-async function seedHsscCourses() {
+export async function seedHsscCourses(externalPrisma?: PrismaClient) {
+  const db = externalPrisma || prisma;
   console.log("🚀 Seeding HSSC / Intermediate Courses and Subject Sets...");
 
   let totalSeeded = 0;
@@ -446,8 +447,13 @@ async function seedHsscCourses() {
         const cleanName = subj.name.replace(/\s*\((Part|Compulsory)\s*[12]?\)/gi, "").trim();
         const totalMarks = (subj.code.startsWith("ISL") || subj.code.startsWith("PAK")) ? 50 : 100;
 
-        await prisma.course.upsert({
-          where: { id: courseId },
+        await db.course.upsert({
+          where: {
+            courseCode_department: {
+              courseCode: fullCode,
+              department: discDef.discipline,
+            },
+          },
           update: {
             courseCode: fullCode,
             courseName: cleanName,
@@ -484,8 +490,13 @@ async function seedHsscCourses() {
         const cleanName = subj.name.replace(/\s*\((Part|Compulsory)\s*[12]?\)/gi, "").trim();
         const totalMarks = (subj.code.startsWith("ISL") || subj.code.startsWith("PAK")) ? 50 : 100;
 
-        await prisma.course.upsert({
-          where: { id: courseId },
+        await db.course.upsert({
+          where: {
+            courseCode_department: {
+              courseCode: fullCode,
+              department: discDef.discipline,
+            },
+          },
           update: {
             courseCode: fullCode,
             courseName: cleanName,
@@ -521,12 +532,14 @@ async function seedHsscCourses() {
   console.log(`✨ Successfully seeded ${totalSeeded} HSSC / Intermediate courses!`);
 }
 
-seedHsscCourses()
-  .catch((err) => {
-    console.error("❌ Failed to seed HSSC courses:", err);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-    await pool.end();
-  });
+if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith("seed-hssc.ts")) {
+  seedHsscCourses()
+    .catch((err) => {
+      console.error("❌ Failed to seed HSSC courses:", err);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+      await pool.end();
+    });
+}

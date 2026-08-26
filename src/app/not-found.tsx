@@ -9,7 +9,6 @@ import {
   BookOpen,
   Calendar,
   Compass,
-  FileQuestion,
   Home,
   LayoutDashboard,
   Users,

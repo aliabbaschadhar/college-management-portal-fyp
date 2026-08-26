@@ -9,13 +9,6 @@ import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { useProgramLevel } from "@/context/program-level-context";
-import {
-  DEPARTMENTS,
-  INTERMEDIATE_DISCIPLINES,
-  getDisciplinesForLevel,
-  getTermOptionsForLevel,
-  formatTermLabel,
-} from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -332,13 +325,21 @@ export default function ManageAdmissionsPage() {
     if (activeTab === "students") {
       setSelectedAdmissionIds((prev) => {
         const next = new Set(prev);
-        next.has(id) ? next.delete(id) : next.add(id);
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
         return next;
       });
     } else {
       setSelectedStaffIds((prev) => {
         const next = new Set(prev);
-        next.has(id) ? next.delete(id) : next.add(id);
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
         return next;
       });
     }

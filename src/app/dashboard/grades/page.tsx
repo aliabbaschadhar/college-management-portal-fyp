@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/axios";
-import { Lock, Unlock, Save, CheckCircle, Trash2, RefreshCw } from "lucide-react";
+import { Save, CheckCircle, Trash2, RefreshCw } from "lucide-react";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { useUser } from "@clerk/nextjs";

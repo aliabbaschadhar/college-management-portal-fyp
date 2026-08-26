@@ -234,50 +234,50 @@ export default async function VerifyPage({ params }: VerifyPageProps) {
     currentLecture,
     ...(user.role === "STUDENT" && user.student
       ? {
-          rollNo: user.student.rollNo,
-          department: user.student.department,
-          semester: user.student.semester,
-          shift: user.student.shift,
-          enrollmentDate: user.student.enrollmentDate.toISOString(),
-          cgpa: user.student.cgpa,
-          blocked: user.student.blocked,
-          approvedBy: user.student.approvedBy,
-          attendanceRate,
-          totalAttendanceRecords,
-          duesStatus:
-            user.student.fees.filter((f) => f.status === "Unpaid" || f.status === "Overdue").length > 0
-              ? ("Outstanding" as const)
-              : ("Clear" as const),
-          outstandingFees: user.student.fees.filter((f) => f.status === "Unpaid" || f.status === "Overdue").length,
-          enrolledCourses: user.student.enrollments.map((e) => ({
-            courseCode: e.course.courseCode,
-            courseName: e.course.courseName,
-            creditHours: e.course.creditHours,
-          })),
-        }
+        rollNo: user.student.rollNo,
+        department: user.student.department,
+        semester: user.student.semester,
+        shift: user.student.shift,
+        enrollmentDate: user.student.enrollmentDate.toISOString(),
+        cgpa: user.student.cgpa,
+        blocked: user.student.blocked,
+        approvedBy: user.student.approvedBy,
+        attendanceRate,
+        totalAttendanceRecords,
+        duesStatus:
+          user.student.fees.filter((f) => f.status === "Unpaid" || f.status === "Overdue").length > 0
+            ? ("Outstanding" as const)
+            : ("Clear" as const),
+        outstandingFees: user.student.fees.filter((f) => f.status === "Unpaid" || f.status === "Overdue").length,
+        enrolledCourses: user.student.enrollments.map((e) => ({
+          courseCode: e.course.courseCode,
+          courseName: e.course.courseName,
+          creditHours: e.course.creditHours,
+        })),
+      }
       : {}),
     ...(user.role === "FACULTY" && user.faculty
       ? {
-          phone: user.faculty.phone,
-          department: user.faculty.department,
-          specialization: user.faculty.specialization,
-          joinDate: user.faculty.joinDate.toISOString(),
-          assignedCourses: user.faculty.teaches.map((c) => ({
-            courseCode: c.courseCode,
-            courseName: c.courseName,
-            creditHours: c.creditHours,
-            semester: c.semester,
-            shift: c.shift,
-          })),
-          todayAttendance: user.faculty.attendances[0] && user.faculty.attendances[0].checkInTime
-            ? {
-                status: user.faculty.attendances[0].status,
-                checkInTime: user.faculty.attendances[0].checkInTime.toISOString(),
-                checkOutTime: user.faculty.attendances[0].checkOutTime?.toISOString() ?? null,
-              }
-            : null,
-          todayClasses: facultyTodayClasses,
-        }
+        phone: user.faculty.phone,
+        department: user.faculty.department,
+        specialization: user.faculty.specialization,
+        joinDate: user.faculty.joinDate.toISOString(),
+        assignedCourses: user.faculty.teaches.map((c) => ({
+          courseCode: c.courseCode,
+          courseName: c.courseName,
+          creditHours: c.creditHours,
+          semester: c.semester,
+          shift: c.shift,
+        })),
+        todayAttendance: user.faculty.attendances[0] && user.faculty.attendances[0].checkInTime
+          ? {
+            status: user.faculty.attendances[0].status,
+            checkInTime: user.faculty.attendances[0].checkInTime.toISOString(),
+            checkOutTime: user.faculty.attendances[0].checkOutTime?.toISOString() ?? null,
+          }
+          : null,
+        todayClasses: facultyTodayClasses,
+      }
       : {}),
     ...(user.role === "ADMIN" ? { designation: "System Administrator" } : {}),
   };

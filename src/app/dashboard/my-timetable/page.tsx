@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { api } from "@/lib/axios";
-import { Clock, RefreshCw, Calendar, Download, Palette, FileText } from "lucide-react";
+import { RefreshCw, Calendar, Download, Palette, FileText } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion } from "framer-motion";
 import { TableSkeleton } from "@/components/ui";
@@ -113,11 +113,6 @@ export default function MyTimetablePage() {
   const [pdfModalOpen, setPdfModalOpen] = useState<boolean>(false);
   const [exportMode, setExportMode] = useState<"color" | "bw">("color");
 
-  // Dynamic grid configuration states
-  const [gridStart, setGridStart] = useState("07:45");
-  const [gridDuration, setGridDuration] = useState(45);
-  const [gridSlotsCount, setGridSlotsCount] = useState(7);
-
   const fetchTimetableData = useCallback(async () => {
     try {
       const [ttRes, profileRes] = await Promise.all([
@@ -148,43 +143,6 @@ export default function MyTimetablePage() {
     await fetchTimetableData();
     setRefreshing(false);
   };
-
-  useEffect(() => {
-    if (!studentProfile) return;
-    const shift = studentProfile.shift || "Morning";
-    const dept = studentProfile.department || "";
-    const sem = studentProfile.semester || 1;
-    api
-      .get(`/api/timetable/settings?shift=${shift}&department=${encodeURIComponent(dept)}&semester=${sem}`)
-      .then((res) => {
-        if (res.data) {
-          setGridStart(res.data.startTime);
-          setGridDuration(res.data.duration);
-          setGridSlotsCount(res.data.slots);
-        }
-      })
-      .catch((err) => console.error("Error fetching student timetable settings:", err));
-  }, [studentProfile]);
-
-  const slots = useMemo(() => {
-    const list = [];
-    if (!gridStart || !/^([01]\d|2[0-3]):([0-5]\d)$/.test(gridStart)) {
-      return [];
-    }
-    let [h, m] = gridStart.split(":").map(Number);
-    for (let i = 0; i < gridSlotsCount; i++) {
-      const startStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-      m += gridDuration;
-      if (m >= 60) {
-        h += Math.floor(m / 60);
-        m = m % 60;
-        h = h % 24;
-      }
-      const endStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-      list.push({ start: startStr, end: endStr });
-    }
-    return list;
-  }, [gridStart, gridDuration, gridSlotsCount]);
 
   const uniqueCourses = useMemo(() => {
     const seen = new Set<string>();
@@ -249,38 +207,6 @@ export default function MyTimetablePage() {
     "Saturday",
   ];
   const todayName = days[new Date().getDay()];
-
-  const getClassForSlot = (day: string, slot: { start: string; end: string }) => {
-    const slotStart = timeToMinutes(slot.start);
-    const slotEnd = timeToMinutes(slot.end);
-    return timetable.find((t) => {
-      if (t.day !== day) return false;
-      const classStart = timeToMinutes(t.startTime);
-      const classEnd = timeToMinutes(t.endTime);
-      return classStart < slotEnd && classEnd > slotStart;
-    });
-  };
-
-  const isFirstSlotForClass = (cls: TimetableEntry, slot: { start: string; end: string }, slotsList: typeof slots) => {
-    const classStart = timeToMinutes(cls.startTime);
-    const classEnd = timeToMinutes(cls.endTime);
-    const firstMatch = slotsList.find((s) => {
-      const sStart = timeToMinutes(s.start);
-      const sEnd = timeToMinutes(s.end);
-      return classStart < sEnd && classEnd > sStart;
-    });
-    return firstMatch && firstMatch.start === slot.start && firstMatch.end === slot.end;
-  };
-
-  const getClassRowSpan = (cls: TimetableEntry, slotsList: typeof slots) => {
-    const classStart = timeToMinutes(cls.startTime);
-    const classEnd = timeToMinutes(cls.endTime);
-    return slotsList.filter((s) => {
-      const sStart = timeToMinutes(s.start);
-      const sEnd = timeToMinutes(s.end);
-      return classStart < sEnd && classEnd > sStart;
-    }).length;
-  };
 
   const isCurrentSlot = (day: string, slot: { start: string; end: string }) => {
     if (day !== todayName) return false;

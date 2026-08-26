@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/axios";
 import {
   BookOpen,
@@ -143,9 +143,9 @@ export function FacultyDashboardHome() {
   const [loading, setLoading] = useState(true);
   const [dbName, setDbName] = useState<string | null>(null);
 
-  const fetchDashboard = async (isRefresh = false) => {
-    if (!isRefresh) setLoading(true);
+  const fetchDashboard = useCallback(async (isRefresh = false) => {
     try {
+      if (!isRefresh) setLoading(true);
       const [dashData, quizData, meRes] = await Promise.all([
         api.get(`/api/dashboard/faculty?programLevel=${programLevel}`).then((r) => r.data),
         api
@@ -170,11 +170,11 @@ export function FacultyDashboardHome() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [programLevel]);
 
   useEffect(() => {
     fetchDashboard();
-  }, [programLevel]);
+  }, [fetchDashboard]);
 
   const handleRefresh = () => {
     setLoading(true);

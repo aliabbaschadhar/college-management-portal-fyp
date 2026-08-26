@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/axios";
 import { Plus, Bell, Trash2, Calendar, Target, Info, Loader2, RefreshCw } from "lucide-react";
 import { AuditBadge } from "@/components/dashboard/AuditBadge";
@@ -84,7 +84,7 @@ export default function AnnouncementsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     setLoading(true);
     api
       .get<Announcement[]>(`/api/announcements?programLevel=${programLevel}`)
@@ -93,11 +93,11 @@ export default function AnnouncementsPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  };
+  }, [programLevel]);
 
   useEffect(() => {
     handleRefresh();
-  }, [programLevel]);
+  }, [handleRefresh]);
 
   const handleSave = async () => {
     if (!form.title || !form.content) return;

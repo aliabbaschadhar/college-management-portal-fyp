@@ -13,7 +13,6 @@ import {
   Loader2,
   RefreshCw,
 } from "lucide-react";
-import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { getLocalTodayString } from "@/lib/utils";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
@@ -40,7 +39,6 @@ import { Label } from "@/components/ui/label";
 import { motion } from "framer-motion";
 import { useProgramLevel } from "@/context/program-level-context";
 import {
-  DEPARTMENTS,
   getDisciplinesForLevel,
   getTermOptionsForLevel,
   formatTermLabel,

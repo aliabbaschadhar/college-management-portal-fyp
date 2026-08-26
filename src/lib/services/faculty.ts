@@ -1,5 +1,5 @@
 import prisma from "@/lib/prisma";
-import { Prisma, ProgramLevel } from "@prisma/client";
+import { ProgramLevel } from "@prisma/client";
 
 interface FacultyDashboardData {
   stats: {

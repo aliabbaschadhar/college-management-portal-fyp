@@ -28,7 +28,6 @@ import { Input } from "@/components/ui/input";
 import { TableSkeleton } from "@/components/ui";
 import { Label } from "@/components/ui/label";
 import { useProgramLevel } from "@/context/program-level-context";
-import { DEPARTMENTS, INTERMEDIATE_DISCIPLINES } from "@/lib/constants";
 
 interface CourseOption {
   id: string;
@@ -67,12 +66,6 @@ const statusStyles: Record<AttendanceStatus, { bg: string; active: string }> = {
   Present: { bg: "bg-muted hover:bg-emerald-500/10", active: "bg-emerald-500 text-white" },
   Absent: { bg: "bg-muted hover:bg-rose-500/10", active: "bg-rose-500 text-white" },
   Late: { bg: "bg-muted hover:bg-amber-500/10", active: "bg-amber-500 text-white" },
-};
-
-const statusColors: Record<AttendanceStatus, string> = {
-  Present: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-  Absent: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
-  Late: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
 };
 
 export default function MarkAttendancePage() {

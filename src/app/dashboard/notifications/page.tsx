@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useUser } from "@clerk/nextjs";
 import { api } from "@/lib/axios";
 import { PageHeader } from "@/components/dashboard/PageHeader";
@@ -45,7 +45,7 @@ export default function NotificationsPage() {
   const [refreshing, setRefreshing] = useState(false);
 
   // Fetch announcements and fees
-  const fetchData = async (isRefresh = false) => {
+  const fetchData = useCallback(async (isRefresh = false) => {
     try {
       if (!isRefresh) setLoading(true);
       else setRefreshing(true);
@@ -63,11 +63,11 @@ export default function NotificationsPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [isStudent]);
 
   useEffect(() => {
     fetchData();
-  }, [isStudent]);
+  }, [fetchData]);
 
   // Load dismissed & read announcement IDs from localStorage
   useEffect(() => {

@@ -81,12 +81,12 @@ export default function ManageQuizzesPage() {
   const [questions, setQuestions] = useState<ApiQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
-  const [showResults, setShowResults] = useState<string | null>(null);
+  const [showResults] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [togglingQuizId, setTogglingQuizId] = useState<string | null>(null);
   const [deletingQuizId, setDeletingQuizId] = useState<string | null>(null);
-  const [attempts, setAttempts] = useState<Record<string, QuizAttempt[]>>({});
-  const [loadingAttempts, setLoadingAttempts] = useState<string | null>(null);
+  const [attempts] = useState<Record<string, QuizAttempt[]>>({});
+  const [loadingAttempts] = useState<string | null>(null);
   const [submissionModalQuiz, setSubmissionModalQuiz] = useState<ApiQuiz | null>(null);
   const [enrolledStudents, setEnrolledStudents] = useState<{ id: string; rollNo: string; name: string; submitted: boolean; score?: number; totalMarks?: number }[]>([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
@@ -183,18 +183,6 @@ export default function ManageQuizzesPage() {
       setCreating(false);
     }
     quizIdCounter.current++;
-  };
-
-  const fetchAttempts = async (quizId: string) => {
-    setLoadingAttempts(quizId);
-    try {
-      const res = await api.get<QuizAttempt[]>(`/api/quizzes/${quizId}/attempts`);
-      setAttempts((prev) => ({ ...prev, [quizId]: res.data }));
-    } catch (err) {
-      console.error("Failed to fetch attempts:", err);
-    } finally {
-      setLoadingAttempts(null);
-    }
   };
 
   const resetForm = () => {

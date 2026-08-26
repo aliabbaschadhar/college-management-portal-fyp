@@ -171,9 +171,6 @@ export default function TimetablePage() {
   const [gridStart, setGridStart] = useState("07:45");
   const [gridDuration, setGridDuration] = useState(45);
   const [gridSlotsCount, setGridSlotsCount] = useState(7);
-  const [gridLocked, setGridLocked] = useState(true);
-  const [settingsSaving, setSettingsSaving] = useState(false);
-  const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
   const [deletingTimetableId, setDeletingTimetableId] = useState<string | null>(null);
   const [selectedTimetableIds, setSelectedTimetableIds] = useState<string[]>([]);
 
@@ -262,30 +259,6 @@ export default function TimetablePage() {
       })
       .catch((err) => console.error("Error loading timetable settings:", err));
   }, []);
-
-  const handleSaveSettings = async () => {
-    setSettingsSaving(true);
-    setMutationError(null);
-    setSettingsSuccess(null);
-    try {
-      await api.post("/api/timetable/settings", {
-        shift: filterShift,
-        startTime: gridStart,
-        duration: Number(gridDuration),
-        slots: Number(gridSlotsCount),
-      });
-      setSettingsSuccess("Grid configuration saved successfully!");
-      setTimeout(() => setSettingsSuccess(null), 4000);
-      loadTimetable();
-    } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: string } } };
-      setMutationError(
-        axiosErr.response?.data?.error ?? "Failed to save settings"
-      );
-    } finally {
-      setSettingsSaving(false);
-    }
-  };
 
   useEffect(() => {
     loadSettings(filterShift);
@@ -653,11 +626,6 @@ export default function TimetablePage() {
     );
   }, [courses, filterDept, filterSemester]);
 
-  const secondaryCourses = useMemo(() => {
-    const primaryIds = new Set(primaryCourses.map((c) => c.id));
-    return courses.filter((c) => !primaryIds.has(c.id));
-  }, [courses, primaryCourses]);
-
   useEffect(() => {
     if (!form.courseId && primaryCourses.length > 0 && !editingEntry) {
       setForm((current) => ({ ...current, courseId: primaryCourses[0].id }));
@@ -757,38 +725,6 @@ export default function TimetablePage() {
   const handleExportPdf = () => {
     setMutationError(null);
     setPdfModalOpen(true);
-  };
-
-  const getClassForSlot = (day: string, slot: { start: string; end: string }) => {
-    const slotStart = timeToMinutes(slot.start);
-    const slotEnd = timeToMinutes(slot.end);
-    return timetable.find((t) => {
-      if (t.day !== day) return false;
-      const classStart = timeToMinutes(t.startTime);
-      const classEnd = timeToMinutes(t.endTime);
-      return classStart < slotEnd && classEnd > slotStart;
-    });
-  };
-
-  const isFirstSlotForClass = (cls: TimetableApiEntry, slot: { start: string; end: string }, slotsList: typeof slots) => {
-    const classStart = timeToMinutes(cls.startTime);
-    const classEnd = timeToMinutes(cls.endTime);
-    const firstMatch = slotsList.find((s) => {
-      const sStart = timeToMinutes(s.start);
-      const sEnd = timeToMinutes(s.end);
-      return classStart < sEnd && classEnd > sStart;
-    });
-    return firstMatch && firstMatch.start === slot.start && firstMatch.end === slot.end;
-  };
-
-  const getClassRowSpan = (cls: TimetableApiEntry, slotsList: typeof slots) => {
-    const classStart = timeToMinutes(cls.startTime);
-    const classEnd = timeToMinutes(cls.endTime);
-    return slotsList.filter((s) => {
-      const sStart = timeToMinutes(s.start);
-      const sEnd = timeToMinutes(s.end);
-      return classStart < sEnd && classEnd > sStart;
-    }).length;
   };
 
   return (

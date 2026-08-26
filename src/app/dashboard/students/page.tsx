@@ -10,8 +10,6 @@ import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
 import { useProgramLevel } from "@/context/program-level-context";
 import {
-  DEPARTMENTS,
-  INTERMEDIATE_DISCIPLINES,
   getDisciplinesForLevel,
   getTermOptionsForLevel,
   formatTermLabel,
