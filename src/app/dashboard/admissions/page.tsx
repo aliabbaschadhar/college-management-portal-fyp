@@ -8,6 +8,7 @@ import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { DataTable, Column } from "@/components/dashboard/DataTable";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
+import { useProgramLevel } from "@/context/program-level-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -83,6 +84,7 @@ type BulkAction = "Approve" | "Reject" | "Delete";
 
 export default function ManageAdmissionsPage() {
   const router = useRouter();
+  const { programLevel } = useProgramLevel();
   const [activeTab, setActiveTab] = useState<"students" | "faculty" | "admins">("students");
   const [admissions, setAdmissions] = useState<Admission[]>([]);
   const [staffRequests, setStaffRequests] = useState<StaffRequest[]>([]);
@@ -132,12 +134,13 @@ export default function ManageAdmissionsPage() {
   const loadAdmissions = useCallback(() => {
     setLoading(true);
     setError(null);
-    const url =
-      filterStatus === "all"
-        ? "/api/admissions"
-        : `/api/admissions?status=${filterStatus}`;
+    const params = new URLSearchParams();
+    params.set("programLevel", programLevel);
+    if (filterStatus !== "all") {
+      params.set("status", filterStatus);
+    }
     api
-      .get<Admission[]>(url)
+      .get<Admission[]>(`/api/admissions?${params.toString()}`)
       .then((r) => setAdmissions(Array.isArray(r.data) ? r.data : []))
       .catch((err: unknown) => {
         const axiosErr = err as { response?: { data?: { error?: string } } };
@@ -145,17 +148,18 @@ export default function ManageAdmissionsPage() {
         setAdmissions([]);
       })
       .finally(() => setLoading(false));
-  }, [filterStatus]);
+  }, [filterStatus, programLevel]);
 
   const loadStaffRequests = useCallback(() => {
     setLoading(true);
     setError(null);
-    const url =
-      filterStatus === "all"
-        ? "/api/onboarding"
-        : `/api/onboarding?status=${filterStatus}`;
+    const params = new URLSearchParams();
+    params.set("programLevel", programLevel);
+    if (filterStatus !== "all") {
+      params.set("status", filterStatus);
+    }
     api
-      .get<StaffRequest[]>(url)
+      .get<StaffRequest[]>(`/api/onboarding?${params.toString()}`)
       .then((r) => setStaffRequests(Array.isArray(r.data) ? r.data : []))
       .catch((err: unknown) => {
         const axiosErr = err as { response?: { data?: { error?: string } } };
@@ -163,7 +167,7 @@ export default function ManageAdmissionsPage() {
         setStaffRequests([]);
       })
       .finally(() => setLoading(false));
-  }, [filterStatus]);
+  }, [filterStatus, programLevel]);
 
   const handleRefresh = useCallback(() => {
     if (activeTab === "students") {
@@ -321,13 +325,21 @@ export default function ManageAdmissionsPage() {
     if (activeTab === "students") {
       setSelectedAdmissionIds((prev) => {
         const next = new Set(prev);
-        next.has(id) ? next.delete(id) : next.add(id);
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
         return next;
       });
     } else {
       setSelectedStaffIds((prev) => {
         const next = new Set(prev);
-        next.has(id) ? next.delete(id) : next.add(id);
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
         return next;
       });
     }
@@ -739,7 +751,7 @@ export default function ManageAdmissionsPage() {
         >
           Student Admissions
           {admissions.filter((a) => a.status === "Pending").length > 0 && (
-            <span className="ml-2 bg-brand-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+            <span className="ml-2 bg-rose-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-xs">
               {admissions.filter((a) => a.status === "Pending").length}
             </span>
           )}
@@ -754,7 +766,7 @@ export default function ManageAdmissionsPage() {
         >
           Faculty Onboarding
           {staffRequests.filter((r) => r.status === "Pending" && r.role === "FACULTY").length > 0 && (
-            <span className="ml-2 bg-brand-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+            <span className="ml-2 bg-rose-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-xs animate-pulse">
               {staffRequests.filter((r) => r.status === "Pending" && r.role === "FACULTY").length}
             </span>
           )}
@@ -769,7 +781,7 @@ export default function ManageAdmissionsPage() {
         >
           Admin Onboarding
           {staffRequests.filter((r) => r.status === "Pending" && r.role === "ADMIN").length > 0 && (
-            <span className="ml-2 bg-brand-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+            <span className="ml-2 bg-rose-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-xs animate-pulse">
               {staffRequests.filter((r) => r.status === "Pending" && r.role === "ADMIN").length}
             </span>
           )}

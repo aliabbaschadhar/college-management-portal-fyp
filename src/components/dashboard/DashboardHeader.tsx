@@ -34,11 +34,14 @@ function formatSemester(sem: number) {
   return `${sem}th`;
 }
 
+import { useProgramLevel } from "@/context/program-level-context";
+
 interface DashboardHeaderProps {
   onMenuClick: () => void;
 }
 
 export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
+  const { programLevel, setProgramLevel } = useProgramLevel();
   const [allAnnouncements, setAllAnnouncements] = useState<Announcement[]>([]);
   const [unpaidFees, setUnpaidFees] = useState<Fee[]>([]);
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
@@ -47,8 +50,9 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
   const [dbProfile, setDbProfile] = useState<{
     name: string | null;
     role: string;
-    faculty?: { department: string; specialization: string } | null;
-    student?: { department: string; semester: number; shift: string; blocked?: boolean; readmitRequested?: boolean } | null;
+    avatar?: string | null;
+    faculty?: { department: string; specialization: string; avatar?: string | null } | null;
+    student?: { department: string; semester: number; shift: string; status?: string; blocked?: boolean; readmitRequested?: boolean; avatar?: string | null; programLevel?: string; discipline?: string | null; part?: number | null } | null;
   } | null>(null);
 
   const { user } = useUser();
@@ -101,14 +105,14 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
     const newDismissed = [...dismissedIds, id];
     setDismissedIds(newDismissed);
     try {
-      localStorage.setItem(`dismissed_announcements_${userId}`, JSON.stringify(newDismissed));
-      window.dispatchEvent(new Event("notifications-updated"));
+      localStorage.setItem(`popup_dismissed_announcements_${userId}`, JSON.stringify(newDismissed));
+      window.dispatchEvent(new Event("popup-notifications-updated"));
     } catch (e) {
       console.error("Failed to save dismissed notification:", e);
     }
   };
 
-  // Load user-scoped dismissed announcements from localStorage on mount, user change, or route transition
+  // Load user-scoped dismissed announcements for popup from localStorage
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsMounted(true);
@@ -116,7 +120,7 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
 
     const syncDismissed = () => {
       if (userId) {
-        const stored = localStorage.getItem(`dismissed_announcements_${userId}`);
+        const stored = localStorage.getItem(`popup_dismissed_announcements_${userId}`);
         if (stored) {
           try {
             const parsed = JSON.parse(stored);
@@ -136,10 +140,10 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
 
     syncDismissed();
 
-    window.addEventListener("notifications-updated", syncDismissed);
+    window.addEventListener("popup-notifications-updated", syncDismissed);
     return () => {
       clearTimeout(timer);
-      window.removeEventListener("notifications-updated", syncDismissed);
+      window.removeEventListener("popup-notifications-updated", syncDismissed);
     };
   }, [userId, pathname]);
 
@@ -207,48 +211,118 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
   }, [fetchAnnouncements]);
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b-2 border-border bg-card/80 backdrop-blur-md px-4 lg:px-6">
-      {/* Mobile menu button */}
-      <button
-        onClick={onMenuClick}
-        className="lg:hidden flex h-9 w-9 items-center justify-center rounded-none border-2 border-border bg-card shadow-[2px_2px_0px_0px_var(--border)] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_var(--border)] active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_var(--border)] transition-all cursor-pointer"
-        aria-label="Toggle sidebar"
-      >
-        <Menu className="h-4 w-4" />
-      </button>
+    <>
+      <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-2 sm:gap-4 border-b-2 border-border bg-card/80 backdrop-blur-md px-3 sm:px-4 lg:px-6">
+        {/* Left Section: Mobile Menu + Profile Badge */}
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 max-w-[60%] md:max-w-none">
+          {/* Mobile menu button */}
+          <button
+            onClick={onMenuClick}
+            className="lg:hidden shrink-0 flex h-9 w-9 items-center justify-center rounded-none border-2 border-border bg-card shadow-[2px_2px_0px_0px_var(--border)] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_var(--border)] active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_var(--border)] transition-all cursor-pointer"
+            aria-label="Toggle sidebar"
+          >
+            <Menu className="h-4 w-4" />
+          </button>
 
-      {/* Student Profile Banner */}
-      {role === "student" && dbProfile?.student && (
-        <div className="hidden sm:flex items-center gap-2 text-xs md:text-sm font-black border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] select-none">
-          <span className="capitalize text-brand-primary">{dbProfile.student.department.toLowerCase()}</span>
-          <span className="text-muted-foreground">•</span>
-          <span>Semester {formatSemester(dbProfile.student.semester)}</span>
-          <span className="text-muted-foreground">•</span>
-          <span className="capitalize text-brand-secondary">{dbProfile.student.shift}</span>
+          {/* Student Profile Banner */}
+          {role === "student" && dbProfile?.student && (
+            <div className="flex items-center gap-1.5 sm:gap-2 text-xs md:text-sm font-black border-2 border-border bg-card px-2.5 sm:px-3 py-1 sm:py-1.5 shadow-[2px_2px_0px_0px_var(--border)] select-none truncate">
+              {dbProfile.student.status === "Graduated" || dbProfile.student.status === "HSSC Completed" ? (
+                <>
+                  <span className="capitalize text-amber-500 font-black truncate">
+                    <span className="hidden sm:inline">
+                      {dbProfile.student.status === "HSSC Completed" ? "HSSC Completed Alumnus" : "Graduated Alumnus"}
+                    </span>
+                    <span className="sm:hidden">Alumnus</span>
+                  </span>
+                  <span className="text-muted-foreground">•</span>
+                  <span className="capitalize text-brand-primary truncate">
+                    {dbProfile.student.discipline || dbProfile.student.department}
+                  </span>
+                </>
+              ) : dbProfile.student.programLevel === "INTERMEDIATE" ? (
+                <>
+                  <span className="capitalize text-brand-primary truncate">
+                    {dbProfile.student.discipline || dbProfile.student.department}
+                  </span>
+                  <span className="text-muted-foreground">•</span>
+                  <span className="whitespace-nowrap">Part {dbProfile.student.part || (dbProfile.student.semester >= 2 ? 2 : 1)}</span>
+                </>
+              ) : (
+                <>
+                  <span className="capitalize text-brand-primary truncate">{dbProfile.student.department.toLowerCase()}</span>
+                  <span className="text-muted-foreground">•</span>
+                  <span className="whitespace-nowrap">
+                    <span className="hidden md:inline">Semester </span>
+                    <span className="md:hidden">Sem </span>
+                    {formatSemester(dbProfile.student.semester)}
+                  </span>
+                  <span className="hidden lg:inline text-muted-foreground">•</span>
+                  <span className="hidden lg:inline capitalize text-brand-secondary">{dbProfile.student.shift}</span>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Faculty Profile Banner */}
+          {role === "faculty" && dbProfile?.faculty && (
+            <div className="flex items-center gap-1.5 sm:gap-2 text-xs md:text-sm font-black border-2 border-border bg-card px-2.5 sm:px-3 py-1 sm:py-1.5 shadow-[2px_2px_0px_0px_var(--border)] select-none truncate">
+              <span className="text-foreground font-black truncate">{dbProfile.name}</span>
+              <span className="hidden sm:inline text-muted-foreground">•</span>
+              <span className="hidden sm:inline capitalize text-brand-primary truncate">Dept. of {dbProfile.faculty.department.toLowerCase()}</span>
+              <span className="hidden xl:inline text-muted-foreground">•</span>
+              <span className="hidden xl:inline text-brand-secondary font-bold truncate">{dbProfile.faculty.specialization}</span>
+            </div>
+          )}
+
+          {/* Admin Profile Banner */}
+          {role === "admin" && dbProfile && (
+            <div className="flex items-center gap-1.5 sm:gap-2 text-xs md:text-sm font-black border-2 border-border bg-card px-2.5 sm:px-3 py-1 sm:py-1.5 shadow-[2px_2px_0px_0px_var(--border)] select-none truncate">
+              <span className="text-foreground font-black truncate">{dbProfile.name}</span>
+              <span className="text-muted-foreground">•</span>
+              <span className="text-brand-primary font-black whitespace-nowrap">
+                <span className="hidden sm:inline">Administrator</span>
+                <span className="sm:hidden">Admin</span>
+              </span>
+            </div>
+          )}
         </div>
-      )}
 
-      {/* Faculty Profile Banner */}
-      {role === "faculty" && dbProfile?.faculty && (
-        <div className="hidden sm:flex items-center gap-2 text-xs md:text-sm font-black border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] select-none">
-          <span className="text-foreground font-black">{dbProfile.name}</span>
-          <span className="text-muted-foreground">•</span>
-          <span className="capitalize text-brand-primary">Dept. of {dbProfile.faculty.department.toLowerCase()}</span>
-          <span className="text-muted-foreground">•</span>
-          <span className="text-brand-secondary font-bold">{dbProfile.faculty.specialization}</span>
-        </div>
-      )}
+        {/* Global Academic Level Toggle Switcher for Admin & Faculty (Center Flex item on Desktop/Tablet) */}
+        {(role === "admin" || role === "faculty") && (
+          <div className="hidden md:flex items-center justify-center shrink-0">
+            <div className="inline-flex items-center p-1 rounded-2xl border-2 border-border bg-card shadow-[2px_2px_0px_0px_var(--border)] gap-1 sm:gap-1.5 select-none">
+              <button
+                type="button"
+                onClick={() => setProgramLevel("BS")}
+                className={`px-2.5 lg:px-3 py-1 rounded-xl text-[11px] lg:text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                  programLevel === "BS"
+                    ? "bg-brand-primary text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,0.25)] border border-brand-primary/50"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+                } active:translate-y-0.5`}
+              >
+                <span className={`w-2 h-2 lg:w-2.5 lg:h-2.5 rounded-full ${programLevel === "BS" ? "bg-emerald-400 animate-pulse ring-2 ring-emerald-400/40" : "bg-muted-foreground/40"}`} />
+                <span className="hidden xl:inline">BS Programs</span>
+                <span className="xl:hidden">BS</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setProgramLevel("INTERMEDIATE")}
+                className={`px-2.5 lg:px-3 py-1 rounded-xl text-[11px] lg:text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                  programLevel === "INTERMEDIATE"
+                    ? "bg-brand-primary text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,0.25)] border border-brand-primary/50"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+                } active:translate-y-0.5`}
+              >
+                <span className={`w-2 h-2 lg:w-2.5 lg:h-2.5 rounded-full ${programLevel === "INTERMEDIATE" ? "bg-amber-400 animate-pulse ring-2 ring-amber-400/40" : "bg-muted-foreground/40"}`} />
+                <span className="hidden xl:inline">Intermediate (HSSC)</span>
+                <span className="xl:hidden">Inter (HSSC)</span>
+              </button>
+            </div>
+          </div>
+        )}
 
-      {/* Admin Profile Banner */}
-      {role === "admin" && dbProfile && (
-        <div className="hidden sm:flex items-center gap-2 text-xs md:text-sm font-black border-2 border-border bg-card px-3 py-1.5 shadow-[2px_2px_0px_0px_var(--border)] select-none">
-          <span className="text-foreground font-black">{dbProfile.name}</span>
-          <span className="text-muted-foreground">•</span>
-          <span className="text-brand-primary font-bold">Administrator</span>
-        </div>
-      )}
-
-      {/* Right section */}
+        {/* Right section */}
       <div className="ml-auto flex items-center gap-3">
         {/* Notifications */}
         {!isAdmin && (
@@ -267,18 +341,61 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
         )}
 
         {/* User button */}
-        <UserButton
-          afterSignOutUrl="/"
-          appearance={{
-            elements: {
-              avatarBox: "h-9 w-9 ring-2 ring-brand-primary/20",
-            },
-          }}
-        />
+        <div className="relative h-9 w-9 flex items-center justify-center">
+          {(dbProfile?.avatar || dbProfile?.student?.avatar || dbProfile?.faculty?.avatar) ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={dbProfile?.avatar || dbProfile?.student?.avatar || dbProfile?.faculty?.avatar || ""}
+              alt={dbProfile?.name || "User Avatar"}
+              className="absolute inset-0 h-9 w-9 rounded-full object-cover ring-2 ring-brand-primary/30 pointer-events-none z-10"
+            />
+          ) : null}
+          <UserButton
+            afterSignOutUrl="/"
+            appearance={{
+              elements: {
+                avatarBox: "h-9 w-9 ring-2 ring-brand-primary/20",
+              },
+            }}
+          />
+        </div>
       </div>
+    </header>
 
-      {/* Centered Simple Notification Modal */}
-      {isMounted && createPortal(
+    {/* Slim Mobile Sub-header Bar for Admin & Faculty (< md) */}
+    {(role === "admin" || role === "faculty") && (
+      <div className="md:hidden sticky top-16 z-20 flex items-center justify-center bg-card/95 backdrop-blur-md border-b border-border py-1.5 px-4 shadow-sm">
+        <div className="inline-flex w-full max-w-sm items-center justify-center p-1 rounded-xl border-2 border-border bg-background shadow-[2px_2px_0px_0px_var(--border)] gap-1 select-none">
+          <button
+            type="button"
+            onClick={() => setProgramLevel("BS")}
+            className={`flex-1 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              programLevel === "BS"
+                ? "bg-brand-primary text-white shadow-[1px_1px_0px_0px_rgba(0,0,0,0.2)] border border-brand-primary/50"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${programLevel === "BS" ? "bg-emerald-400 animate-pulse ring-2 ring-emerald-400/40" : "bg-muted-foreground/40"}`} />
+            BS Programs
+          </button>
+          <button
+            type="button"
+            onClick={() => setProgramLevel("INTERMEDIATE")}
+            className={`flex-1 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              programLevel === "INTERMEDIATE"
+                ? "bg-brand-primary text-white shadow-[1px_1px_0px_0px_rgba(0,0,0,0.2)] border border-brand-primary/50"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${programLevel === "INTERMEDIATE" ? "bg-amber-400 animate-pulse ring-2 ring-amber-400/40" : "bg-muted-foreground/40"}`} />
+            Intermediate (HSSC)
+          </button>
+        </div>
+      </div>
+    )}
+
+    {/* Centered Simple Notification Modal */}
+    {isMounted && createPortal(
         <AnimatePresence>
           {showAnnouncementModal && (
             <motion.div
@@ -448,7 +565,7 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
         </AnimatePresence>,
         document.body
       )}
-    </header>
+    </>
   );
 }
 

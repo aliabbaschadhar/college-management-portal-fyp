@@ -6,6 +6,8 @@ import { Mail, MapPin, Moon, Phone, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useSyncExternalStore } from 'react'
 
+import { PraxisLabBadge } from "@/components/ui/PraxisLabBadge";
+
 const emptySubscribe = () => () => { }
 const getSnapshot = () => true
 const getServerSnapshot = () => false
@@ -119,9 +121,14 @@ const Footer = () => {
           ))}
         </div>
 
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6 border-t border-brand-primary/15 pt-8 text-xs font-medium text-brand-dark/70 dark:text-muted-foreground">
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-6 border-t border-brand-primary/15 pt-8 text-xs font-medium text-brand-dark/70 dark:text-muted-foreground text-center lg:text-left">
           <p>© {currentYear} Govt. Graduate College, Hafizabad. All rights reserved.</p>
-          <div className="flex items-center gap-4 sm:gap-8">
+
+          <div className="flex items-center justify-center">
+            <PraxisLabBadge showAgencyTag />
+          </div>
+
+          <div className="flex items-center gap-4 sm:gap-6">
             <button
               onClick={() => mounted && setTheme(theme === 'dark' ? 'light' : 'dark')}
               className="inline-flex h-9 items-center gap-2 rounded-lg border border-brand-primary/20 bg-brand-white px-3 text-xs font-semibold text-brand-dark transition-colors hover:bg-brand-primary/5 dark:bg-background dark:text-foreground dark:hover:bg-accent/40"

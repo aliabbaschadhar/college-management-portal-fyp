@@ -17,21 +17,21 @@
   --color-brand-soft: var(--brand-soft);
   --color-brand-primary-rgb: var(--brand-primary-rgb);
   --color-brand-secondary-rgb: var(--brand-secondary-rgb);
-  
+
   /* Legacy token aliases used in auth pages/components */
   --color-primary-navy: var(--color-brand-primary);
   --color-secondary-cyan: var(--color-brand-secondary);
   --color-light-blue: var(--color-brand-light);
   --color-dark-grey: var(--color-brand-dark);
   --color-soft-grey: var(--color-brand-soft);
-  
+
   --color-system-info: #0F65CD;
   --color-system-success: #1ABE17;
   --color-system-warning: #EAB300;
   --color-system-danger: #E82646;
   --color-system-skyblue: #05C3FB;
   --color-system-strokecard: var(--border-color);
-  
+
   --color-semantic-info: var(--color-system-info);
   --color-semantic-success: var(--color-system-success);
   --color-semantic-warning: var(--color-system-warning);
@@ -45,13 +45,13 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
-  
+
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
-  
+
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -68,7 +68,7 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  
+
   --radius-sm: var(--radius);
   --radius-md: var(--radius);
   --radius-lg: var(--radius);
@@ -80,44 +80,52 @@
 
 :root {
   --radius: 0px;
-  
+
   /* Brand colors matching Modern Minimalist Light */
-  --brand-primary: #2563eb; /* Royal Blue */
-  --brand-secondary: #0891b2; /* Cyan Accent */
-  --brand-dark: #09090b; /* Slate-950 */
-  --brand-light: #f8fafc; /* Canvas base */
+  --brand-primary: #2563eb;
+  /* Royal Blue */
+  --brand-secondary: #0891b2;
+  /* Cyan Accent */
+  --brand-dark: #09090b;
+  /* Slate-950 */
+  --brand-light: #f8fafc;
+  /* Canvas base */
   --brand-white: #ffffff;
   --brand-soft: #e4e4e7;
-  
+
   --brand-primary-rgb: 37 99 235;
   --brand-secondary-rgb: 8 145 178;
   --color-system-success-rgb: 16 185 129;
   --color-system-warning-rgb: 245 158 11;
   --color-system-danger-rgb: 239 68 68;
-  
-  --background: oklch(0.99 0.003 240); /* clean paper */
-  --foreground: oklch(0.12 0.015 240); /* dark slate */
-  --card: oklch(1 0 0); /* pure white card */
+
+  --background: oklch(0.99 0.003 240);
+  /* clean paper */
+  --foreground: oklch(0.12 0.015 240);
+  /* dark slate */
+  --card: oklch(1 0 0);
+  /* pure white card */
   --card-foreground: oklch(0.12 0.015 240);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.12 0.015 240);
-  
+
   --primary: var(--brand-primary);
   --primary-foreground: #ffffff;
   --secondary: #e4e4e7;
   --secondary-foreground: var(--brand-dark);
-  
+
   --muted: #f1f5f9;
   --muted-foreground: #64748b;
   --accent: #f1f5f9;
   --accent-foreground: var(--brand-dark);
-  
+
   --destructive: #ef4444;
-  --border-color: #0f172a; /* High contrast black borders */
+  --border-color: #0f172a;
+  /* High contrast black borders */
   --border: #0f172a;
   --input: #0f172a;
   --ring: var(--brand-primary);
-  
+
   --sidebar: #ffffff;
   --sidebar-foreground: var(--brand-dark);
   --sidebar-primary: var(--brand-primary);
@@ -126,7 +134,7 @@
   --sidebar-accent-foreground: var(--brand-dark);
   --sidebar-border: #0f172a;
   --sidebar-ring: var(--brand-primary);
-  
+
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -138,60 +146,69 @@
 
 .dark {
   --radius: 0px;
-  
-  /* Brand colors matching Unified Dark Mode */
-  --brand-primary: #06b6d4; /* Glowing Neon Cyan */
-  --brand-secondary: #6366f1; /* Glowing Indigo */
-  --brand-dark: #f8fafc;
-  --brand-light: #090d16; /* Charcoal background */
+
+  /* Brand colors matching Linear / Vercel Modern Dark (Zinc Slate) */
+  --brand-primary: #3b82f6;
+  /* Vibrant Royal Blue Accent */
+  --brand-secondary: #06b6d4;
+  /* Sleek Cyan Accent */
+  --brand-dark: #f4f4f5;
+  --brand-light: #09090b;
+  /* Charcoal Slate Canvas */
   --brand-white: #ffffff;
-  --brand-soft: #1e293b;
-  
-  --brand-primary-rgb: 6 182 212;
-  --brand-secondary-rgb: 99 102 241;
-  --color-system-success-rgb: 16 185 129;
+  --brand-soft: #18181b;
+  /* Sleek Dark Surface Card */
+
+  --brand-primary-rgb: 59 130 246;
+  --brand-secondary-rgb: 6 182 212;
+  --color-system-success-rgb: 34 197 94;
   --color-system-warning-rgb: 245 158 11;
   --color-system-danger-rgb: 239 68 68;
-  
-  --background: oklch(0.12 0.01 240); /* deep slate canvas */
-  --foreground: oklch(0.98 0.005 240); /* white text */
-  --card: oklch(0.16 0.015 240); /* slate card */
-  --card-foreground: oklch(0.98 0.005 240);
-  --popover: oklch(0.16 0.015 240);
-  --popover-foreground: oklch(0.98 0.005 240);
-  
-  --primary: var(--brand-primary);
-  --primary-foreground: #090d16;
-  --secondary: #1e293b;
-  --secondary-foreground: #f8fafc;
-  
-  --muted: #1e293b;
-  --muted-foreground: #94a3b8;
-  --accent: #1e293b;
-  --accent-foreground: #f8fafc;
-  
-  --destructive: #f43f5e;
-  --border-color: #ffffff; /* Sharp white borders */
-  --border: #ffffff;
-  --input: #ffffff;
-  --ring: var(--brand-primary);
-  
-  --sidebar: #090d16;
-  --sidebar-foreground: #f8fafc;
-  --sidebar-primary: var(--brand-primary);
-  --sidebar-primary-foreground: #090d16;
-  --sidebar-accent: #1e293b;
-  --sidebar-accent-foreground: #f8fafc;
-  --sidebar-border: #ffffff;
-  --sidebar-ring: var(--brand-primary);
-  
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
 
-  --sticky-bg-rgb: 9, 13, 22;
+  --background: #09090b;
+  /* Vercel/Linear Charcoal canvas */
+  --foreground: #f4f4f5;
+  /* Crisp readable off-white text */
+  --card: #18181b;
+  /* Sleek zinc-900 elevated card surface */
+  --card-foreground: #f4f4f5;
+  --popover: #18181b;
+  --popover-foreground: #f4f4f5;
+
+  --primary: var(--brand-primary);
+  --primary-foreground: #ffffff;
+  --secondary: #27272a;
+  --secondary-foreground: #f4f4f5;
+
+  --muted: #18181b;
+  --muted-foreground: #a1a1aa;
+  /* Zinc-400 soft readable text */
+  --accent: #27272a;
+  --accent-foreground: #f4f4f5;
+
+  --destructive: #ef4444;
+  --border-color: #52525b;
+  /* Lighter shade of gray (Zinc-600) for distinct shadow pop */
+  --border: #52525b;
+  --input: #52525b;
+  --ring: var(--brand-primary);
+
+  --sidebar: #09090b;
+  --sidebar-foreground: #f4f4f5;
+  --sidebar-primary: var(--brand-primary);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #18181b;
+  --sidebar-accent-foreground: #f4f4f5;
+  --sidebar-border: #52525b;
+  --sidebar-ring: var(--brand-primary);
+
+  --chart-1: #3b82f6;
+  --chart-2: #06b6d4;
+  --chart-3: #22c55e;
+  --chart-4: #f59e0b;
+  --chart-5: #ef4444;
+
+  --sticky-bg-rgb: 9, 9, 11;
 }
 
 @layer base {
@@ -215,7 +232,7 @@
   }
 }
 
-/* Custom Neo-Brutalist / Sharp Geometric Utilities */
+/* Custom Geometric Utilities - 100% Layout & Design Persistence */
 @utility geo-border {
   border: 2px solid var(--border-color);
 }

@@ -17,6 +17,8 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { ListSkeleton } from "@/components/ui";
 
+import { useProgramLevel } from "@/context/program-level-context";
+
 interface AuditLogEntry {
   id: string;
   action: string;
@@ -58,6 +60,7 @@ function safeFormatDate(dateStr: string | null | undefined): { date: string; tim
 }
 
 export default function AuditLogPage() {
+  const { programLevel } = useProgramLevel();
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -67,14 +70,14 @@ export default function AuditLogPage() {
   const loadLogs = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get<AuditLogEntry[]>("/api/audit-log");
+      const res = await api.get<AuditLogEntry[]>(`/api/audit-log?programLevel=${programLevel}`);
       setLogs(Array.isArray(res.data) ? res.data : []);
     } catch {
       setLogs([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [programLevel]);
 
   useEffect(() => {
     loadLogs();

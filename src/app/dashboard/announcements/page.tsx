@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/axios";
 import { Plus, Bell, Trash2, Calendar, Target, Info, Loader2, RefreshCw } from "lucide-react";
 import { AuditBadge } from "@/components/dashboard/AuditBadge";
@@ -28,7 +28,12 @@ import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 import { ListSkeleton } from "@/components/ui";
 
-import { DEPARTMENTS } from "@/lib/constants";
+import { useProgramLevel } from "@/context/program-level-context";
+import {
+  getDisciplinesForLevel,
+  getTermOptionsForLevel,
+  formatTermLabel,
+} from "@/lib/constants";
 
 interface Announcement {
   id: string;
@@ -40,6 +45,7 @@ interface Announcement {
   priority: "Low" | "Medium" | "High";
   targetDepartment?: string | null;
   targetSemester?: number | null;
+  programLevel?: "BS" | "INTERMEDIATE";
 }
 
 interface AnnouncementForm {
@@ -70,6 +76,7 @@ const emptyForm: AnnouncementForm = {
 
 
 export default function AnnouncementsPage() {
+  const { programLevel } = useProgramLevel();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -77,20 +84,20 @@ export default function AnnouncementsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     setLoading(true);
     api
-      .get<Announcement[]>("/api/announcements")
+      .get<Announcement[]>(`/api/announcements?programLevel=${programLevel}`)
       .then((r) => {
         setAnnouncements(Array.isArray(r.data) ? r.data : []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  };
+  }, [programLevel]);
 
   useEffect(() => {
     handleRefresh();
-  }, []);
+  }, [handleRefresh]);
 
   const handleSave = async () => {
     if (!form.title || !form.content) return;
@@ -101,6 +108,7 @@ export default function AnnouncementsPage() {
         content: form.content,
         audience: form.audience,
         priority: form.priority,
+        programLevel,
         targetDepartment: form.audience !== "All" && form.targetDepartment ? form.targetDepartment : undefined,
         targetSemester: form.audience === "Students" && form.targetSemester ? Number(form.targetSemester) : undefined,
       };
@@ -360,7 +368,7 @@ export default function AnnouncementsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className={`grid gap-2 ${form.audience === "Students" ? "col-span-2 md:col-span-1" : "col-span-2"}`}>
                   <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
-                    Target Department
+                    {programLevel === "INTERMEDIATE" ? "Target Discipline" : "Target Department"}
                   </Label>
                   <Select
                     value={form.targetDepartment || "all"}
@@ -373,11 +381,11 @@ export default function AnnouncementsPage() {
                     }
                   >
                     <SelectTrigger className="h-12 rounded-xl">
-                      <SelectValue placeholder="All Departments" />
+                      <SelectValue placeholder={programLevel === "INTERMEDIATE" ? "All Disciplines" : "All Departments"} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Departments</SelectItem>
-                      {DEPARTMENTS.map((dept) => (
+                      <SelectItem value="all">{programLevel === "INTERMEDIATE" ? "All Disciplines" : "All Departments"}</SelectItem>
+                      {getDisciplinesForLevel(programLevel).map((dept) => (
                         <SelectItem key={dept} value={dept}>
                           {dept}
                         </SelectItem>
@@ -388,7 +396,7 @@ export default function AnnouncementsPage() {
                 {form.audience === "Students" && (
                   <div className="grid gap-2 col-span-2 md:col-span-1">
                     <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
-                      Target Semester
+                      {programLevel === "INTERMEDIATE" ? "Target Part" : "Target Semester"}
                     </Label>
                     <Select
                       value={form.targetSemester || "all"}
@@ -401,13 +409,13 @@ export default function AnnouncementsPage() {
                       }
                     >
                       <SelectTrigger className="h-12 rounded-xl">
-                        <SelectValue placeholder="All Semesters" />
+                        <SelectValue placeholder={programLevel === "INTERMEDIATE" ? "All Parts" : "All Semesters"} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Semesters</SelectItem>
-                        {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                        <SelectItem value="all">{programLevel === "INTERMEDIATE" ? "All Parts" : "All Semesters"}</SelectItem>
+                        {getTermOptionsForLevel(programLevel).map((sem) => (
                           <SelectItem key={sem} value={String(sem)}>
-                            Semester {sem}
+                            {formatTermLabel(programLevel, sem)}
                           </SelectItem>
                         ))}
                       </SelectContent>

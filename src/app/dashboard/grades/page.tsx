@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/axios";
-import { Lock, Unlock, Save, CheckCircle, Trash2, RefreshCw } from "lucide-react";
+import { Save, CheckCircle, Trash2, RefreshCw } from "lucide-react";
 import { AuditBadgeInline } from "@/components/dashboard/AuditBadge";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { useUser } from "@clerk/nextjs";
@@ -20,11 +20,15 @@ import {
 import { TableSkeleton } from "@/components/ui";
 import { Label } from "@/components/ui/label";
 
+import { useProgramLevel } from "@/context/program-level-context";
+
 interface CourseOption {
   id: string;
   courseCode: string;
   courseName: string;
   department: string;
+  discipline?: string;
+  part?: number;
   semester: number;
 }
 
@@ -50,6 +54,9 @@ interface GradeEntry {
 
 export default function FacultyGradesPage() {
   useUser();
+  const { programLevel } = useProgramLevel();
+  const isInter = programLevel === "INTERMEDIATE";
+
   const [courses, setCourses] = useState<CourseOption[]>([]);
   const [selectedDept, setSelectedDept] = useState("");
   const [selectedSemester, setSelectedSemester] = useState("");
@@ -65,17 +72,17 @@ export default function FacultyGradesPage() {
   // Fetch initial assigned courses list and pre-select defaults
   const fetchCourses = useCallback(async () => {
     try {
-      const res = await api.get<CourseOption[]>("/api/courses");
+      const res = await api.get<CourseOption[]>(`/api/courses?programLevel=${programLevel}`);
       const list = Array.isArray(res.data) ? res.data : [];
       setCourses(list);
       if (list.length > 0) {
-        const firstDept = list[0].department;
+        const firstDept = list[0].discipline || list[0].department;
         const deptSemesters = Array.from(
-          new Set(list.filter((c) => c.department === firstDept).map((c) => c.semester))
+          new Set(list.filter((c) => (c.discipline || c.department) === firstDept).map((c) => c.part || c.semester))
         ).sort((a, b) => a - b);
         const firstSem = deptSemesters[0];
         const matchingCourse = list.find(
-          (c) => c.department === firstDept && c.semester === firstSem
+          (c) => (c.discipline || c.department) === firstDept && (c.part || c.semester) === firstSem
         );
 
         setSelectedDept(firstDept);
@@ -85,7 +92,7 @@ export default function FacultyGradesPage() {
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [programLevel]);
 
   useEffect(() => {
     fetchCourses();
@@ -105,21 +112,21 @@ export default function FacultyGradesPage() {
     setRefreshing(false);
   };
 
-  // Compute unique departments from assigned courses
-  const depts = Array.from(new Set(courses.map((c) => c.department))).sort();
+  // Compute unique departments/disciplines from assigned courses
+  const depts = Array.from(new Set(courses.map((c) => (c.discipline || c.department)))).sort();
 
-  // Compute unique semesters for chosen department
+  // Compute unique semesters/parts for chosen department/discipline
   const semesters = Array.from(
     new Set(
       courses
-        .filter((c) => c.department === selectedDept)
-        .map((c) => c.semester)
+        .filter((c) => (c.discipline || c.department) === selectedDept)
+        .map((c) => c.part || c.semester)
     )
   ).sort((a, b) => a - b);
 
-  // Filter courses by department and semester
+  // Filter courses by department/discipline and semester/part
   const filteredCourses = courses.filter(
-    (c) => c.department === selectedDept && c.semester === Number(selectedSemester)
+    (c) => (c.discipline || c.department) === selectedDept && (c.part || c.semester) === Number(selectedSemester)
   );
 
   // Fetch grades whenever selected course changes
@@ -244,7 +251,7 @@ export default function FacultyGradesPage() {
       <div className="rounded-xl border border-border bg-card p-5 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
           <div>
-            <Label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Department</Label>
+            <Label className="text-xs font-semibold text-muted-foreground mb-1.5 block">{isInter ? "Discipline" : "Department"}</Label>
             <Select
               value={selectedDept}
               onValueChange={(val) => {
@@ -254,7 +261,7 @@ export default function FacultyGradesPage() {
               }}
             >
               <SelectTrigger className="bg-card">
-                <SelectValue placeholder="Select Department" />
+                <SelectValue placeholder={isInter ? "Select Discipline" : "Select Department"} />
               </SelectTrigger>
               <SelectContent>
                 {depts.map((d) => (
@@ -267,7 +274,7 @@ export default function FacultyGradesPage() {
           </div>
 
           <div>
-            <Label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Semester</Label>
+            <Label className="text-xs font-semibold text-muted-foreground mb-1.5 block">{isInter ? "Part" : "Semester"}</Label>
             <Select
               value={selectedSemester}
               onValueChange={(val) => {
@@ -277,12 +284,12 @@ export default function FacultyGradesPage() {
               disabled={!selectedDept}
             >
               <SelectTrigger className="bg-card">
-                <SelectValue placeholder="Select Semester" />
+                <SelectValue placeholder={isInter ? "Select Part" : "Select Semester"} />
               </SelectTrigger>
               <SelectContent>
                 {semesters.map((s) => (
                   <SelectItem key={s} value={s.toString()}>
-                    Semester {s}
+                    {isInter ? `Part ${s}` : `Semester ${s}`}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -345,21 +352,27 @@ export default function FacultyGradesPage() {
                         <th className="text-left py-3 px-3 font-semibold text-foreground">
                           Shift
                         </th>
-                        <th className="text-center py-3 px-2 font-semibold text-foreground w-28">
-                          Mid Exam (25)
-                        </th>
-                        <th className="text-center py-3 px-2 font-semibold text-foreground w-28">
-                          Sessional (15)
-                        </th>
-                        <th className="text-center py-3 px-3 font-semibold text-foreground">
-                          Total (40)
-                        </th>
-                        <th className="text-center py-3 px-3 font-semibold text-foreground">
+                        {!isInter && (
+                          <>
+                            <th className="text-center py-3 px-2 font-semibold text-foreground w-28">
+                              Mid Exam (25)
+                            </th>
+                            <th className="text-center py-3 px-2 font-semibold text-foreground w-28">
+                              Sessional (15)
+                            </th>
+                          </>
+                        )}
+                        <th className="text-center py-3 px-3 font-semibold text-foreground w-32">
                           Obtained Marks
                         </th>
-                        <th className="text-center py-3 px-2 font-semibold text-foreground w-28">
-                          Previous CGPA
+                        <th className="text-center py-3 px-3 font-semibold text-foreground w-28">
+                          Total Marks
                         </th>
+                        {!isInter && (
+                          <th className="text-center py-3 px-2 font-semibold text-foreground w-28">
+                            Previous CGPA
+                          </th>
+                        )}
                         <th className="text-center py-3 px-3 font-semibold text-foreground w-28">
                           Actions
                         </th>
@@ -400,55 +413,83 @@ export default function FacultyGradesPage() {
                                 {g.student.shift ?? "Morning"}
                               </Badge>
                             </td>
+                            {!isInter && (
+                              <>
+                                <td className="py-2 px-2">
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    max={25}
+                                    value={focusedInput?.id === g.id && focusedInput?.field === "midMarks" && g.midMarks === 0 ? "" : g.midMarks}
+                                    onChange={(e) =>
+                                      updateGrade(g.id, "midMarks", +e.target.value)
+                                    }
+                                    onFocus={() => setFocusedInput({ id: g.id, field: "midMarks" })}
+                                    onBlur={() => setFocusedInput(null)}
+                                    className="text-center h-8 w-16 mx-auto bg-card border-2"
+                                  />
+                                </td>
+                                <td className="py-2 px-2">
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    max={15}
+                                    value={focusedInput?.id === g.id && focusedInput?.field === "finalMarks" && g.finalMarks === 0 ? "" : g.finalMarks}
+                                    onChange={(e) =>
+                                      updateGrade(g.id, "finalMarks", +e.target.value)
+                                    }
+                                    onFocus={() => setFocusedInput({ id: g.id, field: "finalMarks" })}
+                                    onBlur={() => setFocusedInput(null)}
+                                    className="text-center h-8 w-16 mx-auto bg-card border-2"
+                                  />
+                                </td>
+                              </>
+                            )}
                             <td className="py-2 px-2">
-                              <Input
-                                type="number"
-                                min={0}
-                                max={25}
-                                value={focusedInput?.id === g.id && focusedInput?.field === "midMarks" && g.midMarks === 0 ? "" : g.midMarks}
-                                onChange={(e) =>
-                                  updateGrade(g.id, "midMarks", +e.target.value)
-                                }
-                                onFocus={() => setFocusedInput({ id: g.id, field: "midMarks" })}
-                                onBlur={() => setFocusedInput(null)}
-                                className="text-center h-8 w-16 mx-auto bg-card border-2"
-                              />
+                              {isInter ? (
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  value={focusedInput?.id === g.id && focusedInput?.field === "total" && g.total === 0 ? "" : g.total}
+                                  onChange={(e) => {
+                                    const val = +e.target.value;
+                                    setGrades((prev) =>
+                                      prev.map((item) =>
+                                        item.id === g.id ? { ...item, total: val, midMarks: val, finalMarks: 0 } : item
+                                      )
+                                    );
+                                  }}
+                                  onFocus={() => setFocusedInput({ id: g.id, field: "total" })}
+                                  onBlur={() => setFocusedInput(null)}
+                                  className="text-center h-8 w-20 mx-auto bg-card border-2 font-bold"
+                                />
+                              ) : (
+                                <span className="font-bold text-foreground block text-center">
+                                  {g.total}
+                                </span>
+                              )}
                             </td>
-                            <td className="py-2 px-2">
-                              <Input
-                                type="number"
-                                min={0}
-                                max={15}
-                                value={focusedInput?.id === g.id && focusedInput?.field === "finalMarks" && g.finalMarks === 0 ? "" : g.finalMarks}
-                                onChange={(e) =>
-                                  updateGrade(g.id, "finalMarks", +e.target.value)
-                                }
-                                onFocus={() => setFocusedInput({ id: g.id, field: "finalMarks" })}
-                                onBlur={() => setFocusedInput(null)}
-                                className="text-center h-8 w-16 mx-auto bg-card border-2"
-                              />
+                            <td className="py-3 px-3 text-center font-semibold text-muted-foreground">
+                              {isInter ? 100 : 40}
                             </td>
-                            <td className="py-3 px-3 text-center font-bold text-foreground">
-                              {g.total}
-                            </td>
-                            <td className="py-3 px-3 text-center font-bold text-foreground">
-                              {g.total} / 40
-                            </td>
-                            <td className="py-2 px-2">
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min={0}
-                                max={4.0}
-                                value={focusedInput?.id === g.id && focusedInput?.field === "cgpa" && (g.student.cgpa === 0 || g.student.cgpa === undefined) ? "" : (g.student.cgpa !== undefined ? g.student.cgpa : 0.0)}
-                                onChange={(e) =>
-                                  updateCgpa(g.id, +e.target.value)
-                                }
-                                onFocus={() => setFocusedInput({ id: g.id, field: "cgpa" })}
-                                onBlur={() => setFocusedInput(null)}
-                                className="text-center h-8 w-20 mx-auto bg-card border-2"
-                              />
-                            </td>
+                            {!isInter && (
+                              <td className="py-2 px-2">
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min={0}
+                                  max={4.0}
+                                  value={focusedInput?.id === g.id && focusedInput?.field === "cgpa" && (g.student.cgpa === 0 || g.student.cgpa === undefined) ? "" : (g.student.cgpa !== undefined ? g.student.cgpa : 0.0)}
+                                  onChange={(e) =>
+                                    updateCgpa(g.id, +e.target.value)
+                                  }
+                                  onFocus={() => setFocusedInput({ id: g.id, field: "cgpa" })}
+                                  onBlur={() => setFocusedInput(null)}
+                                  className="text-center h-8 w-20 mx-auto bg-card border-2"
+                                />
+                              </td>
+                            )}
                             <td className="py-3 px-3 text-center">
                               <div className="flex items-center justify-center">
                                 <button

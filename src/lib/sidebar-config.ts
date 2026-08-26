@@ -17,6 +17,7 @@ import {
   User,
   Shield,
   UserCheck,
+  UserX,
 } from "lucide-react";
 import type { UserRole } from "@/types";
 
@@ -30,6 +31,8 @@ export interface NavItem {
 const adminNav: NavItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { title: "Manage Students", href: "/dashboard/students", icon: Users },
+  { title: "Dropped Students", href: "/dashboard/left-students", icon: UserX },
+  { title: "Alumni Directory", href: "/dashboard/alumni", icon: GraduationCap },
   { title: "Student Attendance", href: "/dashboard/attendance", icon: ClipboardCheck },
   { title: "Manage Faculty", href: "/dashboard/faculty", icon: GraduationCap },
   { title: "Faculty Attendance", href: "/dashboard/faculty-attendance", icon: UserCheck },
@@ -47,6 +50,7 @@ const adminNav: NavItem[] = [
 const facultyNav: NavItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { title: "My Classes", href: "/dashboard/classes", icon: BookOpen },
+  { title: "Alumni Directory", href: "/dashboard/alumni", icon: GraduationCap },
   { title: "My Attendance", href: "/dashboard/faculty-attendance", icon: UserCheck },
   { title: "Mark Attendance", href: "/dashboard/mark-attendance", icon: ClipboardCheck },
   { title: "Manage Grades", href: "/dashboard/grades", icon: BarChart3 },
@@ -59,6 +63,7 @@ const facultyNav: NavItem[] = [
 const studentNav: NavItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { title: "My Courses", href: "/dashboard/my-courses", icon: BookOpen },
+  { title: "Alumni Directory", href: "/dashboard/alumni", icon: GraduationCap },
   { title: "Attendance", href: "/dashboard/my-attendance", icon: ClipboardCheck },
   { title: "Grades", href: "/dashboard/my-grades", icon: BarChart3 },
   { title: "Dues", href: "/dashboard/my-dues", icon: CreditCard },

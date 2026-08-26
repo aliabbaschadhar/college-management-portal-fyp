@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl;
     const targetId = searchParams.get("targetId");
     const type = searchParams.get("type") as FeedbackType | null;
+    const programLevel = searchParams.get("programLevel") || "BS";
     if (type && type !== "Course" && type !== "Faculty") {
       return errorResponse("BAD_REQUEST", "Invalid feedback type filter", 400);
     }
@@ -63,6 +64,7 @@ export async function GET(request: NextRequest) {
     let whereClause: Prisma.FeedbackWhereInput = {
       ...(targetId ? { targetId } : {}),
       ...(type ? { type } : {}),
+      ...(isAdmin ? { student: { programLevel: programLevel === "INTERMEDIATE" ? "INTERMEDIATE" : "BS" } } : {}),
     };
 
     if (isFaculty) {

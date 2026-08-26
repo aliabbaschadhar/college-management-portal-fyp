@@ -3,20 +3,34 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { useState, useRef } from 'react'
-import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
+import { useState, useRef, useEffect } from 'react'
+import { SignedIn, SignedOut, UserButton, useUser } from '@clerk/nextjs'
 import { Menu, X, ChevronRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
+import { api } from '@/lib/axios'
 import { gsap } from 'gsap'
 import { useGSAP } from '@gsap/react'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [dbAvatar, setDbAvatar] = useState<string | null>(null)
   const headerRef = useRef<HTMLElement>(null)
   const progressBarRef = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
+  const { user } = useUser()
+
+  useEffect(() => {
+    if (user) {
+      api.get('/api/me')
+        .then((res) => {
+          const av = res.data?.avatar || res.data?.student?.avatar || res.data?.faculty?.avatar || null;
+          setDbAvatar(av);
+        })
+        .catch(() => setDbAvatar(null));
+    }
+  }, [user]);
 
   useGSAP(() => {
     // Header Entrance
@@ -150,15 +164,25 @@ const Header = () => {
             </SignedOut>
             <SignedIn>
               <div className="flex items-center gap-3 pl-4 border-l border-brand-primary/15">
-                <UserButton
-                  afterSignOutUrl="/"
-                  appearance={{
-                    elements: {
-                      avatarBox: 'h-9 w-9 ring-2 ring-brand-primary/20 ring-offset-2 ring-offset-brand-light transition-all hover:ring-brand-primary dark:ring-offset-background',
-                      userButtonPopoverCard: 'shadow-2xl border border-brand-primary/15 bg-brand-white dark:bg-card',
-                    },
-                  }}
-                />
+                <div className="relative h-9 w-9 flex items-center justify-center">
+                  {dbAvatar ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={dbAvatar}
+                      alt="Profile Avatar"
+                      className="absolute inset-0 h-9 w-9 rounded-full object-cover ring-2 ring-brand-primary/30 pointer-events-none z-10"
+                    />
+                  ) : null}
+                  <UserButton
+                    afterSignOutUrl="/"
+                    appearance={{
+                      elements: {
+                        avatarBox: 'h-9 w-9 ring-2 ring-brand-primary/20 ring-offset-2 ring-offset-brand-light transition-all hover:ring-brand-primary dark:ring-offset-background',
+                        userButtonPopoverCard: 'shadow-2xl border border-brand-primary/15 bg-brand-white dark:bg-card',
+                      },
+                    }}
+                  />
+                </div>
               </div>
             </SignedIn>
           </div>

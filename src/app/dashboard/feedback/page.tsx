@@ -18,6 +18,7 @@ import {
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from "recharts";
 
 import { useUser } from "@clerk/nextjs";
+import { useProgramLevel } from "@/context/program-level-context";
 
 interface FeedbackItem {
   id: string;
@@ -38,6 +39,7 @@ const STAR_COLORS = [
 
 export default function FacultyFeedbackPage() {
   const { user } = useUser();
+  const { programLevel } = useProgramLevel();
   const role = (user?.publicMetadata?.role as string || "").toLowerCase();
   const isAdmin = role === "admin";
 
@@ -45,22 +47,22 @@ export default function FacultyFeedbackPage() {
   const [loading, setLoading] = useState(true);
 
   const fetchFeedback = useCallback(async () => {
+    setLoading(true);
     try {
-      const r = await api.get<FeedbackItem[]>("/api/feedback");
+      const r = await api.get<FeedbackItem[]>(`/api/feedback?programLevel=${programLevel}`);
       setFeedback(r.data);
     } catch {
       // ignore
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [programLevel]);
 
   useEffect(() => {
     fetchFeedback();
   }, [fetchFeedback]);
 
   const handleRefresh = () => {
-    setLoading(true);
     fetchFeedback();
   };
 
@@ -88,7 +90,7 @@ export default function FacultyFeedbackPage() {
     ]),
   );
 
-  if (loading && feedback.length === 0) {
+  if (loading) {
     return (
       <div className="space-y-6">
         <div className="space-y-2">

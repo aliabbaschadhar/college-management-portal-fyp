@@ -28,6 +28,10 @@ model Student {
   phone          String?
   department     String
   semester       Int           @default(1)
+  programLevel   ProgramLevel  @default(BS)
+  discipline     String?
+  part           Int?
+  subjectSet     String?
   enrollmentDate DateTime      @default(now())
   avatar         String?
   shift          String        @default("Morning")
@@ -35,6 +39,16 @@ model Student {
   cgpa           Float         @default(0.0)
   blocked        Boolean       @default(false)
   readmitRequested Boolean     @default(false)
+  status         String        @default("Active")
+  gradesheetUrl  String?
+  graduationDate DateTime?
+  totalMarks     Int?
+  obtainedMarks  Int?
+  part1Marks     Int?
+  percentage     Float?
+  grade          String?
+  leftReason     String?
+  leftDate       DateTime?
   attendances    Attendance[]
   enrollments    Enrollment[]
   fees           Fee[]
@@ -42,6 +56,10 @@ model Student {
   grades         Grade[]
   quizAttempts   QuizAttempt[]
   user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([programLevel])
+  @@index([discipline])
+  @@index([subjectSet])
 }
 
 model Faculty {
@@ -70,8 +88,13 @@ model Course {
   courseCode             String
   courseName             String
   creditHours            Int
+  totalMarks             Int?         @default(100)
   department             String
   semester               Int          @default(1)
+  programLevel           ProgramLevel @default(BS)
+  discipline             String?
+  part                   Int?
+  subjectSet             String?
   assignedFaculty        String?
   assignedFacultyMorning String?
   assignedFacultyEvening String?
@@ -87,6 +110,9 @@ model Course {
   questions       Question[]
 
   @@unique([courseCode, department])
+  @@index([programLevel])
+  @@index([discipline])
+  @@index([subjectSet])
 }
 
 model Enrollment {
@@ -132,15 +158,18 @@ model Fee {
 }
 
 model Announcement {
-  id       String               @id @default(uuid())
-  title    String
-  content  String
-  author   String
-  date     DateTime             @default(now())
+  id               String               @id @default(uuid())
+  title            String
+  content          String
+  author           String
+  date             DateTime             @default(now())
   audience         AnnouncementAudience
   priority         Priority             @default(Medium)
   targetDepartment String?
   targetSemester   Int?
+  programLevel     ProgramLevel         @default(BS)
+
+  @@index([programLevel])
 }
 
 model Feedback {
@@ -240,51 +269,63 @@ model Grade {
 }
 
 model Admission {
-  id                  String   @id @default(uuid())
+  id                  String       @id @default(uuid())
   studentName         String
   email               String
   phone               String
   appliedDepartment   String
-  applicationDate     DateTime @default(now())
-  status              String   @default("Pending")
+  applicationDate     DateTime     @default(now())
+  status              String       @default("Pending")
   fatherName          String
   cnic                String
   previousInstitution String
   marksObtained       Float
   totalMarks          Float
-  shift               String   @default("Morning")
-  semester            Int      @default(1)
+  shift               String       @default("Morning")
+  semester            Int          @default(1)
+  programLevel        ProgramLevel @default(BS)
+  discipline          String?
+  part                Int?
+  subjectSet          String?
   selectedCourses     String[]
-  blocked             Boolean  @default(false)
+  blocked             Boolean      @default(false)
+
+  @@index([programLevel])
 }
 
 model AuditLog {
-  id          String   @id @default(uuid())
-  action      String   // "CREATED" | "UPDATED" | "DELETED"
-  entity      String   // "Admission" | "Fee" | "Course" | "Student" etc.
-  entityId    String   // ID of the affected record
-  description String   // Human-readable description
-  adminId     String?  // clerkId of the admin who performed the action
-  adminName   String?  // Display name of the admin
-  createdAt   DateTime @default(now())
-  expiresAt   DateTime? // Optional retention timestamp
-  adminUser   User?    @relation(fields: [adminId], references: [clerkId], onDelete: SetNull)
+  id           String       @id @default(uuid())
+  action       String       // "CREATED" | "UPDATED" | "DELETED"
+  entity       String       // "Admission" | "Fee" | "Course" | "Student" etc.
+  entityId     String       // ID of the affected record
+  description  String       // Human-readable description
+  adminId      String?      // clerkId of the admin who performed the action
+  adminName    String?      // Display name of the admin
+  programLevel ProgramLevel @default(BS)
+  createdAt    DateTime     @default(now())
+  expiresAt    DateTime?    // Optional retention timestamp
+  adminUser    User?        @relation(fields: [adminId], references: [clerkId], onDelete: SetNull)
 
   @@index([entity, entityId])
   @@index([createdAt])
+  @@index([programLevel])
 }
 
 model OnboardingRequest {
-  id             String   @id @default(uuid())
-  email          String   @unique
+  id             String       @id @default(uuid())
+  email          String       @unique
   name           String
   role           Role
   phone          String?
   department     String?
   specialization String?
-  status         String   @default("Pending") // "Pending" | "Approved" | "Rejected"
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  programLevel   ProgramLevel @default(BS)
+  discipline     String?
+  part           Int?
+  subjectSet     String?
+  status         String       @default("Pending") // "Pending" | "Approved" | "Rejected"
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 }
 
 model TimetableSettings {
@@ -295,6 +336,11 @@ model TimetableSettings {
   slots     Int      @default(7)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+enum ProgramLevel {
+  BS
+  INTERMEDIATE
 }
 
 enum Role {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/axios";
 import {
   BookOpen,
@@ -42,6 +42,8 @@ import {
   PieChart,
   Cell,
 } from "recharts";
+
+import { useProgramLevel } from "@/context/program-level-context";
 
 interface FacultyCourse {
   id: string;
@@ -135,21 +137,27 @@ const defaultData: FacultyDashboardData = {
 
 export function FacultyDashboardHome() {
   useUser(); // Ensure user is authenticated
+  const { programLevel } = useProgramLevel();
   const [data, setData] = useState<FacultyDashboardData>(defaultData);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dbName, setDbName] = useState<string | null>(null);
 
-  const fetchDashboard = async (isRefresh = false) => {
-    if (!isRefresh) setLoading(true);
+  const fetchDashboard = useCallback(async (isRefresh = false) => {
     try {
-      const [dashData, quizData] = await Promise.all([
-        api.get("/api/dashboard/faculty").then((r) => r.data),
+      if (!isRefresh) setLoading(true);
+      const [dashData, quizData, meRes] = await Promise.all([
+        api.get(`/api/dashboard/faculty?programLevel=${programLevel}`).then((r) => r.data),
         api
           .get("/api/quizzes")
           .then((r) => r.data)
           .catch(() => []),
+        api.get("/api/me").catch(() => null),
       ]);
 
+      if (meRes?.data?.name) {
+        setDbName(meRes.data.name);
+      }
       if (!dashData || dashData.error) {
         setData(defaultData);
       } else {
@@ -162,11 +170,11 @@ export function FacultyDashboardHome() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [programLevel]);
 
   useEffect(() => {
     fetchDashboard();
-  }, []);
+  }, [fetchDashboard]);
 
   const handleRefresh = () => {
     setLoading(true);
@@ -229,11 +237,13 @@ export function FacultyDashboardHome() {
     },
   ];
 
+  const headerTitle = dbName ? `Welcome, Prof. ${dbName}! 🎓` : "Faculty Dashboard 🎓";
+
   if (loading) {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Faculty Dashboard 🎓"
+          title={headerTitle}
           subtitle="Manage your courses, students, and academic activities."
           action={
             <Button
@@ -274,7 +284,7 @@ export function FacultyDashboardHome() {
       className="space-y-6"
     >
       <PageHeader
-        title="Faculty Dashboard 🎓"
+        title={headerTitle}
         subtitle="Manage your courses, students, and academic activities."
         action={
           <Button
@@ -295,42 +305,50 @@ export function FacultyDashboardHome() {
         variants={item}
         className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4"
       >
-        <StatsCard
-          title="My Courses"
-          value={data.stats.totalCourses}
-          trend="Active"
-          trendDirection="up"
-          icon={BookOpen}
-          iconColor="var(--color-brand-primary)"
-          iconBg="rgb(var(--color-brand-primary-rgb) / 0.1)"
-        />
-        <StatsCard
-          title="Total Students"
-          value={data.stats.totalStudents}
-          trend="Across courses"
-          trendDirection="up"
-          icon={Users}
-          iconColor="var(--color-brand-secondary)"
-          iconBg="rgb(var(--color-brand-secondary-rgb) / 0.1)"
-        />
-        <StatsCard
-          title="Avg Feedback"
-          value={`${data.stats.avgRating}/5`}
-          trend={data.stats.avgRating >= 4 ? "Excellent" : "Good"}
-          trendDirection="up"
-          icon={Star}
-          iconColor="var(--color-data-4)"
-          iconBg="color-mix(in oklab, var(--color-data-4) 10%, transparent)"
-        />
-        <StatsCard
-          title="Active Quizzes"
-          value={data.stats.pendingQuizReviews}
-          trend="Published"
-          trendDirection="up"
-          icon={FileText}
-          iconColor="var(--color-data-3)"
-          iconBg="color-mix(in oklab, var(--color-data-3) 10%, transparent)"
-        />
+        <Link href="/dashboard/classes" className="block transition-transform hover:scale-[1.02]">
+          <StatsCard
+            title="My Courses"
+            value={data.stats.totalCourses}
+            trend="Active"
+            trendDirection="up"
+            icon={BookOpen}
+            iconColor="var(--color-brand-primary)"
+            iconBg="rgb(var(--color-brand-primary-rgb) / 0.1)"
+          />
+        </Link>
+        <Link href="/dashboard/classes" className="block transition-transform hover:scale-[1.02]">
+          <StatsCard
+            title="Total Students"
+            value={data.stats.totalStudents}
+            trend="Across courses"
+            trendDirection="up"
+            icon={Users}
+            iconColor="var(--color-brand-secondary)"
+            iconBg="rgb(var(--color-brand-secondary-rgb) / 0.1)"
+          />
+        </Link>
+        <Link href="/dashboard/feedback" className="block transition-transform hover:scale-[1.02]">
+          <StatsCard
+            title="Avg Feedback"
+            value={`${data.stats.avgRating}/5`}
+            trend={data.stats.avgRating >= 4 ? "Excellent" : "Good"}
+            trendDirection="up"
+            icon={Star}
+            iconColor="var(--color-data-4)"
+            iconBg="color-mix(in oklab, var(--color-data-4) 10%, transparent)"
+          />
+        </Link>
+        <Link href="/dashboard/quizzes" className="block transition-transform hover:scale-[1.02]">
+          <StatsCard
+            title="Active Quizzes"
+            value={data.stats.pendingQuizReviews}
+            trend="Published"
+            trendDirection="up"
+            icon={FileText}
+            iconColor="var(--color-data-3)"
+            iconBg="color-mix(in oklab, var(--color-data-3) 10%, transparent)"
+          />
+        </Link>
       </motion.div>
 
       {/* Charts */}
@@ -340,9 +358,10 @@ export function FacultyDashboardHome() {
       >
         {/* Student Distribution */}
         <div className="rounded-xl border border-border bg-card p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">
-            Students per Course
-          </h3>
+          <Link href="/dashboard/classes" className="flex items-center justify-between text-sm font-semibold text-foreground mb-4 hover:text-brand-primary transition-colors group">
+            <span>Students per Course</span>
+            <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+          </Link>
           <ChartContainer
             config={enrollmentConfig}
             className="min-h-[280px] w-full"
@@ -368,9 +387,10 @@ export function FacultyDashboardHome() {
 
         {/* Attendance Pie */}
         <div className="rounded-xl border border-border bg-card p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">
-            Today&apos;s Attendance Overview
-          </h3>
+          <Link href="/dashboard/mark-attendance" className="flex items-center justify-between text-sm font-semibold text-foreground mb-4 hover:text-brand-primary transition-colors group">
+            <span>Today&apos;s Attendance Overview</span>
+            <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+          </Link>
           <ChartContainer
             config={attendancePieConfig}
             className="min-h-[280px] w-full"
@@ -413,12 +433,10 @@ export function FacultyDashboardHome() {
       >
         {/* Today's Schedule */}
         <div className="rounded-xl border border-border bg-card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-foreground">
-              Today&apos;s Schedule
-            </h3>
-            <CalendarDays className="h-4 w-4 text-muted-foreground" />
-          </div>
+          <Link href="/dashboard/faculty-attendance" className="flex items-center justify-between text-sm font-semibold text-foreground mb-4 hover:text-brand-primary transition-colors group">
+            <span>Today&apos;s Schedule</span>
+            <CalendarDays className="h-4 w-4 text-muted-foreground group-hover:scale-110 transition-transform" />
+          </Link>
           {todayClasses.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No classes today. 🎉

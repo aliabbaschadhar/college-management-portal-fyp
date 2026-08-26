@@ -9,7 +9,11 @@
     "dev": "next dev",
     "build": "bun prisma generate && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed:courses": "bun prisma/seed-courses.ts",
+    "seed:bs": "bun prisma/seed-bs.ts",
+    "seed:hssc": "bun prisma/seed-hssc.ts",
+    "seed:mockdata": "bun prisma/seed.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.37.3",

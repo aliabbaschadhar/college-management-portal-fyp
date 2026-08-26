@@ -113,8 +113,8 @@ export function Sidebar({ navItems, roleLabel, isMobileOpen, onMobileClose, onNa
                     <span className="truncate">{item.title}</span>
                     {item.badge !== undefined && item.badge > 0 && (
                       <span className={cn(
-                        "ml-auto flex h-5 min-w-5 items-center justify-center rounded-none border border-border px-1.5 text-[10px] font-bold shadow-[1px_1px_0px_0px_var(--border)]",
-                        active ? "bg-background text-foreground" : "bg-primary text-primary-foreground"
+                        "ml-auto flex h-5 min-w-5 items-center justify-center rounded-none border border-border px-1.5 text-[10px] font-black shadow-[1px_1px_0px_0px_var(--border)]",
+                        active ? "bg-background text-foreground" : "bg-rose-600 text-white"
                       )}>
                         {item.badge}
                       </span>

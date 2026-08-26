@@ -279,8 +279,8 @@ export function PublicProfileCard({ profile }: { profile: ProfileData }) {
               />
             )}
 
-            {profile.email && <InfoRow icon={Mail} label="Email" value={profile.email} mono delay={0.55} />}
-            {profile.phone && <InfoRow icon={Phone} label="Phone" value={profile.phone} delay={0.6} />}
+            {profile.role !== "STUDENT" && profile.email && <InfoRow icon={Mail} label="Email" value={profile.email} mono delay={0.55} />}
+            {profile.role !== "STUDENT" && profile.phone && <InfoRow icon={Phone} label="Phone" value={profile.phone} delay={0.6} />}
           </div>
         </div>
 
@@ -360,15 +360,42 @@ export function PublicProfileCard({ profile }: { profile: ProfileData }) {
                 className="space-y-4"
               >
                 {/* Present Today Status Row */}
-                <div className="flex items-center justify-between p-3 rounded-2xl bg-muted/40 border border-border">
-                  <span className="text-xs font-bold text-foreground">Faculty Status</span>
-                  <Badge
-                    variant="outline"
-                    className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-xs font-bold"
-                  >
-                    {profile.todayAttendance?.status || "Present"}
-                  </Badge>
-                </div>
+                {(() => {
+                  const hasCheckedIn = Boolean(profile.todayAttendance && profile.todayAttendance.checkInTime);
+                  const statusText = hasCheckedIn
+                    ? profile.todayAttendance?.status ?? "Present"
+                    : profile.todayAttendance?.status === "Absent"
+                    ? "Absent"
+                    : "Pending Check-In";
+
+                  const badgeClass =
+                    statusText === "Present"
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                      : statusText === "Late"
+                      ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                      : statusText === "Absent"
+                      ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30"
+                      : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 animate-pulse";
+
+                  return (
+                    <div className="flex items-center justify-between p-3 rounded-2xl bg-muted/40 border border-border">
+                      <div>
+                        <span className="text-xs font-bold text-foreground block">Faculty Status</span>
+                        {hasCheckedIn && profile.todayAttendance?.checkInTime && (
+                          <span className="text-[10px] text-muted-foreground font-mono">
+                            Checked in: {new Date(profile.todayAttendance.checkInTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        )}
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={`text-xs font-bold ${badgeClass}`}
+                      >
+                        {statusText}
+                      </Badge>
+                    </div>
+                  );
+                })()}
 
                 {/* Today's Classes Schedule Cards */}
                 <div className="space-y-2.5 pt-1">
