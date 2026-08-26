@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma";
+import { ProgramLevel } from "@prisma/client";
 
 interface FacultyDashboardData {
   stats: {
@@ -23,8 +24,11 @@ interface FacultyDashboardData {
 }
 
 export async function getFacultyDashboardData(
-  clerkId: string
+  clerkId: string,
+  programLevel?: string
 ): Promise<FacultyDashboardData | null> {
+  const levelFilter = programLevel === "INTERMEDIATE" ? "INTERMEDIATE" : "BS";
+
   const user = await prisma.user.findUnique({
     where: { clerkId },
     include: {
@@ -56,7 +60,7 @@ export async function getFacultyDashboardData(
     },
   });
 
-  if (!user || user.role !== "FACULTY" || !user.faculty) {
+  if (!user || user.role?.toUpperCase() !== "FACULTY" || !user.faculty) {
     return null;
   }
 
@@ -65,7 +69,8 @@ export async function getFacultyDashboardData(
   for (const c of [...faculty.teaches, ...faculty.teachesMorning, ...faculty.teachesEvening]) {
     courseMap.set(c.id, c);
   }
-  const courses = Array.from(courseMap.values());
+  const allCourses = Array.from(courseMap.values());
+  const courses = allCourses.filter((c) => (c.programLevel || "BS") === levelFilter);
 
   const courseIds = courses.map((c) => c.id);
 
@@ -81,15 +86,19 @@ export async function getFacultyDashboardData(
       where: { targetId: faculty.id, type: "Faculty" },
       select: { rating: true },
     }),
-    prisma.attendance.groupBy({
-      by: ["status"],
-      where: { courseId: { in: courseIds } },
-      _count: { _all: true },
-    }),
-    prisma.grade.aggregate({
-      where: { courseId: { in: courseIds } },
-      _avg: { gpa: true },
-    }),
+    courseIds.length > 0
+      ? prisma.attendance.groupBy({
+          by: ["status"],
+          where: { courseId: { in: courseIds } },
+          _count: { _all: true },
+        })
+      : Promise.resolve([]),
+    courseIds.length > 0
+      ? prisma.grade.aggregate({
+          where: { courseId: { in: courseIds } },
+          _avg: { gpa: true },
+        })
+      : Promise.resolve({ _avg: { gpa: 0 } }),
   ]);
 
   const avgRating =
@@ -117,11 +126,25 @@ export async function getFacultyDashboardData(
         { targetDepartment: null },
         { targetDepartment: faculty.department },
       ],
+      programLevel: levelFilter as ProgramLevel,
     },
     orderBy: { date: "desc" },
     take: 5,
     select: { id: true, title: true, priority: true, date: true },
-  });
+  }).catch(() =>
+    prisma.announcement.findMany({
+      where: {
+        audience: { in: ["Faculty", "All"] },
+        OR: [
+          { targetDepartment: null },
+          { targetDepartment: faculty.department },
+        ],
+      },
+      orderBy: { date: "desc" },
+      take: 5,
+      select: { id: true, title: true, priority: true, date: true },
+    })
+  );
 
   return {
     stats: {

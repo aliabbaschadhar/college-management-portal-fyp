@@ -106,25 +106,36 @@ export async function PATCH(
                 phone: adm.phone,
                 department: adm.appliedDepartment,
                 semester: adm.semester,
+                programLevel: adm.programLevel,
+                discipline: adm.discipline || (adm.programLevel === "INTERMEDIATE" ? adm.appliedDepartment : null),
+                part: adm.part || (adm.programLevel === "INTERMEDIATE" ? adm.semester : null),
                 shift: adm.shift,
+                obtainedMarks: adm.marksObtained ? Math.round(adm.marksObtained) : null,
+                totalMarks: adm.totalMarks ? Math.round(adm.totalMarks) : (adm.programLevel === "INTERMEDIATE" ? 1100 : null),
                 enrollmentDate: new Date(),
                 approvedBy: adminName,
               },
             });
 
-            // Auto-enroll student in ALL courses matching department and semester
-            const courses = await tx.course.findMany({
-              where: {
-                department: adm.appliedDepartment,
-                semester: adm.semester,
-              },
-            });
+            // Auto-enroll student in ALL courses matching program level and discipline/part or department/semester
+            const courseWhere: Prisma.CourseWhereInput = {
+              programLevel: adm.programLevel,
+            };
+            if (adm.programLevel === "INTERMEDIATE") {
+              courseWhere.discipline = adm.discipline || adm.appliedDepartment;
+              courseWhere.part = adm.part || adm.semester;
+            } else {
+              courseWhere.department = adm.appliedDepartment;
+              courseWhere.semester = adm.semester;
+            }
+
+            const courses = await tx.course.findMany({ where: courseWhere });
             for (const course of courses) {
               await tx.enrollment.create({
                 data: {
                   studentId: student.id,
                   courseId: course.id,
-                  semester: course.semester,
+                  semester: course.semester || (course.part ?? 1),
                 },
               });
             }
@@ -142,25 +153,35 @@ export async function PATCH(
                 phone: adm.phone,
                 department: adm.appliedDepartment,
                 semester: adm.semester,
+                programLevel: adm.programLevel,
+                discipline: adm.discipline || (adm.programLevel === "INTERMEDIATE" ? adm.appliedDepartment : null),
+                part: adm.part || (adm.programLevel === "INTERMEDIATE" ? adm.semester : null),
                 shift: adm.shift,
+                obtainedMarks: adm.marksObtained ? Math.round(adm.marksObtained) : null,
+                totalMarks: adm.totalMarks ? Math.round(adm.totalMarks) : (adm.programLevel === "INTERMEDIATE" ? 1100 : null),
                 enrollmentDate: new Date(),
                 approvedBy: adminName,
               },
             });
 
-            // Auto-enroll student in ALL courses matching department and semester
-            const courses = await tx.course.findMany({
-              where: {
-                department: adm.appliedDepartment,
-                semester: adm.semester,
-              },
-            });
+            const courseWhere: Prisma.CourseWhereInput = {
+              programLevel: adm.programLevel,
+            };
+            if (adm.programLevel === "INTERMEDIATE") {
+              courseWhere.discipline = adm.discipline || adm.appliedDepartment;
+              courseWhere.part = adm.part || adm.semester;
+            } else {
+              courseWhere.department = adm.appliedDepartment;
+              courseWhere.semester = adm.semester;
+            }
+
+            const courses = await tx.course.findMany({ where: courseWhere });
             for (const course of courses) {
               await tx.enrollment.create({
                 data: {
                   studentId: student.id,
                   courseId: course.id,
-                  semester: course.semester,
+                  semester: course.semester || (course.part ?? 1),
                 },
               });
             }

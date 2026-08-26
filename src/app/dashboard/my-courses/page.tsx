@@ -7,10 +7,7 @@ import {
   Users,
   GraduationCap,
   RefreshCw,
-  Calendar,
-  Award,
   Search,
-  UserCheck
 } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { motion } from "framer-motion";
@@ -18,7 +15,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { GridSkeleton } from "@/components/ui";
-import Link from "next/link";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +31,8 @@ interface CourseWithDetails {
   department: string;
   semester: number;
   assignedFaculty: string | null;
+  assignedFacultyMorning?: string | null;
+  assignedFacultyEvening?: string | null;
   shift?: string;
   faculty: { user: { name: string | null; email?: string | null }; department: string } | null;
   _count: { enrollments: number };
@@ -135,23 +133,27 @@ export default function MyCoursesPage() {
         }
       />
 
-      {/* Top Search & Stats Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-card p-4 rounded-2xl border border-border shadow-xs">
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search course name or code..."
-            className="pl-9 h-10 rounded-xl"
-          />
-        </div>
-        <div className="flex items-center gap-3 w-full sm:w-auto overflow-x-auto">
+      {/* Top Search, Shift Filters & Stats Bar */}
+      <div className="flex flex-col lg:flex-row items-center justify-between gap-4 bg-card p-4 rounded-2xl border border-border shadow-xs">
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search course name or code..."
+              className="pl-9 h-10 rounded-xl"
+            />
+          </div>
+
+          </div>
+
+        <div className="flex items-center gap-3 w-full lg:w-auto overflow-x-auto justify-end">
           <Badge variant="outline" className="px-3 py-1.5 rounded-xl border-brand-primary/30 text-brand-primary font-bold text-xs">
-            {courses.length} Registered Courses
+            {filteredCourses.length} Courses
           </Badge>
           <Badge variant="outline" className="px-3 py-1.5 rounded-xl border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-bold text-xs">
-            {courses.reduce((acc, c) => acc + c.creditHours, 0)} Total Credits
+            {filteredCourses.reduce((acc, c) => acc + c.creditHours, 0)} Total Credits
           </Badge>
         </div>
       </div>
@@ -161,7 +163,6 @@ export default function MyCoursesPage() {
         {filteredCourses.map((course, idx) => {
           const facultyName = course.faculty?.user?.name ?? "TBA";
           const studentCount = course._count.enrollments;
-          const progressPercent = Math.min(100, Math.max(30, ((idx + 2) * 22) % 100)); // Dynamic presentation progress
 
           return (
             <motion.div
@@ -270,10 +271,6 @@ export default function MyCoursesPage() {
                 <div className="p-3 rounded-xl bg-card border border-border flex items-center justify-between">
                   <span className="text-muted-foreground font-semibold">Course Code & Name:</span>
                   <span className="font-bold text-foreground">{selectedFacultyModal.courseCode} — {selectedFacultyModal.courseName}</span>
-                </div>
-                <div className="p-3 rounded-xl bg-card border border-border flex items-center justify-between">
-                  <span className="text-muted-foreground font-semibold">Shift Section:</span>
-                  <span className="font-bold text-foreground capitalize">{selectedFacultyModal.shift || "Morning"} Shift</span>
                 </div>
                 <div className="p-3 rounded-xl bg-card border border-border flex items-center justify-between">
                   <span className="text-muted-foreground font-semibold">Office Hours / Contact:</span>

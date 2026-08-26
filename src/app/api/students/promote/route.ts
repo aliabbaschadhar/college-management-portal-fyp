@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { logAuditAction, getAdminName } from "@/lib/audit-log";
 
 export async function POST(request: NextRequest) {
@@ -23,6 +24,14 @@ export async function POST(request: NextRequest) {
       department?: string;
       semester?: number;
       targetSemester: number;
+      gradesheetUrl?: string;
+      totalMarks?: number;
+      obtainedMarks?: number;
+      percentage?: number;
+      grade?: string;
+      dropOffReason?: string;
+      part1Marks?: number;
+      part1MarksMap?: Record<string, number>;
     };
 
     if (!body || (!body.studentIds && (!body.department || !body.semester)) || !body.targetSemester) {
@@ -30,8 +39,18 @@ export async function POST(request: NextRequest) {
     }
 
     const targetSemester = Number(body.targetSemester);
-    if (isNaN(targetSemester) || targetSemester < 1 || targetSemester > 8) {
-      return NextResponse.json({ error: "targetSemester must be an integer between 1 and 8" }, { status: 400 });
+    if (isNaN(targetSemester) || targetSemester < 1 || targetSemester > 10) {
+      return NextResponse.json({ error: "targetSemester must be an integer between 1 and 10 (9 = Graduated, 10 = Drop Off)" }, { status: 400 });
+    }
+
+    const isGraduating = targetSemester === 9;
+    const isDroppingOff = targetSemester === 10;
+
+    if (isGraduating && (!body.gradesheetUrl || typeof body.gradesheetUrl !== "string" || !body.gradesheetUrl.trim())) {
+      return NextResponse.json(
+        { error: "A valid PDF grade sheet document is mandatory before converting a student to Alumni status." },
+        { status: 400 }
+      );
     }
 
     // Resolve which students to promote
@@ -62,7 +81,23 @@ export async function POST(request: NextRequest) {
       try {
         const student = await prisma.student.findUnique({
           where: { id: studentId },
-          select: { id: true, semester: true, department: true, rollNo: true },
+          select: {
+            id: true,
+            semester: true,
+            department: true,
+            programLevel: true,
+            discipline: true,
+            part: true,
+            subjectSet: true,
+            rollNo: true,
+            status: true,
+            blocked: true,
+            readmitRequested: true,
+            fees: {
+              where: { status: { in: ["Unpaid", "Overdue"] } },
+              select: { amount: true, type: true, status: true },
+            },
+          },
         });
 
         if (!student) {
@@ -70,16 +105,112 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        if (student.semester === targetSemester) {
-          errors.push(`Student ${student.rollNo} is already in Semester ${targetSemester}`);
+        if (isGraduating) {
+          const completionStatus = student.programLevel === "INTERMEDIATE" ? "HSSC Completed" : "Graduated";
+
+          if (student.status === "Graduated" || student.status === "HSSC Completed") {
+            errors.push(`Student ${student.rollNo} is already marked as ${student.status}`);
+            continue;
+          }
+
+          if (student.blocked) {
+            errors.push(`Clearance Failed: Student ${student.rollNo} account is currently suspended/struck off.`);
+            continue;
+          }
+
+          if (student.readmitRequested) {
+            errors.push(`Clearance Failed: Student ${student.rollNo} has a pending re-admission request.`);
+            continue;
+          }
+
+          if (student.fees && student.fees.length > 0) {
+            const totalPending = student.fees.reduce((sum, f) => sum + f.amount, 0);
+            errors.push(`Clearance Failed: Student ${student.rollNo} has ${student.fees.length} unpaid fee due(s) totaling PKR ${totalPending.toLocaleString()}. Graduation/Completion is blocked until cleared.`);
+            continue;
+          }
+
+          const graduatedStudent = await prisma.$transaction(async (tx) => {
+            const updated = await tx.student.update({
+              where: { id: studentId },
+              data: {
+                status: completionStatus,
+                semester: student.programLevel === "BS" ? 8 : (student.semester ?? 2),
+                part: student.programLevel === "INTERMEDIATE" ? 2 : student.part,
+                gradesheetUrl: body.gradesheetUrl || null,
+                graduationDate: new Date(),
+                totalMarks: body.totalMarks ? Number(body.totalMarks) : null,
+                obtainedMarks: body.obtainedMarks ? Number(body.obtainedMarks) : null,
+                percentage: body.percentage ? Number(body.percentage) : null,
+                grade: body.grade || null,
+              },
+              include: { user: { select: { name: true } } },
+            });
+            await tx.enrollment.deleteMany({ where: { studentId: student.id } });
+            return updated;
+          });
+
+          await logAuditAction({
+            action: "UPDATED",
+            entity: "Student",
+            entityId: studentId,
+            description: `Updated student ${student.rollNo} status to ${completionStatus}`,
+            adminClerkId: userId,
+            adminName,
+          });
+
+          results.push(graduatedStudent);
+          continue;
+        }
+
+        if (isDroppingOff) {
+          const droppedStudent = await prisma.$transaction(async (tx) => {
+            const updated = await tx.student.update({
+              where: { id: studentId },
+              data: {
+                status: "Left",
+                leftReason: body.dropOffReason || "Dropped off during class promotion",
+                leftDate: new Date(),
+              },
+              include: { user: { select: { name: true } } },
+            });
+            await tx.enrollment.deleteMany({ where: { studentId: student.id } });
+            return updated;
+          });
+
+          await logAuditAction({
+            action: "UPDATED",
+            entity: "Student",
+            entityId: studentId,
+            description: `Marked student ${student.rollNo} as Left/Dropped Out during class promotion. Reason: ${body.dropOffReason || "N/A"}`,
+            adminClerkId: userId,
+            adminName,
+          });
+
+          results.push(droppedStudent);
+          continue;
+        }
+
+        if (student.semester === targetSemester && student.status === "Active") {
+          errors.push(`Student ${student.rollNo} is already in Semester/Part ${targetSemester}`);
           continue;
         }
 
         const updatedStudent = await prisma.$transaction(async (tx) => {
-          // Promote semester
+          const studentPart1Marks =
+            body.part1MarksMap?.[studentId] ??
+            (body.part1Marks !== undefined ? Number(body.part1Marks) : undefined);
+
+          // Promote semester / part
           const updated = await tx.student.update({
             where: { id: studentId },
-            data: { semester: targetSemester },
+            data: {
+              semester: targetSemester,
+              part: student.programLevel === "INTERMEDIATE" ? targetSemester : student.part,
+              ...(student.programLevel === "INTERMEDIATE" && targetSemester === 2 && studentPart1Marks !== undefined
+                ? { part1Marks: studentPart1Marks }
+                : {}),
+              status: "Active",
+            },
             include: { user: { select: { name: true } } },
           });
 
@@ -88,13 +219,22 @@ export async function POST(request: NextRequest) {
             where: { studentId: student.id },
           });
 
-          // Auto-enroll in target semester courses
-          const courses = await tx.course.findMany({
-            where: {
-              department: student.department,
-              semester: targetSemester,
-            },
-          });
+          // Auto-enroll in target courses matching programLevel
+          const courseWhere: Prisma.CourseWhereInput = {
+            programLevel: student.programLevel,
+          };
+          if (student.programLevel === "INTERMEDIATE") {
+            courseWhere.discipline = student.discipline || student.department;
+            courseWhere.part = targetSemester;
+            if (student.subjectSet) {
+              courseWhere.subjectSet = student.subjectSet;
+            }
+          } else {
+            courseWhere.department = student.department;
+            courseWhere.semester = targetSemester;
+          }
+
+          const courses = await tx.course.findMany({ where: courseWhere });
 
           if (courses.length > 0) {
             await tx.enrollment.createMany({
@@ -127,6 +267,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (results.length === 0 && errors.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: errors.join(" | "),
+          promotedCount: 0,
+          promotedStudents: [],
+          errors,
+        },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
       promotedCount: results.length,
@@ -135,6 +288,7 @@ export async function POST(request: NextRequest) {
         rollNo: s.rollNo,
         name: s.user?.name,
         semester: s.semester,
+        status: s.status,
       })),
       errors,
     });

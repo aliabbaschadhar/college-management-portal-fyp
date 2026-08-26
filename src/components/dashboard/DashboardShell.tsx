@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
+import { LayoutDashboard } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { getNavItems } from "@/lib/sidebar-config";
 import type { UserRole } from "@/types";
 import { api } from "@/lib/axios";
 import { useAuth } from "@clerk/nextjs";
+import { PraxisLabBadge } from "@/components/ui/PraxisLabBadge";
 
 interface DashboardShellProps {
   children: React.ReactNode;
@@ -39,6 +41,30 @@ export function DashboardShell({ children, role, roleLabel }: DashboardShellProp
       localStorage.setItem("lastViewedFeedback", Date.now().toString());
     }
   }, [pathname]);
+
+  useEffect(() => {
+    if (role !== "student" || !isLoaded || !isSignedIn) return;
+    let isMounted = true;
+
+    api.get<{ student?: { status?: string } }>("/api/me")
+      .then((res) => {
+        if (!isMounted) return;
+        if (res.data?.student?.status === "Graduated") {
+          setNavItems([
+            { title: "Graduation Portal", href: "/dashboard/graduated", icon: LayoutDashboard },
+            { title: "Alumni Directory", href: "/dashboard/alumni", icon: LayoutDashboard },
+          ]);
+          if (pathname !== "/dashboard/graduated" && !pathname.startsWith("/dashboard/alumni")) {
+            window.location.href = "/dashboard/graduated";
+          }
+        }
+      })
+      .catch((err) => console.error("Failed to fetch student status for sidebar:", err));
+
+    return () => {
+      isMounted = false;
+    };
+  }, [role, isLoaded, isSignedIn, pathname]);
 
   useEffect(() => {
     if (role !== "admin" || !isLoaded || !isSignedIn) return;
@@ -106,6 +132,7 @@ export function DashboardShell({ children, role, roleLabel }: DashboardShellProp
     };
   }, [role, pathname, isLoaded, isSignedIn]);
 
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {isNavigating && (
@@ -137,8 +164,17 @@ export function DashboardShell({ children, role, roleLabel }: DashboardShellProp
         <DashboardHeader
           onMenuClick={() => setMobileOpen(!mobileOpen)}
         />
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          {children}
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6 flex flex-col justify-between">
+          <div className="flex-1">
+            {children}
+          </div>
+
+          {/* Centered Dashboard Footer with Reusable Praxis Lab Badge */}
+          <footer className="mt-10 pt-6 border-t border-border/40 text-center text-xs text-muted-foreground font-medium flex flex-col sm:flex-row items-center justify-center gap-3">
+            <span>&copy; {new Date().getFullYear()} Govt. Graduate College, Hafizabad. All rights reserved.</span>
+            <span className="hidden sm:inline text-muted-foreground/40">•</span>
+            <PraxisLabBadge />
+          </footer>
         </main>
       </div>
     </div>

@@ -88,6 +88,10 @@ interface StudentItem {
   phone: string;
   department: string;
   semester: number;
+  programLevel?: "BS" | "INTERMEDIATE";
+  discipline?: string;
+  part?: number;
+  subjectSet?: string;
   enrollmentDate: string;
 }
 
@@ -101,6 +105,7 @@ const SPECIFIC_STUDENTS: Record<string, { clerkId: string; name: string; email: 
 
 let studentCounter = 1;
 
+// 1. BS Students (100)
 for (const dist of DEPT_DISTRIBUTION) {
   for (let i = 1; i <= dist.count; i++) {
     const sId = `s${studentCounter}`;
@@ -125,9 +130,57 @@ for (const dist of DEPT_DISTRIBUTION) {
       phone,
       department: dist.dept,
       semester,
+      programLevel: "BS",
       enrollmentDate: `${year}-09-01`,
     });
     studentCounter++;
+  }
+}
+
+// 2. Intermediate / HSSC Students (50 total across 7 disciplines)
+const INTERMEDIATE_DISCIPLINES_DIST = [
+  { discipline: "F.Sc Pre-Medical",     prefix: "PMED", count: 10 },
+  { discipline: "F.Sc Pre-Engineering", prefix: "PENG", count: 10 },
+  { discipline: "ICS",                  prefix: "ICS",  count: 10 },
+  { discipline: "FA",                   prefix: "FA",   count: 8 },
+  { discipline: "FA IT",                prefix: "FAIT", count: 4 },
+  { discipline: "I.Com",                prefix: "ICOM", count: 5 },
+  { discipline: "Home Economics",       prefix: "HECO", count: 3 },
+];
+
+let interCounter = 1;
+for (const dist of INTERMEDIATE_DISCIPLINES_DIST) {
+  for (let i = 1; i <= dist.count; i++) {
+    const sId = `s_inter_${interCounter}`;
+    const fn = FIRST_NAMES[(interCounter + 15) % FIRST_NAMES.length];
+    const ln = LAST_NAMES[(interCounter + 10) % LAST_NAMES.length];
+    const fullName = `${fn} ${ln}`;
+    const email = `hssc.${fn.toLowerCase()}.${ln.toLowerCase()}${interCounter}@gc.edu.pk`;
+    const clerkId = mockClerkId("si", `${interCounter}`);
+
+    const part = (i % 2 === 1) ? 1 : 2;
+    const semester = part;
+    const year = 2026 - (part - 1);
+    const seq = String(i).padStart(3, "0");
+    const rollNo = `HSSC-${dist.prefix}-${year}-${seq}`;
+    const phone = `03${String((interCounter % 4) + 1).padStart(2, "0")}-${String(2000000 + interCounter * 23456).slice(-7)}`;
+
+    STUDENT_DATA.push({
+      id: sId,
+      clerkId,
+      name: fullName,
+      rollNo,
+      email,
+      phone,
+      department: dist.discipline,
+      semester,
+      programLevel: "INTERMEDIATE",
+      discipline: dist.discipline,
+      part,
+      subjectSet: "Set 1",
+      enrollmentDate: `${year}-09-01`,
+    });
+    interCounter++;
   }
 }
 
@@ -226,10 +279,14 @@ const FEE_MAP: Record<string, number> = {
   "Computer Science": 35000, "Mathematics": 30000, "Physics": 28000,
   "English": 25000, "Chemistry": 30000, "Economics": 27000,
   "Urdu": 22000, "Islamic Studies": 20000,
+  "F.Sc Pre-Medical": 26000, "F.Sc Pre-Engineering": 26000,
+  "ICS": 24000, "FA": 20000, "FA IT": 22000,
+  "I.Com": 21000, "Home Economics": 20000,
 };
 
 function makeFeesForStudent(studentId: string, baseFee: number, semester: number) {
-  const sNum = parseInt(studentId.replace("s", ""), 10);
+  const cleanNum = studentId.replace(/[^0-9]/g, "") || "1";
+  const sNum = parseInt(cleanNum, 10);
   const semStatus  = (sNum % 7 === 0) ? "Overdue" : (sNum % 5 === 0) ? "Unpaid" : "Paid";
   const labStatus  = (sNum % 4 === 0) ? "Unpaid"  : "Paid";
   const libStatus  = (sNum % 9 === 0) ? "Overdue" : "Paid";
@@ -243,36 +300,6 @@ function makeFeesForStudent(studentId: string, baseFee: number, semester: number
 
 // ─── 9. Expanded Timetable (56 slots) ────────────────────
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-const TIMETABLE_SLOTS: { id: string; courseId: string; room: string; day: string; startTime: string; endTime: string; shift: string }[] = [];
-
-let ttCounter = 1;
-for (const course of COURSE_DATA) {
-  const day1 = DAYS[(ttCounter) % 5];
-  const room1 = `Room ${100 + (ttCounter % 15)}`;
-  TIMETABLE_SLOTS.push({
-    id: `tt_${ttCounter}`,
-    courseId: course.id,
-    room: room1,
-    day: day1,
-    startTime: "09:00",
-    endTime: "10:30",
-    shift: "Morning",
-  });
-  ttCounter++;
-
-  const day2 = DAYS[(ttCounter + 2) % 5];
-  const room2 = `Room ${200 + (ttCounter % 15)}`;
-  TIMETABLE_SLOTS.push({
-    id: `tt_${ttCounter}`,
-    courseId: course.id,
-    room: room2,
-    day: day2,
-    startTime: "14:00",
-    endTime: "15:30",
-    shift: "Evening",
-  });
-  ttCounter++;
-}
 
 // ─── 10. Announcements & Admissions ──────────────────────
 const ANNOUNCEMENTS = [
@@ -281,17 +308,21 @@ const ANNOUNCEMENTS = [
   { id: "ann3", title: "Faculty Development Workshop",     content: "A workshop on Modern Teaching Methodologies will be held on April 10, 2026 in the seminar hall. All faculty members are encouraged to attend.",                         author: "HoD Committee",       date: new Date("2026-03-25"), audience: "Faculty" as const,  priority: "Medium" as const },
   { id: "ann4", title: "Sports Week Announcement",         content: "Annual Sports Week will be held from April 25-30, 2026. Interested students can register at the sports office before April 18.",                                         author: "Sports Department",   date: new Date("2026-03-20"), audience: "Students" as const, priority: "Low" as const },
   { id: "ann5", title: "Library Hours Extended",           content: "The college library will now remain open till 8:00 PM on weekdays during the examination period.",                                                                        author: "Library Committee",   date: new Date("2026-03-15"), audience: "All" as const,      priority: "Medium" as const },
+  { id: "ann6", title: "HSSC Part 1 & 2 Board Examination Form Submission", content: "All Intermediate (HSSC) students are instructed to submit their board examination admission forms before March 30, 2026.", author: "Intermediate Section", date: new Date("2026-03-18"), audience: "Students" as const, priority: "High" as const },
 ];
 
 const ADMISSIONS = [
-  { id: "a1", studentName: "Hamza Tariq",    email: "hamza.t@gmail.com",   phone: "0331-1234567", appliedDepartment: "Computer Science", applicationDate: new Date("2026-03-15"), status: "Pending",  fatherName: "Tariq Mehmood",  cnic: "34201-1234567-1", previousInstitution: "Govt. High School Hafizabad", marksObtained: 920, totalMarks: 1100 },
-  { id: "a2", studentName: "Rimsha Akram",   email: "rimsha.a@gmail.com",  phone: "0332-2345678", appliedDepartment: "English",           applicationDate: new Date("2026-03-14"), status: "Approved", fatherName: "Akram Hussain",  cnic: "34201-2345678-2", previousInstitution: "Divisional Public School",     marksObtained: 850, totalMarks: 1100 },
-  { id: "a3", studentName: "Faisal Nawaz",   email: "faisal.n@gmail.com",  phone: "0333-3456789", appliedDepartment: "Mathematics",       applicationDate: new Date("2026-03-16"), status: "Pending",  fatherName: "Nawaz Sharif",   cnic: "34201-3456789-3", previousInstitution: "Govt. College Pindi Bhattian", marksObtained: 780, totalMarks: 1100 },
-  { id: "a4", studentName: "Iqra Batool",    email: "iqra.b@gmail.com",    phone: "0334-4567890", appliedDepartment: "Computer Science", applicationDate: new Date("2026-03-12"), status: "Rejected", fatherName: "Muhammad Aslam", cnic: "34201-4567890-4", previousInstitution: "Punjab College",               marksObtained: 600, totalMarks: 1100 },
-  { id: "a5", studentName: "Usama Ghani",    email: "usama.g@gmail.com",   phone: "0335-5678901", appliedDepartment: "Physics",           applicationDate: new Date("2026-03-17"), status: "Pending",  fatherName: "Abdul Ghani",    cnic: "34201-5678901-5", previousInstitution: "Superior College",             marksObtained: 870, totalMarks: 1100 },
-  { id: "a6", studentName: "Mehwish Khalid", email: "mehwish.k@gmail.com", phone: "0336-6789012", appliedDepartment: "Chemistry",         applicationDate: new Date("2026-03-10"), status: "Approved", fatherName: "Khalid Mehmood", cnic: "34201-6789012-6", previousInstitution: "Govt. Girls College",          marksObtained: 910, totalMarks: 1100 },
-  { id: "a7", studentName: "Shahbaz Akhtar", email: "shahbaz.a@gmail.com", phone: "0337-7890123", appliedDepartment: "Economics",         applicationDate: new Date("2026-03-18"), status: "Pending",  fatherName: "Akhtar Ali",     cnic: "34201-7890123-7", previousInstitution: "Army Public School",           marksObtained: 750, totalMarks: 1100 },
-  { id: "a8", studentName: "Muneeba Tahir",  email: "muneeba.t@gmail.com", phone: "0338-8901234", appliedDepartment: "Urdu",              applicationDate: new Date("2026-03-11"), status: "Approved", fatherName: "Tahir Abbas",    cnic: "34201-8901234-8", previousInstitution: "Beacon House School",          marksObtained: 820, totalMarks: 1100 },
+  { id: "a1",  studentName: "Hamza Tariq",    email: "hamza.t@gmail.com",   phone: "0331-1234567", appliedDepartment: "Computer Science", applicationDate: new Date("2026-03-15"), status: "Pending",  fatherName: "Tariq Mehmood",  cnic: "34201-1234567-1", previousInstitution: "Govt. High School Hafizabad", marksObtained: 920, totalMarks: 1100 },
+  { id: "a2",  studentName: "Rimsha Akram",   email: "rimsha.a@gmail.com",  phone: "0332-2345678", appliedDepartment: "English",           applicationDate: new Date("2026-03-14"), status: "Approved", fatherName: "Akram Hussain",  cnic: "34201-2345678-2", previousInstitution: "Divisional Public School",     marksObtained: 850, totalMarks: 1100 },
+  { id: "a3",  studentName: "Faisal Nawaz",   email: "faisal.n@gmail.com",  phone: "0333-3456789", appliedDepartment: "Mathematics",       applicationDate: new Date("2026-03-16"), status: "Pending",  fatherName: "Nawaz Sharif",   cnic: "34201-3456789-3", previousInstitution: "Govt. College Pindi Bhattian", marksObtained: 780, totalMarks: 1100 },
+  { id: "a4",  studentName: "Iqra Batool",    email: "iqra.b@gmail.com",    phone: "0334-4567890", appliedDepartment: "Computer Science", applicationDate: new Date("2026-03-12"), status: "Rejected", fatherName: "Muhammad Aslam", cnic: "34201-4567890-4", previousInstitution: "Punjab College",               marksObtained: 600, totalMarks: 1100 },
+  { id: "a5",  studentName: "Usama Ghani",    email: "usama.g@gmail.com",   phone: "0335-5678901", appliedDepartment: "Physics",           applicationDate: new Date("2026-03-17"), status: "Pending",  fatherName: "Abdul Ghani",    cnic: "34201-5678901-5", previousInstitution: "Superior College",             marksObtained: 870, totalMarks: 1100 },
+  { id: "a6",  studentName: "Mehwish Khalid", email: "mehwish.k@gmail.com", phone: "0336-6789012", appliedDepartment: "Chemistry",         applicationDate: new Date("2026-03-10"), status: "Approved", fatherName: "Khalid Mehmood", cnic: "34201-6789012-6", previousInstitution: "Govt. Girls College",          marksObtained: 910, totalMarks: 1100 },
+  { id: "a7",  studentName: "Shahbaz Akhtar", email: "shahbaz.a@gmail.com", phone: "0337-7890123", appliedDepartment: "Economics",         applicationDate: new Date("2026-03-18"), status: "Pending",  fatherName: "Akhtar Ali",     cnic: "34201-7890123-7", previousInstitution: "Army Public School",           marksObtained: 750, totalMarks: 1100 },
+  { id: "a8",  studentName: "Muneeba Tahir",  email: "muneeba.t@gmail.com", phone: "0338-8901234", appliedDepartment: "Urdu",              applicationDate: new Date("2026-03-11"), status: "Approved", fatherName: "Tahir Abbas",    cnic: "34201-8901234-8", previousInstitution: "Beacon House School",          marksObtained: 820, totalMarks: 1100 },
+  { id: "a9",  studentName: "Zahid Mehmood",  email: "zahid.m@gmail.com",  phone: "0339-9012345", appliedDepartment: "ICS",              applicationDate: new Date("2026-03-19"), status: "Pending",  fatherName: "Mehmood Khan",   cnic: "34201-9012345-9", previousInstitution: "Govt. High School Hafizabad", marksObtained: 950, totalMarks: 1100 },
+  { id: "a10", studentName: "Sobia Perveen",   email: "sobia.p@gmail.com",   phone: "0340-0123456", appliedDepartment: "F.Sc Pre-Medical", applicationDate: new Date("2026-03-21"), status: "Approved", fatherName: "Muhammad Pervez", cnic: "34201-0123456-0", previousInstitution: "Divisional Public School",     marksObtained: 980, totalMarks: 1100 },
+  { id: "a11", studentName: "Adeel Ashraf",    email: "adeel.a@gmail.com",   phone: "0341-1234567", appliedDepartment: "FA",               applicationDate: new Date("2026-03-22"), status: "Pending",  fatherName: "Ashraf Ali",     cnic: "34201-1234567-0", previousInstitution: "Govt. High School Gujranwala",marksObtained: 720, totalMarks: 1100 },
 ];
 
 // ─── FAST OPTIMIZED IDEMPOTENT MAIN EXECUTION ────────────────
@@ -339,37 +370,101 @@ async function main() {
         data: {
           clerkId: s.clerkId, email: s.email, name: s.name, role: "STUDENT",
           student: {
-            create: { id: s.id, rollNo: s.rollNo, phone: s.phone, department: s.department, semester: s.semester, enrollmentDate: new Date(s.enrollmentDate) },
+            create: {
+              id: s.id,
+              rollNo: s.rollNo,
+              phone: s.phone,
+              department: s.department,
+              semester: s.semester,
+              programLevel: s.programLevel ?? "BS",
+              discipline: s.discipline ?? null,
+              part: s.part ?? null,
+              subjectSet: s.subjectSet ?? null,
+              enrollmentDate: new Date(s.enrollmentDate),
+            },
           },
         },
       });
       existingEmails.add(s.email);
     }
   }
-  console.log(`  ✓ Students processed`);
+  console.log(`  ✓ ${STUDENT_DATA.length} students processed`);
 
   // 4. Courses
   console.log("Seeding courses...");
+  const dbCourseIdMap = new Map<string, string>();
+
   for (const c of COURSE_DATA) {
-    await prisma.course.upsert({
-      where: { id: c.id },
-      update: { courseName: c.courseName, assignedFaculty: c.assignedFaculty },
-      create: { id: c.id, courseCode: c.courseCode, courseName: c.courseName, creditHours: c.creditHours, department: c.department, semester: c.semester, assignedFaculty: c.assignedFaculty },
+    const fallbackId = `bs_${c.department.toLowerCase().replace(/[^a-z0-9]/g, "")}_sem${c.semester}_${c.courseCode.toLowerCase().replace(/[^a-z0-9]/g, "")}`;
+    const upserted = await prisma.course.upsert({
+      where: {
+        courseCode_department: {
+          courseCode: c.courseCode,
+          department: c.department,
+        },
+      },
+      update: {
+        courseName: c.courseName,
+        assignedFaculty: c.assignedFaculty,
+      },
+      create: {
+        id: fallbackId,
+        courseCode: c.courseCode,
+        courseName: c.courseName,
+        creditHours: c.creditHours,
+        department: c.department,
+        semester: c.semester,
+        assignedFaculty: c.assignedFaculty,
+        programLevel: "BS",
+      },
     });
+    dbCourseIdMap.set(c.id, upserted.id);
   }
   console.log(`  ✓ ${COURSE_DATA.length} courses processed`);
 
   // 5. Enrollments
   console.log("Seeding enrollments...");
+  const hsscCoursesInDb = await prisma.course.findMany({
+    where: { programLevel: "INTERMEDIATE" },
+    select: { id: true, courseCode: true, department: true, discipline: true, part: true, subjectSet: true },
+  });
+
+  const ENROLLMENT_DATA: { studentId: string; courseId: string; semester: number }[] = [];
+  for (const student of STUDENT_DATA) {
+    if (student.programLevel === "INTERMEDIATE") {
+      const matchingHssc = hsscCoursesInDb.filter(
+        (c) => c.discipline === student.discipline && c.part === student.part && (c.subjectSet === student.subjectSet || c.subjectSet === "Set 1")
+      );
+      for (const hCourse of matchingHssc) {
+        ENROLLMENT_DATA.push({ studentId: student.id, courseId: hCourse.id, semester: student.semester });
+      }
+    } else {
+      const matchingCourses = COURSE_DATA.filter(
+        (c) => c.department === student.department && c.semester === student.semester
+      );
+      if (matchingCourses.length > 0) {
+        for (const mc of matchingCourses) {
+          const realId = dbCourseIdMap.get(mc.id) || mc.id;
+          ENROLLMENT_DATA.push({ studentId: student.id, courseId: realId, semester: student.semester });
+        }
+      } else {
+        const deptCourses = COURSE_DATA.filter((c) => c.department === student.department);
+        if (deptCourses.length > 0) {
+          const realId = dbCourseIdMap.get(deptCourses[0].id) || deptCourses[0].id;
+          ENROLLMENT_DATA.push({ studentId: student.id, courseId: realId, semester: student.semester });
+        }
+      }
+    }
+  }
   await prisma.enrollment.createMany({ data: ENROLLMENT_DATA, skipDuplicates: true });
-  console.log(`  ✓ Enrollments processed`);
+  console.log(`  ✓ ${ENROLLMENT_DATA.length} enrollments processed`);
 
   // 6. Student Attendance
   console.log("Seeding student attendance...");
   const studentAttBatch: { studentId: string; courseId: string; date: Date; status: "Present" | "Absent" | "Late"; markedBy: string }[] = [];
   for (let eIdx = 0; eIdx < ENROLLMENT_DATA.length; eIdx++) {
     const e = ENROLLMENT_DATA[eIdx];
-    const course = COURSE_DATA.find((c) => c.id === e.courseId);
+    const course = COURSE_DATA.find((c) => (dbCourseIdMap.get(c.id) || c.id) === e.courseId);
     const markedBy = course?.assignedFaculty ?? "f1";
 
     for (let dIdx = 0; dIdx < CLASS_DATES.length; dIdx++) {
@@ -443,6 +538,53 @@ async function main() {
 
   // 10. Timetable
   console.log("Seeding timetable...");
+  const TIMETABLE_SLOTS: { id: string; courseId: string; room: string; day: string; startTime: string; endTime: string; shift: string }[] = [];
+  let ttCounter = 1;
+  for (const course of COURSE_DATA) {
+    const realId = dbCourseIdMap.get(course.id) || course.id;
+    const day1 = DAYS[(ttCounter) % 5];
+    const room1 = `Room ${100 + (ttCounter % 15)}`;
+    TIMETABLE_SLOTS.push({
+      id: `tt_${ttCounter}`,
+      courseId: realId,
+      room: room1,
+      day: day1,
+      startTime: "09:00",
+      endTime: "10:30",
+      shift: "Morning",
+    });
+    ttCounter++;
+
+    const day2 = DAYS[(ttCounter + 2) % 5];
+    const room2 = `Room ${200 + (ttCounter % 15)}`;
+    TIMETABLE_SLOTS.push({
+      id: `tt_${ttCounter}`,
+      courseId: realId,
+      room: room2,
+      day: day2,
+      startTime: "14:00",
+      endTime: "15:30",
+      shift: "Evening",
+    });
+    ttCounter++;
+  }
+
+  // Add HSSC Intermediate timetable slots
+  for (const hCourse of hsscCoursesInDb.slice(0, 30)) {
+    const day1 = DAYS[(ttCounter) % 5];
+    const room1 = `Hall ${10 + (ttCounter % 5)}`;
+    TIMETABLE_SLOTS.push({
+      id: `tt_hssc_${ttCounter}`,
+      courseId: hCourse.id,
+      room: room1,
+      day: day1,
+      startTime: "08:30",
+      endTime: "10:00",
+      shift: "Morning",
+    });
+    ttCounter++;
+  }
+
   await prisma.timetable.createMany({ data: TIMETABLE_SLOTS, skipDuplicates: true });
   console.log(`  ✓ ${TIMETABLE_SLOTS.length} timetable entries processed`);
 

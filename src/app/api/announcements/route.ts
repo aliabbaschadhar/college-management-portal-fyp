@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = request.nextUrl;
     const requestedAudience = searchParams.get("audience") as AnnouncementAudience | null;
+    const requestedProgramLevel = searchParams.get("programLevel");
 
     // Determine allowed audiences based on role
     const allowedAudiences: AnnouncementAudience[] = ["All"];
@@ -40,6 +41,7 @@ export async function GET(request: NextRequest) {
     }
 
     const whereClause: Prisma.AnnouncementWhereInput = {
+      programLevel: requestedProgramLevel === "INTERMEDIATE" ? "INTERMEDIATE" : "BS",
       ...(requestedAudience
         ? { audience: requestedAudience }
         : { audience: { in: allowedAudiences } }),
@@ -96,6 +98,7 @@ export async function POST(request: NextRequest) {
       priority: Priority;
       targetDepartment?: string | null;
       targetSemester?: number | null;
+      programLevel?: "BS" | "INTERMEDIATE";
     };
 
     // Validate audience allowed for this role
@@ -116,8 +119,24 @@ export async function POST(request: NextRequest) {
         priority: body.priority,
         targetDepartment: body.targetDepartment || null,
         targetSemester: body.targetSemester ? Number(body.targetSemester) : null,
+        programLevel: body.programLevel === "INTERMEDIATE" ? "INTERMEDIATE" : "BS",
       },
     });
+
+    try {
+      await prisma.auditLog.create({
+        data: {
+          action: "CREATED",
+          entity: "Announcement",
+          entityId: announcement.id,
+          description: `Posted ${announcement.programLevel} Announcement: "${announcement.title}" for ${announcement.audience}`,
+          programLevel: announcement.programLevel,
+          adminName: user.name || "Admin",
+        },
+      });
+    } catch {
+      /* ignore */
+    }
 
     return NextResponse.json(announcement, { status: 201 });
   } catch (error) {

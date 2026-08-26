@@ -16,6 +16,17 @@ import {
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
+import { useProgramLevel } from "@/context/program-level-context";
+
+interface StudentProfileInfo {
+  obtainedMarks?: number | null;
+  totalMarks?: number | null;
+  part1Marks?: number | null;
+  semester?: number;
+  part?: number | null;
+  programLevel?: string;
+}
+
 interface GradeWithCourse {
   id: string;
   studentId: string;
@@ -37,25 +48,27 @@ interface CourseOption {
   courseName: string;
 }
 
-const chartConfig = {
-  mid: { label: "Midterm", color: "var(--color-data-3)" },
-  final: { label: "Sessional", color: "var(--color-data-4)" },
-} satisfies ChartConfig;
-
 export default function MyGradesPage() {
+  const { programLevel } = useProgramLevel();
+
   const [grades, setGrades] = useState<GradeWithCourse[]>([]);
   const [courses, setCourses] = useState<CourseOption[]>([]);
+  const [studentProfile, setStudentProfile] = useState<StudentProfileInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchGrades = async () => {
     try {
-      const [gRes, cRes] = await Promise.all([
+      const [gRes, cRes, meRes] = await Promise.all([
         api.get<GradeWithCourse[]>("/api/grades"),
         api.get<CourseOption[]>("/api/courses").catch(() => ({ data: [] })),
+        api.get("/api/me").catch(() => null),
       ]);
       setGrades(Array.isArray(gRes.data) ? gRes.data : []);
       setCourses(Array.isArray(cRes.data) ? cRes.data : []);
+      if (meRes?.data?.student) {
+        setStudentProfile(meRes.data.student);
+      }
     } catch {
       /* ignore */
     } finally {
@@ -66,6 +79,20 @@ export default function MyGradesPage() {
   useEffect(() => {
     fetchGrades();
   }, []);
+
+  const isInter = useMemo(() => {
+    if (studentProfile?.programLevel) {
+      return studentProfile.programLevel.toUpperCase() === "INTERMEDIATE";
+    }
+    return programLevel === "INTERMEDIATE";
+  }, [studentProfile, programLevel]);
+
+  const chartConfig = useMemo(() => {
+    return {
+      mid: { label: isInter ? "Obtained Marks" : "Midterm", color: "var(--color-data-3)" },
+      final: { label: "Sessional", color: "var(--color-data-4)" },
+    } satisfies ChartConfig;
+  }, [isInter]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -99,7 +126,7 @@ export default function MyGradesPage() {
 
   const chartData = mergedGrades.map((g: GradeWithCourse) => ({
     course: g.course?.courseCode || g.courseId,
-    mid: g.midMarks,
+    mid: isInter ? (g.total || ((g.midMarks ?? 0) + (g.finalMarks ?? 0))) : g.midMarks,
     final: g.finalMarks,
   }));
 
@@ -122,6 +149,8 @@ export default function MyGradesPage() {
       </div>
     );
   }
+
+  const isPart2 = (studentProfile?.part === 2) || ((studentProfile?.semester ?? 1) >= 2);
 
   return (
     <motion.div
@@ -151,23 +180,43 @@ export default function MyGradesPage() {
         }
       />
 
-      {/* Overall GPA Card */}
+      {/* Overall GPA / Marks Card */}
       <div className="rounded-xl border border-border bg-card p-6 flex items-center gap-6">
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-primary/10">
           <GraduationCap className="h-8 w-8 text-brand-primary" />
         </div>
         <div>
-          <p className="text-sm text-muted-foreground">Previous Semester CGPA</p>
-          <p className="text-4xl font-bold tracking-tight text-brand-primary">
-            {grades.length > 0 ? previousCGPA.toFixed(2) : "—"}
+          <p className="text-sm text-muted-foreground">
+            {isInter ? (isPart2 ? "Part 1 Examination Marks" : "Entrance Form Marks") : "Previous Semester CGPA"}
+          </p>
+          <p className="text-3xl sm:text-4xl font-bold tracking-tight text-brand-primary">
+            {isInter ? (
+              isPart2 ? (
+                studentProfile?.part1Marks !== undefined && studentProfile?.part1Marks !== null ? (
+                  `${studentProfile.part1Marks} / 550`
+                ) : studentProfile?.obtainedMarks !== undefined && studentProfile?.obtainedMarks !== null ? (
+                  `${studentProfile.obtainedMarks} / 550`
+                ) : (
+                  "—"
+                )
+              ) : (
+                studentProfile?.obtainedMarks !== undefined && studentProfile?.obtainedMarks !== null ? (
+                  `${studentProfile.obtainedMarks} / ${studentProfile.totalMarks || 1100}`
+                ) : (
+                  "—"
+                )
+              )
+            ) : (
+              grades.length > 0 ? previousCGPA.toFixed(2) : "—"
+            )}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            CGPA from previous semesters
+            {isInter ? "Official Board / Input Record" : "CGPA from previous semesters"}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-1 text-sm text-muted-foreground">
           <TrendingUp className="h-4 w-4" />
-          <span>Semester in progress</span>
+          <span>Academic Status Active</span>
         </div>
       </div>
 
@@ -188,7 +237,7 @@ export default function MyGradesPage() {
             <YAxis tickLine={false} axisLine={false} />
             <ChartTooltip content={<ChartTooltipContent />} />
             <Bar dataKey="mid" fill="var(--color-mid)" radius={4} />
-            <Bar dataKey="final" fill="var(--color-final)" radius={4} />
+            {!isInter && <Bar dataKey="final" fill="var(--color-final)" radius={4} />}
           </BarChart>
         </ChartContainer>
       </div>
@@ -200,19 +249,26 @@ export default function MyGradesPage() {
             <thead>
               <tr className="border-b border-border bg-muted/50">
                 <th className="text-left py-3 px-4 font-semibold text-foreground">
-                  Course
+                  Course / Subject
                 </th>
-                <th className="text-center py-3 px-3 font-semibold text-foreground">
-                  Mid Exam (25)
-                </th>
-                <th className="text-center py-3 px-3 font-semibold text-foreground">
-                  Sessional (15)
-                </th>
-                <th className="text-center py-3 px-3 font-semibold text-foreground">
-                  Total (40)
-                </th>
+                {!isInter && (
+                  <>
+                    <th className="text-center py-3 px-3 font-semibold text-foreground">
+                      Mid Exam (25)
+                    </th>
+                    <th className="text-center py-3 px-3 font-semibold text-foreground">
+                      Sessional (15)
+                    </th>
+                    <th className="text-center py-3 px-3 font-semibold text-foreground">
+                      Total (40)
+                    </th>
+                  </>
+                )}
                 <th className="text-center py-3 px-3 font-semibold text-foreground">
                   Obtained Marks
+                </th>
+                <th className="text-center py-3 px-3 font-semibold text-foreground">
+                  Total Marks
                 </th>
                 <th className="text-center py-3 px-3 font-semibold text-foreground">
                   Status
@@ -221,6 +277,9 @@ export default function MyGradesPage() {
             </thead>
             <tbody>
               {mergedGrades.map((g) => {
+                const totalObtained = isInter ? (g.total || ((g.midMarks ?? 0) + (g.finalMarks ?? 0))) : g.total;
+                const totalMarks = isInter ? 100 : 40;
+
                 return (
                   <tr
                     key={g.id}
@@ -233,19 +292,24 @@ export default function MyGradesPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="text-center py-3 px-3 text-muted-foreground">
-                      {g.midMarks}
+                    {!isInter && (
+                      <>
+                        <td className="text-center py-3 px-3 text-muted-foreground">
+                          {g.midMarks}
+                        </td>
+                        <td className="text-center py-3 px-3 text-muted-foreground">
+                          {g.finalMarks}
+                        </td>
+                        <td className="text-center py-3 px-3 font-semibold text-foreground">
+                          {g.total}
+                        </td>
+                      </>
+                    )}
+                    <td className="text-center py-3 px-3 font-bold text-foreground">
+                      {totalObtained}
                     </td>
-                    <td className="text-center py-3 px-3 text-muted-foreground">
-                      {g.finalMarks}
-                    </td>
-                    <td className="text-center py-3 px-3 font-semibold text-foreground">
-                      {g.total}
-                    </td>
-                    <td
-                      className="text-center py-3 px-3 font-bold text-foreground"
-                    >
-                      {g.total} / 40
+                    <td className="text-center py-3 px-3 font-semibold text-muted-foreground">
+                      {totalMarks}
                     </td>
                     <td className="text-center py-3 px-3">
                       {g.locked ? (
@@ -267,10 +331,10 @@ export default function MyGradesPage() {
                   </tr>
                 );
               })}
-              {grades.length === 0 && (
+              {mergedGrades.length === 0 && (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={isInter ? 6 : 6}
                     className="text-center py-12 text-muted-foreground"
                   >
                     No grades available yet.

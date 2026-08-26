@@ -19,6 +19,24 @@ export async function GET() {
 
     if (!user) return errorResponse("NOT_FOUND", "User not found", 404);
 
+    let studentData = user.student;
+    if (
+      studentData &&
+      studentData.programLevel === "INTERMEDIATE" &&
+      (studentData.obtainedMarks === null || studentData.obtainedMarks === undefined) &&
+      user.email
+    ) {
+      const adm = await prisma.admission.findFirst({
+        where: { email: user.email },
+        select: { marksObtained: true, totalMarks: true },
+      });
+      if (adm && adm.marksObtained) {
+        const obtained = Math.round(adm.marksObtained);
+        const total = adm.totalMarks ? Math.round(adm.totalMarks) : 1100;
+        studentData = { ...studentData, obtainedMarks: obtained, totalMarks: total };
+      }
+    }
+
     return NextResponse.json({
       id: user.id,
       clerkId: user.clerkId,
@@ -26,7 +44,7 @@ export async function GET() {
       name: user.name,
       role: user.role,
       avatar: user.avatar,
-      student: user.student,
+      student: studentData,
       faculty: user.faculty,
       admin: user.admin,
     });

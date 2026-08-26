@@ -124,11 +124,12 @@ export async function PATCH(
 
     if (body.assignedFaculty !== undefined) {
       if (body.assignedFaculty === null) {
-        // If assignedFaculty is null and shift is specified, unassign only that shift
         if (body.shift === "Morning") {
           updateData.facultyMorning = { disconnect: true };
+          updateData.faculty = { disconnect: true };
         } else if (body.shift === "Evening") {
           updateData.facultyEvening = { disconnect: true };
+          updateData.faculty = { disconnect: true };
         } else {
           updateData.faculty = { disconnect: true };
           updateData.facultyMorning = { disconnect: true };

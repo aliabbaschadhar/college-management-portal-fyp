@@ -27,9 +27,22 @@ export async function GET(request: NextRequest) {
     const roleFilter = searchParams.get("role");
     const departmentFilter = searchParams.get("department");
     const semesterFilter = searchParams.get("semester");
+    const programLevel = searchParams.get("programLevel") || "BS";
     const search = searchParams.get("search") ?? "";
 
-    const whereClause: Record<string, unknown> = {};
+    const targetLevel = programLevel === "INTERMEDIATE" ? "INTERMEDIATE" : "BS";
+    const whereClause: Record<string, unknown> = {
+      NOT: {
+        student: {
+          status: "Graduated",
+        },
+      },
+      OR: [
+        { student: { programLevel: targetLevel } },
+        { faculty: { isNot: null } },
+        { admin: { isNot: null } },
+      ],
+    };
 
     if (roleFilter && roleFilter !== "ALL") {
       whereClause.role = roleFilter as "ADMIN" | "FACULTY" | "STUDENT";
@@ -71,7 +84,7 @@ export async function GET(request: NextRequest) {
     const users = await prisma.user.findMany({
       where: whereClause,
       include: {
-        student: { select: { rollNo: true, department: true, semester: true } },
+        student: { select: { rollNo: true, department: true, semester: true, approvedBy: true, enrollmentDate: true } },
         faculty: { select: { phone: true, department: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -86,7 +99,13 @@ export async function GET(request: NextRequest) {
         role: u.role,
         createdAt: u.createdAt.toISOString(),
         student: u.student
-          ? { rollNo: u.student.rollNo, department: u.student.department, semester: u.student.semester }
+          ? {
+              rollNo: u.student.rollNo,
+              department: u.student.department,
+              semester: u.student.semester,
+              approvedBy: u.student.approvedBy ?? "System Admin",
+              enrollmentDate: u.student.enrollmentDate ? u.student.enrollmentDate.toISOString() : u.createdAt.toISOString(),
+            }
           : null,
         faculty: u.faculty
           ? { department: u.faculty.department }

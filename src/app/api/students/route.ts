@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+import { Prisma, ProgramLevel } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   const { userId } = await auth();
@@ -22,8 +22,11 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = request.nextUrl;
+    const programLevelParam = searchParams.get("programLevel");
     const department = searchParams.get("department");
     const semester = searchParams.get("semester");
+    const discipline = searchParams.get("discipline");
+    const part = searchParams.get("part");
     const search = searchParams.get("search");
     const courseId = searchParams.get("courseId");
 
@@ -34,31 +37,40 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    const includeGraduated = searchParams.get("includeGraduated") === "true";
+
+    const whereClause: Prisma.StudentWhereInput = {
+      ...(includeGraduated ? {} : { NOT: { status: "Graduated" } }),
+      ...(programLevelParam ? { programLevel: programLevelParam as ProgramLevel } : {}),
+      ...(department ? { department } : {}),
+      ...(semester ? { semester: Number(semester) } : {}),
+      ...(discipline ? { discipline } : {}),
+      ...(part ? { part: Number(part) } : {}),
+      ...(search
+        ? {
+            OR: [
+              { user: { name: { contains: search, mode: "insensitive" } } },
+              { user: { email: { contains: search, mode: "insensitive" } } },
+              { rollNo: { contains: search, mode: "insensitive" } },
+              { department: { contains: search, mode: "insensitive" } },
+              { discipline: { contains: search, mode: "insensitive" } },
+              { phone: { contains: search, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+      ...(courseId ? { enrollments: { some: { courseId } } } : {}),
+      ...(user.role === "FACULTY" && faculty
+        ? {
+            OR: [
+              { department: faculty.department },
+              { enrollments: { some: { course: { assignedFaculty: faculty.id } } } },
+            ],
+          }
+        : {}),
+    };
+
     const students = await prisma.student.findMany({
-      where: {
-        ...(department ? { department } : {}),
-        ...(semester ? { semester: Number(semester) } : {}),
-        ...(search
-          ? {
-              OR: [
-                { user: { name: { contains: search, mode: "insensitive" } } },
-                { user: { email: { contains: search, mode: "insensitive" } } },
-                { rollNo: { contains: search, mode: "insensitive" } },
-                { department: { contains: search, mode: "insensitive" } },
-                { phone: { contains: search, mode: "insensitive" } },
-              ],
-            }
-          : {}),
-        ...(courseId ? { enrollments: { some: { courseId } } } : {}),
-        ...(user.role === "FACULTY" && faculty
-          ? {
-              OR: [
-                { department: faculty.department },
-                { enrollments: { some: { course: { assignedFaculty: faculty.id } } } },
-              ],
-            }
-          : {}),
-      },
+      where: whereClause,
       include: {
         user: { select: { name: true, email: true } },
         enrollments: { select: { id: true, courseId: true, blocked: true, readmitRequested: true } },
@@ -71,8 +83,11 @@ export async function GET(request: NextRequest) {
       userId: s.userId,
       rollNo: s.rollNo,
       phone: s.phone,
+      programLevel: s.programLevel,
       department: s.department,
       semester: s.semester,
+      discipline: s.discipline,
+      part: s.part,
       shift: s.shift,
       blocked: s.blocked,
       readmitRequested: s.readmitRequested,
@@ -118,9 +133,37 @@ export async function POST(request: NextRequest) {
       userId: string;
       rollNo: string;
       phone?: string;
-      department: string;
-      semester?: number;
+      programLevel?: "BS" | "INTERMEDIATE";
+      department?: string | null;
+      semester?: number | null;
+      discipline?: string | null;
+      part?: number | null;
+      shift?: string;
     };
+
+    const programLevel = body.programLevel || "BS";
+
+    if (programLevel === "BS") {
+      if (!body.department) {
+        return NextResponse.json({ error: "BS Department is required" }, { status: 400 });
+      }
+      if (!body.semester || body.semester < 1 || body.semester > 8) {
+        return NextResponse.json({ error: "BS Semester must be between 1 and 8" }, { status: 400 });
+      }
+      if (body.discipline != null || body.part != null) {
+        return NextResponse.json({ error: "Intermediate fields are not allowed for BS students" }, { status: 400 });
+      }
+    } else if (programLevel === "INTERMEDIATE") {
+      if (!body.discipline) {
+        return NextResponse.json({ error: "Intermediate Discipline is required" }, { status: 400 });
+      }
+      if (body.part !== 1 && body.part !== 2) {
+        return NextResponse.json({ error: "Intermediate Part must be 1 (Part 1) or 2 (Part 2)" }, { status: 400 });
+      }
+      if (body.department != null || body.semester != null) {
+        return NextResponse.json({ error: "BS fields are not allowed for Intermediate students" }, { status: 400 });
+      }
+    }
 
     const user = await prisma.user.findUnique({ where: { id: body.userId } });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -132,8 +175,12 @@ export async function POST(request: NextRequest) {
         userId: body.userId,
         rollNo: body.rollNo,
         phone: body.phone,
-        department: body.department,
-        semester: body.semester ?? 1,
+        programLevel,
+        department: body.department || body.discipline || "Intermediate",
+        semester: body.semester ?? body.part ?? 1,
+        discipline: programLevel === "INTERMEDIATE" ? body.discipline : null,
+        part: programLevel === "INTERMEDIATE" ? body.part : null,
+        shift: body.shift || "Morning",
       },
     });
 

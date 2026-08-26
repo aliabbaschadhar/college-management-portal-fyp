@@ -647,7 +647,7 @@ export default function OnboardingPage() {
                               ) : (
                                 <BookOpen className="h-4 w-4" />
                               )}
-                              Submit Request
+                              {selectedRole === "ADMIN" && isFirstAdmin ? "Create First Admin" : "Submit Request"}
                             </Button>
                           </div>
                         </form>

@@ -1,11 +1,13 @@
 import { auth } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getAdminDashboardData } from "@/lib/services/admin";
 import prisma from "@/lib/prisma";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const programLevel = req.nextUrl.searchParams.get("programLevel") || "BS";
 
   try {
     const user = await prisma.user.findUnique({
@@ -18,7 +20,7 @@ export async function GET() {
 
     // Parallelize the dashboard data aggregation and recent audit logs query
     const [data, recentAuditLogs] = await Promise.all([
-      getAdminDashboardData(),
+      getAdminDashboardData(programLevel),
       prisma.auditLog.findMany({
         orderBy: { createdAt: "desc" },
         take: 10,

@@ -1,9 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getFacultyDashboardData } from "@/lib/services/faculty";
 import prisma from "@/lib/prisma";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -16,7 +16,8 @@ export async function GET() {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const data = await getFacultyDashboardData(userId);
+    const programLevel = request.nextUrl.searchParams.get("programLevel") || undefined;
+    const data = await getFacultyDashboardData(userId, programLevel);
 
     if (!data) {
       return NextResponse.json({ error: "Faculty not found" }, { status: 404 });

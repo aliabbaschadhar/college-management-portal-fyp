@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { ProgramLevel } from "@prisma/client";
 import { ApiError, errorResponse, handleApiError, parseJsonBody } from "@/lib/api-errors";
 
 const ADMISSION_STATUSES = ["Pending", "Approved", "Rejected"] as const;
@@ -9,14 +10,17 @@ interface AdmissionCreateBody {
   studentName: string;
   email: string;
   phone: string;
-  appliedDepartment: string;
+  programLevel?: "BS" | "INTERMEDIATE";
+  appliedDepartment?: string;
+  discipline?: string;
   fatherName: string;
   cnic: string;
   previousInstitution: string;
   marksObtained: number;
   totalMarks: number;
   shift: string;
-  semester: number;
+  semester?: number;
+  part?: number;
   selectedCourses: string[];
 }
 
@@ -34,9 +38,24 @@ function validateAdmissionBody(body: AdmissionCreateBody) {
   if (!isNonEmptyString(body.phone)) {
     throw new ApiError("BAD_REQUEST", "phone is required", 400);
   }
-  if (!isNonEmptyString(body.appliedDepartment)) {
-    throw new ApiError("BAD_REQUEST", "appliedDepartment is required", 400);
+
+  const level = body.programLevel || "BS";
+  if (level === "BS") {
+    if (!isNonEmptyString(body.appliedDepartment)) {
+      throw new ApiError("BAD_REQUEST", "appliedDepartment is required for BS admissions", 400);
+    }
+    if (!Number.isInteger(body.semester) || (body.semester && (body.semester < 1 || body.semester > 8))) {
+      throw new ApiError("BAD_REQUEST", "semester must be an integer between 1 and 8", 400);
+    }
+  } else if (level === "INTERMEDIATE") {
+    if (!isNonEmptyString(body.discipline)) {
+      throw new ApiError("BAD_REQUEST", "discipline is required for Intermediate admissions", 400);
+    }
+    if (body.part !== 1 && body.part !== 2) {
+      throw new ApiError("BAD_REQUEST", "part must be 1 or 2 for Intermediate admissions", 400);
+    }
   }
+
   if (!isNonEmptyString(body.fatherName)) {
     throw new ApiError("BAD_REQUEST", "fatherName is required", 400);
   }
@@ -54,12 +73,6 @@ function validateAdmissionBody(body: AdmissionCreateBody) {
   }
   if (body.marksObtained > body.totalMarks) {
     throw new ApiError("BAD_REQUEST", "marksObtained cannot exceed totalMarks", 400);
-  }
-  if (body.shift !== "Morning" && body.shift !== "Evening") {
-    throw new ApiError("BAD_REQUEST", "shift must be Morning or Evening", 400);
-  }
-  if (!Number.isInteger(body.semester) || body.semester < 1 || body.semester > 8) {
-    throw new ApiError("BAD_REQUEST", "semester must be an integer between 1 and 8", 400);
   }
   if (!Array.isArray(body.selectedCourses) || !body.selectedCourses.every(item => typeof item === "string")) {
     throw new ApiError("BAD_REQUEST", "selectedCourses must be an array of strings", 400);
@@ -83,6 +96,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = request.nextUrl;
     const status = searchParams.get("status");
+    const programLevel = searchParams.get("programLevel");
     if (status && !ADMISSION_STATUSES.includes(status as (typeof ADMISSION_STATUSES)[number])) {
       return errorResponse("BAD_REQUEST", "Invalid status filter", 400);
     }
@@ -96,14 +110,19 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     const admissions = await prisma.admission.findMany({
-      where: { ...(status ? { status } : {}) },
+      where: {
+        ...(status ? { status } : {}),
+        ...(programLevel ? { programLevel: programLevel as ProgramLevel } : {}),
+      },
       orderBy: { applicationDate: "desc" },
       select: {
         id: true,
         studentName: true,
         email: true,
         phone: true,
+        programLevel: true,
         appliedDepartment: true,
+        discipline: true,
         applicationDate: true,
         status: true,
         previousInstitution: true,
@@ -113,6 +132,7 @@ export async function GET(request: NextRequest) {
         cnic: true,
         shift: true,
         semester: true,
+        part: true,
         selectedCourses: true,
       },
       skip,
@@ -143,6 +163,8 @@ export async function POST(request: NextRequest) {
 
     const body = await parseJsonBody<AdmissionCreateBody>(request);
     validateAdmissionBody(body);
+
+    const programLevel = body.programLevel || "BS";
 
     // --- Attempt Limiting ---
     // 1. Check if student is blocked (2+ rejections)
@@ -181,39 +203,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 4. Validate selected courses matching target department and semester
-    if (body.selectedCourses.length > 0) {
-      const validCoursesCount = await prisma.course.count({
-        where: {
-          id: { in: body.selectedCourses },
-          department: body.appliedDepartment,
-          semester: body.semester,
-        },
-      });
-
-      if (validCoursesCount !== body.selectedCourses.length) {
-        return errorResponse(
-          "BAD_REQUEST",
-          "One or more selected courses are invalid for the chosen department and semester.",
-          400
-        );
-      }
-    }
-
     const admission = await prisma.admission.create({
       data: {
         studentName: body.studentName,
         email: body.email,
         phone: body.phone,
-        appliedDepartment: body.appliedDepartment,
+        programLevel,
+        appliedDepartment: body.appliedDepartment || body.discipline || "Intermediate",
+        discipline: programLevel === "INTERMEDIATE" ? body.discipline : null,
         fatherName: body.fatherName,
         cnic: body.cnic,
         previousInstitution: body.previousInstitution,
         marksObtained: body.marksObtained,
         totalMarks: body.totalMarks,
-        shift: body.shift,
-        semester: body.semester,
-        selectedCourses: body.selectedCourses,
+        shift: body.shift || "Morning",
+        semester: body.semester ?? body.part ?? 1,
+        part: programLevel === "INTERMEDIATE" ? body.part : null,
+        selectedCourses: body.selectedCourses || [],
       },
     });
 
