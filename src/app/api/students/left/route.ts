@@ -1,7 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { logAuditAction } from "@/lib/audit-log";
+import { getCachedUserRole } from "@/lib/auth-cache";
 
 export async function GET(request: NextRequest) {
   const { userId } = await auth();
@@ -10,12 +12,17 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const role = await getCachedUserRole(userId);
+    if (!role || !["ADMIN", "FACULTY"].includes(role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const department = searchParams.get("department");
     const programLevel = searchParams.get("programLevel") || "BS";
     const queryStr = searchParams.get("q")?.trim();
 
-    const whereClause: Record<string, unknown> = {
+    const whereClause: Prisma.StudentWhereInput = {
       status: { in: ["Left", "Dropped Out", "Struck Off"] },
       programLevel: programLevel === "INTERMEDIATE" ? "INTERMEDIATE" : "BS",
     };

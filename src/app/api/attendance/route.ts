@@ -48,6 +48,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const limitParam = searchParams.get("limit");
+    const pageParam = searchParams.get("page");
+    const limit = limitParam ? Math.min(Math.max(1, Number.parseInt(limitParam, 10)), 500) : undefined;
+    const page = pageParam ? Math.max(1, Number.parseInt(pageParam, 10)) : 1;
+    const skip = limit ? (page - 1) * limit : undefined;
+
     const attendances = await prisma.attendance.findMany({
       where: {
         ...(courseId ? { courseId } : {}),
@@ -66,12 +72,24 @@ export async function GET(request: NextRequest) {
         } : {}),
         ...(date ? { date: new Date(date) } : {}),
       },
-      include: {
+      select: {
+        id: true,
+        studentId: true,
+        courseId: true,
+        date: true,
+        status: true,
+        markedBy: true,
         student: {
-          include: { user: { select: { name: true } } },
+          select: {
+            id: true,
+            rollNo: true,
+            user: { select: { name: true } },
+          },
         },
         course: { select: { courseCode: true, courseName: true } },
       },
+      orderBy: { date: "desc" },
+      ...(limit ? { take: limit, skip } : {}),
     });
 
     return NextResponse.json(attendances);
@@ -101,8 +119,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "date is required" }, { status: 400 });
     }
 
-    if (!Array.isArray(body.records)) {
-      return NextResponse.json({ error: "records must be an array" }, { status: 400 });
+    if (!Array.isArray(body.records) || body.records.length === 0) {
+      return NextResponse.json({ error: "records must be a non-empty array" }, { status: 400 });
     }
 
     for (const record of body.records) {
@@ -114,16 +132,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Load user with role and faculty info
+    // Load user role and permissions
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { role: true, faculty: { select: { id: true } } },
+      select: {
+        role: true,
+        faculty: { select: { id: true } },
+      },
     });
 
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    // Verify authorization: admin or instructor for the specific course
-    if (!["ADMIN", "FACULTY"].includes(user.role)) {
+    if (!user || !["ADMIN", "FACULTY"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -150,34 +168,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Date cannot be in the future" }, { status: 400 });
     }
 
-    const results = await Promise.all(
-      body.records.map(async (record) => {
-        const existingAttendance = await prisma.attendance.findFirst({
+    // Batch upsert in a single transaction leveraging @@unique([studentId, courseId, date])
+    const results = await prisma.$transaction(
+      body.records.map((record) =>
+        prisma.attendance.upsert({
           where: {
-            studentId: record.studentId,
-            courseId: body.courseId,
-            date: attendanceDate,
+            studentId_courseId_date: {
+              studentId: record.studentId,
+              courseId: body.courseId,
+              date: attendanceDate,
+            },
           },
-          select: { id: true },
-        });
-
-        if (existingAttendance) {
-          return prisma.attendance.update({
-            where: { id: existingAttendance.id },
-            data: { status: record.status, markedBy: userId },
-          });
-        }
-
-        return prisma.attendance.create({
-          data: {
+          update: {
+            status: record.status,
+            markedBy: userId,
+          },
+          create: {
             studentId: record.studentId,
             courseId: body.courseId,
             date: attendanceDate,
             status: record.status,
             markedBy: userId,
           },
-        });
-      })
+        })
+      )
     );
 
     return NextResponse.json(results, { status: 201 });

@@ -38,6 +38,8 @@ interface GraduatedStudentProfile {
   gradesheetUrl?: string | null;
   graduationDate?: string | null;
   status?: string;
+  programLevel?: "BS" | "INTERMEDIATE";
+  discipline?: string | null;
 }
 
 export default function StandaloneGraduatedPage() {
@@ -72,9 +74,12 @@ export default function StandaloneGraduatedPage() {
   }, []);
 
   const displayName = dbName || user?.fullName || user?.firstName || "Graduated Student";
-  const startYear = profile?.enrollmentDate ? new Date(profile.enrollmentDate).getFullYear() : 2022;
-  const endYear = startYear + 4;
+  const isIntermediate = profile?.programLevel === "INTERMEDIATE" || profile?.status === "HSSC Completed";
+  const durationYears = isIntermediate ? 2 : 4;
+  const startYear = profile?.enrollmentDate ? new Date(profile.enrollmentDate).getFullYear() : (isIntermediate ? 2024 : 2022);
+  const endYear = startYear + durationYears;
   const batchStr = `Batch ${startYear}-${String(endYear).slice(-2)}`;
+  const departmentOrDiscipline = isIntermediate ? (profile?.discipline || profile?.department || "Intermediate Studies") : (profile?.department || "Academic Department");
   const gradesheetUrl = profile?.gradesheetUrl;
   const isPdf = gradesheetUrl?.toLowerCase().includes("pdf") || gradesheetUrl?.startsWith("data:application/pdf");
 
@@ -154,20 +159,20 @@ export default function StandaloneGraduatedPage() {
             <div className="flex flex-wrap items-center gap-3">
               <Badge className="bg-amber-500/20 text-amber-300 border border-amber-400/40 px-3.5 py-1 text-xs font-black uppercase tracking-wider rounded-full backdrop-blur-md">
                 <Sparkles className="h-3.5 w-3.5 mr-1 text-amber-300 animate-pulse" />
-                Official Degree Holder
+                {isIntermediate ? "Official Intermediate Completed" : "Official Degree Holder"}
               </Badge>
               <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 px-3 py-1 text-xs font-bold rounded-full backdrop-blur-md">
                 <ShieldCheck className="h-3.5 w-3.5 mr-1 text-emerald-300" />
-                All 8 Semesters Cleared
+                {isIntermediate ? "All Parts (1 & 2) Cleared" : "All 8 Semesters Cleared"}
               </Badge>
             </div>
 
             <div className="space-y-2">
               <h3 className="text-2xl sm:text-4xl font-black tracking-tight text-white leading-tight">
-                Degree Completed &amp; Awarded
+                {isIntermediate ? "Intermediate Studies Completed" : "Degree Completed & Awarded"}
               </h3>
               <p className="text-amber-200/90 text-sm sm:text-base font-medium leading-relaxed">
-                Congratulations on successfully finishing your degree in <strong>{profile?.department || "Academic Department"}</strong> at Govt. Graduate College, Hafizabad! Your official transcript record and clearance documents are verified and archived.
+                Congratulations on successfully completing your {isIntermediate ? "Intermediate program" : "degree"} in <strong>{departmentOrDiscipline}</strong> at Govt. Graduate College, Hafizabad! Your official academic record and clearance documents are verified and archived.
               </p>
             </div>
 
@@ -247,10 +252,10 @@ export default function StandaloneGraduatedPage() {
             <div>
               <DialogTitle className="text-xl font-bold flex items-center gap-2 text-foreground">
                 <FileText className="h-5 w-5 text-amber-500" />
-                Official Complete Degree Gradesheet
+                {isIntermediate ? "Official Intermediate Completion Gradesheet" : "Official Complete Degree Gradesheet"}
               </DialogTitle>
               <DialogDescription className="text-xs">
-                Verified 8-semester academic transcript record for {displayName} ({profile?.department})
+                Verified {isIntermediate ? "2-year academic transcript" : "8-semester academic transcript"} record for {displayName} ({departmentOrDiscipline})
               </DialogDescription>
             </div>
           </DialogHeader>
@@ -309,9 +314,11 @@ export default function StandaloneGraduatedPage() {
             ) : (
               <div className="p-12 text-center bg-card border border-border rounded-2xl space-y-3">
                 <FileText className="h-12 w-12 mx-auto text-amber-500 opacity-50" />
-                <h4 className="text-base font-bold text-foreground">Degree Gradesheet Document</h4>
+                <h4 className="text-base font-bold text-foreground">
+                  {isIntermediate ? "Intermediate Completion Document" : "Degree Gradesheet Document"}
+                </h4>
                 <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
-                  Your graduation status is verified. The complete 8-semester gradesheet document has been archived in college records.
+                  Your graduation status is verified. The complete {isIntermediate ? "2-year academic completion" : "8-semester gradesheet"} document has been archived in college records.
                 </p>
               </div>
             )}

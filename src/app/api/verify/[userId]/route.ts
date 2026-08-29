@@ -157,29 +157,6 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       response.department = user.faculty.department;
       response.specialization = user.faculty.specialization;
       response.joinDate = user.faculty.joinDate.toISOString();
-
-      const todayAtt = await prisma.facultyAttendance.findFirst({
-        where: {
-          facultyId: user.faculty.id,
-          date: {
-            gte: new Date(new Date().setHours(0, 0, 0, 0)),
-            lt: new Date(new Date().setHours(23, 59, 59, 999)),
-          },
-        },
-        select: {
-          status: true,
-          checkInTime: true,
-          checkOutTime: true,
-        },
-      });
-
-      response.todayAttendance = todayAtt
-        ? {
-            status: todayAtt.status,
-            checkInTime: todayAtt.checkInTime?.toISOString() ?? null,
-            checkOutTime: todayAtt.checkOutTime?.toISOString() ?? null,
-          }
-        : null;
     }
 
     if (user.role === "ADMIN") {

@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
       where: { clerkId: userId },
       select: {
         role: true,
-        student: { select: { id: true, department: true, semester: true } },
+        student: { select: { id: true, department: true, semester: true, programLevel: true, discipline: true, part: true } },
         faculty: { select: { id: true, department: true } },
       },
     });
@@ -40,16 +40,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    // Students are strictly bound to their enrollment programLevel; admins/faculty can switch views
+    const effectiveProgramLevel =
+      user.role === "STUDENT" && user.student
+        ? user.student.programLevel || "BS"
+        : requestedProgramLevel === "INTERMEDIATE"
+        ? "INTERMEDIATE"
+        : "BS";
+
     const whereClause: Prisma.AnnouncementWhereInput = {
-      programLevel: requestedProgramLevel === "INTERMEDIATE" ? "INTERMEDIATE" : "BS",
+      programLevel: effectiveProgramLevel,
       ...(requestedAudience
         ? { audience: requestedAudience }
         : { audience: { in: allowedAudiences } }),
     };
 
     if (user.role === "STUDENT" && user.student) {
-      const dept = user.student.department;
-      const sem = user.student.semester;
+      const isIntermediate = user.student.programLevel === "INTERMEDIATE";
+      const dept = isIntermediate
+        ? user.student.discipline || user.student.department
+        : user.student.department;
+      const sem = isIntermediate
+        ? user.student.part ?? user.student.semester
+        : user.student.semester;
+
       whereClause.OR = [
         { targetDepartment: null, targetSemester: null },
         { targetDepartment: dept, targetSemester: null },

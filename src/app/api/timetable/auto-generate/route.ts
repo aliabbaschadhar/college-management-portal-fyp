@@ -63,9 +63,13 @@ export async function POST(request: NextRequest) {
       body.rooms && body.rooms.length > 0
         ? body.rooms.map((r) => r.trim()).filter(Boolean)
         : ["Room 101", "Room 102", "Lab 1"];
-    const startTime = body.startTime || "07:45";
-    const duration = Number(body.duration) || 45;
-    const slotsCount = Number(body.slotsCount) || 7;
+    const rawStartTime = (body.startTime || "07:45").trim();
+    const timeMatch = rawStartTime.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+    const startTime = timeMatch
+      ? `${timeMatch[1].padStart(2, "0")}:${timeMatch[2]}`
+      : "07:45";
+    const duration = Math.min(180, Math.max(15, Number(body.duration) || 45));
+    const slotsCount = Math.min(20, Math.max(1, Number(body.slotsCount) || 7));
     const days =
       body.days && body.days.length > 0
         ? body.days

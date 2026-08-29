@@ -1,18 +1,15 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { getFacultyDashboardData } from "@/lib/services/faculty";
-import prisma from "@/lib/prisma";
+import { getCachedUserRole } from "@/lib/auth-cache";
 
 export async function GET(request: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { role: true },
-    });
-    if (!user || user.role !== "FACULTY") {
+    const role = await getCachedUserRole(userId);
+    if (role !== "FACULTY") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

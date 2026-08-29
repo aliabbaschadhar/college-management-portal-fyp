@@ -139,16 +139,22 @@ export default function TimetablePage() {
   const [filterShift, setFilterShift] = useState<string>("Morning");
 
   useEffect(() => {
+    const validTerms = getTermOptionsForLevel(programLevel).map(String);
+    if (!validTerms.includes(filterSemester)) {
+      setFilterSemester(validTerms[0] || "1");
+    }
+
     if (programLevel === "INTERMEDIATE") {
       if (!(INTERMEDIATE_DISCIPLINES as readonly string[]).includes(filterDept)) {
         setFilterDept("ICS");
       }
+      setFilterShift("Morning");
     } else {
       if (!(DEPARTMENTS as readonly string[]).includes(filterDept)) {
         setFilterDept("Computer Science");
       }
     }
-  }, [programLevel, filterDept]);
+  }, [programLevel, filterDept, filterSemester]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<TimetableApiEntry | null>(
     null,
@@ -411,9 +417,17 @@ export default function TimetablePage() {
     try {
       const roomList = autoGenRoomsInput.split(",").map((r) => r.trim()).filter(Boolean);
       await api.post("/api/timetable/auto-generate", {
-        department: filterDept,
-        semester: Number(filterSemester),
-        shift: filterShift,
+        programLevel,
+        ...(programLevel === "INTERMEDIATE"
+          ? {
+              discipline: filterDept,
+              part: Number(filterSemester),
+            }
+          : {
+              department: filterDept,
+              semester: Number(filterSemester),
+              shift: filterShift,
+            }),
         rooms: roomList.length > 0 ? roomList : ["Room 101", "Room 102"],
         startTime: gridStart,
         duration: Number(gridDuration),
@@ -1773,7 +1787,7 @@ export default function TimetablePage() {
               Auto-Generate Timetable Schedule
             </DialogTitle>
             <DialogDescription>
-              Conflict-free timetable generation for <strong>{filterDept}</strong> — Semester <strong>{filterSemester}</strong> ({filterShift} Shift).
+              Conflict-free timetable generation for <strong>{filterDept}</strong> — {programLevel === "INTERMEDIATE" ? `Part ${filterSemester}` : `Semester ${filterSemester}`} ({filterShift} Shift).
             </DialogDescription>
           </DialogHeader>
 
@@ -1966,7 +1980,7 @@ export default function TimetablePage() {
                 />
                 <div>
                   <span className="text-xs font-bold text-foreground block">
-                    Overwrite Existing Schedule for {filterDept} Sem {filterSemester} ({filterShift})
+                    Overwrite Existing Schedule for {filterDept} {programLevel === "INTERMEDIATE" ? `Part ${filterSemester}` : `Sem ${filterSemester}`} ({filterShift})
                   </span>
                   <span className="text-[11px] text-muted-foreground block">
                     Clears previous timetable slots for this target section before saving to prevent duplicate classes.

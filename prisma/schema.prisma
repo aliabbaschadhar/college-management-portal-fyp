@@ -60,6 +60,11 @@ model Student {
   @@index([programLevel])
   @@index([discipline])
   @@index([subjectSet])
+  @@index([programLevel, status])
+  @@index([department, semester])
+  @@index([status])
+  @@index([department])
+  @@index([semester])
 }
 
 model Faculty {
@@ -113,6 +118,11 @@ model Course {
   @@index([programLevel])
   @@index([discipline])
   @@index([subjectSet])
+  @@index([assignedFaculty])
+  @@index([assignedFacultyMorning])
+  @@index([assignedFacultyEvening])
+  @@index([department, semester])
+  @@index([programLevel, semester])
 }
 
 model Enrollment {
@@ -127,6 +137,8 @@ model Enrollment {
 
   @@unique([studentId, courseId])
   @@index([courseId])
+  @@index([studentId])
+  @@index([studentId, semester])
 }
 
 model Attendance {
@@ -141,6 +153,11 @@ model Attendance {
 
   @@unique([studentId, courseId, date])
   @@index([courseId])
+  @@index([studentId])
+  @@index([date])
+  @@index([status])
+  @@index([studentId, status])
+  @@index([courseId, date])
 }
 
 model Fee {
@@ -155,6 +172,10 @@ model Fee {
   student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([studentId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([studentId, semester])
+  @@index([studentId, status])
 }
 
 model Announcement {
@@ -170,6 +191,9 @@ model Announcement {
   programLevel     ProgramLevel         @default(BS)
 
   @@index([programLevel])
+  @@index([date])
+  @@index([audience])
+  @@index([targetDepartment, targetSemester])
 }
 
 model Feedback {
@@ -184,6 +208,7 @@ model Feedback {
 
   @@unique([studentId, targetId, type])
   @@index([studentId])
+  @@index([targetId, type])
 }
 
 model Timetable {
@@ -197,6 +222,9 @@ model Timetable {
   course    Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@index([courseId])
+  @@index([shift])
+  @@index([day])
+  @@index([courseId, shift])
 }
 
 model Quiz {
@@ -213,6 +241,8 @@ model Quiz {
   attempts   QuizAttempt[]
 
   @@index([courseId])
+  @@index([courseId, status])
+  @@index([status])
 }
 
 model Question {
@@ -248,6 +278,7 @@ model QuizAttempt {
 
   @@index([quizId])
   @@index([studentId])
+  @@index([studentId, quizId])
 }
 
 model Grade {
@@ -266,6 +297,7 @@ model Grade {
 
   @@index([studentId])
   @@index([courseId])
+  @@index([studentId, courseId])
 }
 
 model Admission {
@@ -291,6 +323,9 @@ model Admission {
   blocked             Boolean      @default(false)
 
   @@index([programLevel])
+  @@index([status, programLevel])
+  @@index([email])
+  @@index([applicationDate])
 }
 
 model AuditLog {

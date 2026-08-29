@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import Link from "next/link";
 import { DEPARTMENTS } from "@/lib/constants";
+import { INTERMEDIATE_DISCIPLINES } from "@/lib/constants/academic";
 import { GridSkeleton } from "@/components/ui";
 import { PraxisLabBadge } from "@/components/ui/PraxisLabBadge";
 
@@ -46,6 +47,7 @@ export default function StandaloneAlumniDirectoryPage() {
   const { isLoaded } = useUser();
   const [alumni, setAlumni] = useState<AlumniItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [programLevel, setProgramLevel] = useState<"BS" | "INTERMEDIATE">("BS");
   const [selectedDept, setSelectedDept] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -53,6 +55,7 @@ export default function StandaloneAlumniDirectoryPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
+      params.set("programLevel", programLevel);
       if (selectedDept && selectedDept !== "all") {
         params.set("department", selectedDept);
       }
@@ -66,7 +69,7 @@ export default function StandaloneAlumniDirectoryPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedDept, searchQuery]);
+  }, [programLevel, selectedDept, searchQuery]);
 
   useEffect(() => {
     fetchAlumni();
@@ -132,7 +135,7 @@ export default function StandaloneAlumniDirectoryPage() {
         </div>
 
         {/* Filter & Search Bar */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-card p-4 rounded-2xl border border-border shadow-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 bg-card p-4 rounded-2xl border border-border shadow-xs">
           <div className="sm:col-span-2 relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -144,13 +147,31 @@ export default function StandaloneAlumniDirectoryPage() {
           </div>
 
           <div>
-            <Select value={selectedDept} onValueChange={setSelectedDept}>
+            <Select
+              value={programLevel}
+              onValueChange={(val: "BS" | "INTERMEDIATE") => {
+                setProgramLevel(val);
+                setSelectedDept("all");
+              }}
+            >
               <SelectTrigger className="h-10 rounded-xl">
-                <SelectValue placeholder="All Departments" />
+                <SelectValue placeholder="Program Level" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Departments</SelectItem>
-                {DEPARTMENTS.map((dept) => (
+                <SelectItem value="BS">BS Program</SelectItem>
+                <SelectItem value="INTERMEDIATE">Intermediate (HSSC)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Select value={selectedDept} onValueChange={setSelectedDept}>
+              <SelectTrigger className="h-10 rounded-xl">
+                <SelectValue placeholder={programLevel === "INTERMEDIATE" ? "All Disciplines" : "All Departments"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{programLevel === "INTERMEDIATE" ? "All Disciplines" : "All Departments"}</SelectItem>
+                {(programLevel === "INTERMEDIATE" ? INTERMEDIATE_DISCIPLINES : DEPARTMENTS).map((dept) => (
                   <SelectItem key={dept} value={dept}>
                     {dept}
                   </SelectItem>

@@ -75,7 +75,7 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
     }
   }
 
-  // Fetch all other components in parallel to reduce sequential RTT delay
+  // Fetch all other components in parallel to reduce sequential RTT delay with slim field selection
   const [
     grades,
     attendances,
@@ -90,19 +90,32 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
         studentId: student.id,
         course: { semester: student.semester },
       },
-      include: { course: true },
+      select: {
+        courseId: true,
+        midMarks: true,
+        finalMarks: true,
+        total: true,
+        gpa: true,
+      },
     }),
     prisma.attendance.findMany({
       where: {
         studentId: student.id,
         course: { semester: student.semester },
       },
-      include: { course: true },
+      select: {
+        courseId: true,
+        status: true,
+      },
     }),
     prisma.fee.findMany({
       where: {
         studentId: student.id,
         semester: student.semester,
+      },
+      select: {
+        status: true,
+        amount: true,
       },
     }),
     prisma.enrollment.findMany({
@@ -110,16 +123,35 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
         studentId: student.id,
         semester: student.semester,
       },
-      include: {
+      select: {
+        id: true,
+        courseId: true,
+        blocked: true,
+        readmitRequested: true,
         course: {
-          include: {
-            quizzes: true,
+          select: {
+            id: true,
+            courseCode: true,
+            courseName: true,
+            creditHours: true,
+            quizzes: {
+              where: { status: "Published" },
+              select: {
+                id: true,
+                title: true,
+                courseId: true,
+                duration: true,
+                dueDate: true,
+                status: true,
+              },
+            },
           },
         },
       },
     }),
     prisma.quizAttempt.findMany({
       where: { studentId: student.id },
+      select: { quizId: true },
     }),
     prisma.timetable.findMany({
       where: {
@@ -129,11 +161,21 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
         },
         shift: student.shift,
       },
-      include: {
+      select: {
+        id: true,
+        day: true,
+        courseId: true,
+        startTime: true,
+        endTime: true,
+        room: true,
         course: {
-          include: {
+          select: {
+            courseCode: true,
+            courseName: true,
+            department: true,
+            semester: true,
             faculty: {
-              include: {
+              select: {
                 user: {
                   select: { name: true },
                 },
@@ -153,6 +195,13 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
           { targetDepartment: student.department, targetSemester: student.semester },
         ],
       },
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        priority: true,
+        date: true,
+      },
       orderBy: { date: "desc" },
       take: 5,
     }),
@@ -167,10 +216,28 @@ export async function getStudentDashboardData(clerkId: string, email?: string | 
       // Re-fetch only enrollments since they were newly created
       enrollments = await prisma.enrollment.findMany({
         where: { studentId: student.id, semester: student.semester },
-        include: {
+        select: {
+          id: true,
+          courseId: true,
+          blocked: true,
+          readmitRequested: true,
           course: {
-            include: {
-              quizzes: true,
+            select: {
+              id: true,
+              courseCode: true,
+              courseName: true,
+              creditHours: true,
+              quizzes: {
+                where: { status: "Published" },
+                select: {
+                  id: true,
+                  title: true,
+                  courseId: true,
+                  duration: true,
+                  dueDate: true,
+                  status: true,
+                },
+              },
             },
           },
         },

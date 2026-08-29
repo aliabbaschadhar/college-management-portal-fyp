@@ -184,12 +184,26 @@ export function solveTimetableCSP(options: CSPSolveOptions): CSPSolveResult {
               }
 
               // Student Section conflict check
-              if (
-                exist.department?.trim().toLowerCase() === department.trim().toLowerCase() &&
-                exist.semester === semester &&
-                exist.shift?.trim().toLowerCase() === shift.trim().toLowerCase()
-              ) {
-                return true;
+              const targetLevel = String(programLevel).toUpperCase();
+              const existLevel = exist.programLevel
+                ? String(exist.programLevel).toUpperCase()
+                : "BS";
+
+              if (targetLevel === "INTERMEDIATE" && existLevel === "INTERMEDIATE") {
+                if (
+                  exist.discipline?.trim().toLowerCase() === discipline.trim().toLowerCase() &&
+                  exist.part === part
+                ) {
+                  return true;
+                }
+              } else if (targetLevel === "BS" && existLevel === "BS") {
+                if (
+                  exist.department?.trim().toLowerCase() === department.trim().toLowerCase() &&
+                  exist.semester === semester &&
+                  exist.shift?.trim().toLowerCase() === shift.trim().toLowerCase()
+                ) {
+                  return true;
+                }
               }
 
               return false;
@@ -259,6 +273,9 @@ export function solveTimetableCSP(options: CSPSolveOptions): CSPSolveResult {
 
   let stepCount = 0;
   const MAX_STEPS = 20000;
+  const MAX_RUNTIME_MS = 3000;
+  const startedAt = Date.now();
+  let timedOut = false;
 
   function findAvailableRoomForSlot(
     day: string,
@@ -344,6 +361,10 @@ export function solveTimetableCSP(options: CSPSolveOptions): CSPSolveResult {
     if (stepCount > MAX_STEPS) {
       return false; // Safety guard to prevent infinite loops
     }
+    if (stepCount % 100 === 0 && Date.now() - startedAt > MAX_RUNTIME_MS) {
+      timedOut = true;
+      return false;
+    }
 
     if (unassignedVars.length === 0) {
       return true; // All variables assigned successfully!
@@ -421,7 +442,7 @@ export function solveTimetableCSP(options: CSPSolveOptions): CSPSolveResult {
 
   if (!success) {
     const reason =
-      stepCount > MAX_STEPS
+      timedOut || stepCount > MAX_STEPS
         ? "Execution time limit reached. The timetable constraints are too tightly packed."
         : "Could not generate a conflict-free schedule with the current rooms, days, and timeslots. Try adding more rooms or active days.";
 

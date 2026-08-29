@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-guard";
 
+import { Prisma } from "@prisma/client";
+
 export async function GET(request: NextRequest) {
   const denied = await requireRole(["ADMIN"]);
   if (denied) return denied;
@@ -14,15 +16,8 @@ export async function GET(request: NextRequest) {
 
     const targetLevel = programLevel === "INTERMEDIATE" ? "INTERMEDIATE" : "BS";
 
-    const whereClause: Record<string, unknown> = {
-      ...(programLevel !== "ALL"
-        ? {
-            OR: [
-              { programLevel: targetLevel },
-              { programLevel: "BS" },
-            ],
-          }
-        : {}),
+    const whereClause: Prisma.AuditLogWhereInput = {
+      ...(programLevel !== "ALL" ? { programLevel: targetLevel } : {}),
     };
     if (entity) whereClause.entity = entity;
     if (entityId) whereClause.entityId = entityId;

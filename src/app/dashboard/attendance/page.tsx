@@ -84,7 +84,9 @@ interface StudentStatsItem extends StudentItem {
 interface CourseType {
   id: string;
   department: string;
+  discipline?: string | null;
   semester: number;
+  part?: number | null;
   courseCode: string;
   courseName: string;
 }
@@ -293,7 +295,11 @@ export default function ManageAttendancePage() {
     const list = getDisciplinesForLevel(programLevel);
     if (isAdmin) return list;
     if (isFaculty) {
-      const facultyDepts = new Set(courses.map((c) => c.department));
+      const facultyDepts = new Set(
+        courses.map((c) =>
+          programLevel === "INTERMEDIATE" ? c.discipline || c.department : c.department
+        )
+      );
       return list.filter((dept) => facultyDepts.has(dept));
     }
     return list.filter((dept) => students.some((s) => s.department === dept));
@@ -305,8 +311,12 @@ export default function ManageAttendancePage() {
     if (isFaculty) {
       const facultySemesters = new Set(
         courses
-          .filter((c) => c.department === selectedDept)
-          .map((c) => c.semester)
+          .filter((c) =>
+            programLevel === "INTERMEDIATE"
+              ? (c.discipline || c.department) === selectedDept
+              : c.department === selectedDept
+          )
+          .map((c) => (programLevel === "INTERMEDIATE" ? c.part ?? c.semester : c.semester))
       );
       return allSemesters.filter((sem) => facultySemesters.has(sem));
     }
