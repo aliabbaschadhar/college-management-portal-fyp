@@ -10,6 +10,7 @@
     "build": "bun prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
+    "seed": "bun prisma db seed",
     "seed:courses": "bun prisma/seed-courses.ts",
     "seed:bs": "bun prisma/seed-bs.ts",
     "seed:hssc": "bun prisma/seed-hssc.ts",

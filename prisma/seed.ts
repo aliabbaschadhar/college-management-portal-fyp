@@ -2,6 +2,8 @@ import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import dotenv from "dotenv";
+import { seedHsscCourses } from "./seed-hssc";
+import { seedBsCourses } from "./seed-bs";
 
 dotenv.config();
 
@@ -303,26 +305,26 @@ const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
 // ─── 10. Announcements & Admissions ──────────────────────
 const ANNOUNCEMENTS = [
-  { id: "ann1", title: "Mid-Term Examination Schedule",    content: "Mid-term examinations will begin from April 15, 2026. Detailed schedule will be shared on the notice board. All students are required to bring their admit cards.", author: "Admin Office",        date: new Date("2026-04-01"), audience: "All" as const,      priority: "High" as const },
-  { id: "ann2", title: "Fee Submission Deadline Extended", content: "The last date for fee submission for the Spring 2026 semester has been extended to April 20, 2026. Late fee charges will apply after this date.",                     author: "Accounts Department", date: new Date("2026-03-28"), audience: "Students" as const, priority: "High" as const },
-  { id: "ann3", title: "Faculty Development Workshop",     content: "A workshop on Modern Teaching Methodologies will be held on April 10, 2026 in the seminar hall. All faculty members are encouraged to attend.",                         author: "HoD Committee",       date: new Date("2026-03-25"), audience: "Faculty" as const,  priority: "Medium" as const },
-  { id: "ann4", title: "Sports Week Announcement",         content: "Annual Sports Week will be held from April 25-30, 2026. Interested students can register at the sports office before April 18.",                                         author: "Sports Department",   date: new Date("2026-03-20"), audience: "Students" as const, priority: "Low" as const },
-  { id: "ann5", title: "Library Hours Extended",           content: "The college library will now remain open till 8:00 PM on weekdays during the examination period.",                                                                        author: "Library Committee",   date: new Date("2026-03-15"), audience: "All" as const,      priority: "Medium" as const },
-  { id: "ann6", title: "HSSC Part 1 & 2 Board Examination Form Submission", content: "All Intermediate (HSSC) students are instructed to submit their board examination admission forms before March 30, 2026.", author: "Intermediate Section", date: new Date("2026-03-18"), audience: "Students" as const, priority: "High" as const },
+  { id: "ann1", title: "Mid-Term Examination Schedule",    content: "Mid-term examinations will begin from April 15, 2026. Detailed schedule will be shared on the notice board. All students are required to bring their admit cards.", author: "Admin Office",        date: new Date("2026-04-01"), audience: "All" as const,      priority: "High" as const,   programLevel: "BS" as const },
+  { id: "ann2", title: "Fee Submission Deadline Extended", content: "The last date for fee submission for the Spring 2026 semester has been extended to April 20, 2026. Late fee charges will apply after this date.",                     author: "Accounts Department", date: new Date("2026-03-28"), audience: "Students" as const, priority: "High" as const,   programLevel: "BS" as const },
+  { id: "ann3", title: "Faculty Development Workshop",     content: "A workshop on Modern Teaching Methodologies will be held on April 10, 2026 in the seminar hall. All faculty members are encouraged to attend.",                         author: "HoD Committee",       date: new Date("2026-03-25"), audience: "Faculty" as const,  priority: "Medium" as const, programLevel: "BS" as const },
+  { id: "ann4", title: "Sports Week Announcement",         content: "Annual Sports Week will be held from April 25-30, 2026. Interested students can register at the sports office before April 18.",                                         author: "Sports Department",   date: new Date("2026-03-20"), audience: "Students" as const, priority: "Low" as const,    programLevel: "BS" as const },
+  { id: "ann5", title: "Library Hours Extended",           content: "The college library will now remain open till 8:00 PM on weekdays during the examination period.",                                                                        author: "Library Committee",   date: new Date("2026-03-15"), audience: "All" as const,      priority: "Medium" as const, programLevel: "BS" as const },
+  { id: "ann6", title: "HSSC Part 1 & 2 Board Examination Form Submission", content: "All Intermediate (HSSC) students are instructed to submit their board examination admission forms before March 30, 2026.", author: "Intermediate Section", date: new Date("2026-03-18"), audience: "Students" as const, priority: "High" as const,   programLevel: "INTERMEDIATE" as const },
 ];
 
 const ADMISSIONS = [
-  { id: "a1",  studentName: "Hamza Tariq",    email: "hamza.t@gmail.com",   phone: "0331-1234567", appliedDepartment: "Computer Science", applicationDate: new Date("2026-03-15"), status: "Pending",  fatherName: "Tariq Mehmood",  cnic: "34201-1234567-1", previousInstitution: "Govt. High School Hafizabad", marksObtained: 920, totalMarks: 1100 },
-  { id: "a2",  studentName: "Rimsha Akram",   email: "rimsha.a@gmail.com",  phone: "0332-2345678", appliedDepartment: "English",           applicationDate: new Date("2026-03-14"), status: "Approved", fatherName: "Akram Hussain",  cnic: "34201-2345678-2", previousInstitution: "Divisional Public School",     marksObtained: 850, totalMarks: 1100 },
-  { id: "a3",  studentName: "Faisal Nawaz",   email: "faisal.n@gmail.com",  phone: "0333-3456789", appliedDepartment: "Mathematics",       applicationDate: new Date("2026-03-16"), status: "Pending",  fatherName: "Nawaz Sharif",   cnic: "34201-3456789-3", previousInstitution: "Govt. College Pindi Bhattian", marksObtained: 780, totalMarks: 1100 },
-  { id: "a4",  studentName: "Iqra Batool",    email: "iqra.b@gmail.com",    phone: "0334-4567890", appliedDepartment: "Computer Science", applicationDate: new Date("2026-03-12"), status: "Rejected", fatherName: "Muhammad Aslam", cnic: "34201-4567890-4", previousInstitution: "Punjab College",               marksObtained: 600, totalMarks: 1100 },
-  { id: "a5",  studentName: "Usama Ghani",    email: "usama.g@gmail.com",   phone: "0335-5678901", appliedDepartment: "Physics",           applicationDate: new Date("2026-03-17"), status: "Pending",  fatherName: "Abdul Ghani",    cnic: "34201-5678901-5", previousInstitution: "Superior College",             marksObtained: 870, totalMarks: 1100 },
-  { id: "a6",  studentName: "Mehwish Khalid", email: "mehwish.k@gmail.com", phone: "0336-6789012", appliedDepartment: "Chemistry",         applicationDate: new Date("2026-03-10"), status: "Approved", fatherName: "Khalid Mehmood", cnic: "34201-6789012-6", previousInstitution: "Govt. Girls College",          marksObtained: 910, totalMarks: 1100 },
-  { id: "a7",  studentName: "Shahbaz Akhtar", email: "shahbaz.a@gmail.com", phone: "0337-7890123", appliedDepartment: "Economics",         applicationDate: new Date("2026-03-18"), status: "Pending",  fatherName: "Akhtar Ali",     cnic: "34201-7890123-7", previousInstitution: "Army Public School",           marksObtained: 750, totalMarks: 1100 },
-  { id: "a8",  studentName: "Muneeba Tahir",  email: "muneeba.t@gmail.com", phone: "0338-8901234", appliedDepartment: "Urdu",              applicationDate: new Date("2026-03-11"), status: "Approved", fatherName: "Tahir Abbas",    cnic: "34201-8901234-8", previousInstitution: "Beacon House School",          marksObtained: 820, totalMarks: 1100 },
-  { id: "a9",  studentName: "Zahid Mehmood",  email: "zahid.m@gmail.com",  phone: "0339-9012345", appliedDepartment: "ICS",              applicationDate: new Date("2026-03-19"), status: "Pending",  fatherName: "Mehmood Khan",   cnic: "34201-9012345-9", previousInstitution: "Govt. High School Hafizabad", marksObtained: 950, totalMarks: 1100 },
-  { id: "a10", studentName: "Sobia Perveen",   email: "sobia.p@gmail.com",   phone: "0340-0123456", appliedDepartment: "F.Sc Pre-Medical", applicationDate: new Date("2026-03-21"), status: "Approved", fatherName: "Muhammad Pervez", cnic: "34201-0123456-0", previousInstitution: "Divisional Public School",     marksObtained: 980, totalMarks: 1100 },
-  { id: "a11", studentName: "Adeel Ashraf",    email: "adeel.a@gmail.com",   phone: "0341-1234567", appliedDepartment: "FA",               applicationDate: new Date("2026-03-22"), status: "Pending",  fatherName: "Ashraf Ali",     cnic: "34201-1234567-0", previousInstitution: "Govt. High School Gujranwala",marksObtained: 720, totalMarks: 1100 },
+  { id: "a1",  studentName: "Hamza Tariq",    email: "hamza.t@gmail.com",   phone: "0331-1234567", appliedDepartment: "Computer Science", applicationDate: new Date("2026-03-15"), status: "Pending",  fatherName: "Tariq Mehmood",  cnic: "34201-1234567-1", previousInstitution: "Govt. High School Hafizabad", marksObtained: 920, totalMarks: 1100, programLevel: "BS" as const },
+  { id: "a2",  studentName: "Rimsha Akram",   email: "rimsha.a@gmail.com",  phone: "0332-2345678", appliedDepartment: "English",           applicationDate: new Date("2026-03-14"), status: "Approved", fatherName: "Akram Hussain",  cnic: "34201-2345678-2", previousInstitution: "Divisional Public School",     marksObtained: 850, totalMarks: 1100, programLevel: "BS" as const },
+  { id: "a3",  studentName: "Faisal Nawaz",   email: "faisal.n@gmail.com",  phone: "0333-3456789", appliedDepartment: "Mathematics",       applicationDate: new Date("2026-03-16"), status: "Pending",  fatherName: "Nawaz Sharif",   cnic: "34201-3456789-3", previousInstitution: "Govt. College Pindi Bhattian", marksObtained: 780, totalMarks: 1100, programLevel: "BS" as const },
+  { id: "a4",  studentName: "Iqra Batool",    email: "iqra.b@gmail.com",    phone: "0334-4567890", appliedDepartment: "Computer Science", applicationDate: new Date("2026-03-12"), status: "Rejected", fatherName: "Muhammad Aslam", cnic: "34201-4567890-4", previousInstitution: "Punjab College",               marksObtained: 600, totalMarks: 1100, programLevel: "BS" as const },
+  { id: "a5",  studentName: "Usama Ghani",    email: "usama.g@gmail.com",   phone: "0335-5678901", appliedDepartment: "Physics",           applicationDate: new Date("2026-03-17"), status: "Pending",  fatherName: "Abdul Ghani",    cnic: "34201-5678901-5", previousInstitution: "Superior College",             marksObtained: 870, totalMarks: 1100, programLevel: "BS" as const },
+  { id: "a6",  studentName: "Mehwish Khalid", email: "mehwish.k@gmail.com", phone: "0336-6789012", appliedDepartment: "Chemistry",         applicationDate: new Date("2026-03-10"), status: "Approved", fatherName: "Khalid Mehmood", cnic: "34201-6789012-6", previousInstitution: "Govt. Girls College",          marksObtained: 910, totalMarks: 1100, programLevel: "BS" as const },
+  { id: "a7",  studentName: "Shahbaz Akhtar", email: "shahbaz.a@gmail.com", phone: "0337-7890123", appliedDepartment: "Economics",         applicationDate: new Date("2026-03-18"), status: "Pending",  fatherName: "Akhtar Ali",     cnic: "34201-7890123-7", previousInstitution: "Army Public School",           marksObtained: 750, totalMarks: 1100, programLevel: "BS" as const },
+  { id: "a8",  studentName: "Muneeba Tahir",  email: "muneeba.t@gmail.com", phone: "0338-8901234", appliedDepartment: "Urdu",              applicationDate: new Date("2026-03-11"), status: "Approved", fatherName: "Tahir Abbas",    cnic: "34201-8901234-8", previousInstitution: "Beacon House School",          marksObtained: 820, totalMarks: 1100, programLevel: "BS" as const },
+  { id: "a9",  studentName: "Zahid Mehmood",  email: "zahid.m@gmail.com",  phone: "0339-9012345", appliedDepartment: "ICS",              applicationDate: new Date("2026-03-19"), status: "Pending",  fatherName: "Mehmood Khan",   cnic: "34201-9012345-9", previousInstitution: "Govt. High School Hafizabad", marksObtained: 950, totalMarks: 1100, programLevel: "INTERMEDIATE" as const, discipline: "ICS", part: 1 },
+  { id: "a10", studentName: "Sobia Perveen",   email: "sobia.p@gmail.com",   phone: "0340-0123456", appliedDepartment: "F.Sc Pre-Medical", applicationDate: new Date("2026-03-21"), status: "Approved", fatherName: "Muhammad Pervez", cnic: "34201-0123456-0", previousInstitution: "Divisional Public School",     marksObtained: 980, totalMarks: 1100, programLevel: "INTERMEDIATE" as const, discipline: "F.Sc Pre-Medical", part: 1 },
+  { id: "a11", studentName: "Adeel Ashraf",    email: "adeel.a@gmail.com",   phone: "0341-1234567", appliedDepartment: "FA",               applicationDate: new Date("2026-03-22"), status: "Pending",  fatherName: "Ashraf Ali",     cnic: "34201-1234567-0", previousInstitution: "Govt. High School Gujranwala",marksObtained: 720, totalMarks: 1100, programLevel: "INTERMEDIATE" as const, discipline: "FA", part: 1 },
 ];
 
 // ─── FAST OPTIMIZED IDEMPOTENT MAIN EXECUTION ────────────────
@@ -390,8 +392,11 @@ async function main() {
   }
   console.log(`  ✓ ${STUDENT_DATA.length} students processed`);
 
-  // 4. Courses
-  console.log("Seeding courses...");
+  // 4. Courses (Comprehensive BS & HSSC Curricula)
+  console.log("Seeding comprehensive BS & HSSC courses...");
+  await seedBsCourses(prisma);
+  await seedHsscCourses(prisma);
+
   const dbCourseIdMap = new Map<string, string>();
 
   for (const c of COURSE_DATA) {
@@ -404,8 +409,8 @@ async function main() {
         },
       },
       update: {
-        courseName: c.courseName,
         assignedFaculty: c.assignedFaculty,
+        programLevel: "BS",
       },
       create: {
         id: fallbackId,
@@ -420,7 +425,7 @@ async function main() {
     });
     dbCourseIdMap.set(c.id, upserted.id);
   }
-  console.log(`  ✓ ${COURSE_DATA.length} courses processed`);
+  console.log(`  ✓ Sample faculty course assignments processed`);
 
   // 5. Enrollments
   console.log("Seeding enrollments...");
@@ -593,6 +598,18 @@ async function main() {
 
   // 12. Admissions
   await prisma.admission.createMany({ data: ADMISSIONS, skipDuplicates: true });
+
+  // 13. Timetable Settings
+  await prisma.timetableSettings.upsert({
+    where: { shift: "Morning" },
+    update: {},
+    create: { shift: "Morning", startTime: "07:45", duration: 45, slots: 7 },
+  });
+  await prisma.timetableSettings.upsert({
+    where: { shift: "Evening" },
+    update: {},
+    create: { shift: "Evening", startTime: "13:30", duration: 45, slots: 6 },
+  });
 
   console.log("\n✨ Idempotent database seed complete!");
 }

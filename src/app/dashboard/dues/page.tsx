@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/axios";
 import {
@@ -142,11 +142,13 @@ export default function ManageDuesPage() {
     dueDate: getLocalTodayString(),
   });
 
-  const loadData = () => {
+  const loadData = useCallback(() => {
     setLoading(true);
+    const params = new URLSearchParams();
+    params.set("programLevel", programLevel);
     Promise.all([
-      api.get<StudentItem[]>("/api/students"),
-      api.get<FeeWithStudent[]>("/api/fees"),
+      api.get<StudentItem[]>(`/api/students?${params.toString()}`),
+      api.get<FeeWithStudent[]>(`/api/fees?${params.toString()}`),
     ])
       .then(([studentsRes, feesRes]) => {
         setStudents(Array.isArray(studentsRes.data) ? studentsRes.data : []);
@@ -154,11 +156,11 @@ export default function ManageDuesPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  };
+  }, [programLevel]);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
   const handleMarkPaid = async (feeId: string) => {
     setPayingFeeId(feeId);

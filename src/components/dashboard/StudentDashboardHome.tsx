@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/axios";
 import { useUser } from "@clerk/nextjs";
 import {
@@ -124,12 +125,22 @@ const attendanceChartConfig = {
 
 export function StudentDashboardHome() {
   const { user } = useUser();
+  const router = useRouter();
   const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
   const [dbName, setDbName] = useState<string | null>(null);
   const [dashboardData, setDashboardData] =
     useState<StudentDashboardResponse | null>(null);
+
+  const studentStatus = dashboardData?.studentProfile?.status;
+  const isGraduated = studentStatus === "Graduated" || studentStatus === "HSSC Completed";
+
+  useEffect(() => {
+    if (isGraduated) {
+      router.replace("/dashboard/graduated");
+    }
+  }, [isGraduated, router]);
 
   const fetchDashboard = async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
@@ -238,11 +249,8 @@ export function StudentDashboardHome() {
     );
   }
 
-  // If student is graduated, redirect to /dashboard/graduated
-  if (dashboardData?.studentProfile?.status === "Graduated") {
-    if (typeof window !== "undefined" && window.location.pathname !== "/dashboard/graduated") {
-      window.location.href = "/dashboard/graduated";
-    }
+  // If student is graduated / completed, render Alumni dashboard view
+  if (isGraduated && dashboardData?.studentProfile) {
     return (
       <AlumniDashboardHome
         studentName={displayName}

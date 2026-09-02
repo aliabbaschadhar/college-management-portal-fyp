@@ -27,34 +27,16 @@ export async function getFacultyDashboardData(
   clerkId: string,
   programLevel?: string
 ): Promise<FacultyDashboardData | null> {
-  const levelFilter = programLevel === "INTERMEDIATE" ? "INTERMEDIATE" : "BS";
+  const levelFilter = (programLevel === "INTERMEDIATE" ? "INTERMEDIATE" : "BS") as ProgramLevel;
 
   const user = await prisma.user.findUnique({
     where: { clerkId },
-    include: {
+    select: {
+      role: true,
       faculty: {
-        include: {
-          teaches: {
-            include: {
-              enrollments: { select: { studentId: true } },
-              timetables: true,
-              quizzes: { where: { status: "Published" } },
-            },
-          },
-          teachesMorning: {
-            include: {
-              enrollments: { select: { studentId: true } },
-              timetables: true,
-              quizzes: { where: { status: "Published" } },
-            },
-          },
-          teachesEvening: {
-            include: {
-              enrollments: { select: { studentId: true } },
-              timetables: true,
-              quizzes: { where: { status: "Published" } },
-            },
-          },
+        select: {
+          id: true,
+          department: true,
         },
       },
     },
@@ -65,12 +47,42 @@ export async function getFacultyDashboardData(
   }
 
   const faculty = user.faculty;
-  const courseMap = new Map<string, (typeof faculty.teaches)[number]>();
-  for (const c of [...faculty.teaches, ...faculty.teachesMorning, ...faculty.teachesEvening]) {
-    courseMap.set(c.id, c);
-  }
-  const allCourses = Array.from(courseMap.values());
-  const courses = allCourses.filter((c) => (c.programLevel || "BS") === levelFilter);
+
+  // Direct indexed query on courses taught by this faculty matching the programLevel
+  const courses = await prisma.course.findMany({
+    where: {
+      OR: [
+        { assignedFaculty: faculty.id },
+        { assignedFacultyMorning: faculty.id },
+        { assignedFacultyEvening: faculty.id },
+      ],
+      programLevel: levelFilter,
+    },
+    select: {
+      id: true,
+      courseCode: true,
+      courseName: true,
+      enrollments: {
+        select: { studentId: true },
+      },
+      timetables: {
+        select: {
+          id: true,
+          day: true,
+          startTime: true,
+          endTime: true,
+          room: true,
+        },
+      },
+      _count: {
+        select: {
+          quizzes: {
+            where: { status: "Published" },
+          },
+        },
+      },
+    },
+  });
 
   const courseIds = courses.map((c) => c.id);
 
@@ -81,7 +93,7 @@ export async function getFacultyDashboardData(
     }
   }
 
-  const [feedbacks, attendanceGroups, gradeStats] = await Promise.all([
+  const [feedbacks, attendanceGroups, gradeStats, announcements] = await Promise.all([
     prisma.feedback.findMany({
       where: { targetId: faculty.id, type: "Faculty" },
       select: { rating: true },
@@ -99,6 +111,32 @@ export async function getFacultyDashboardData(
           _avg: { gpa: true },
         })
       : Promise.resolve({ _avg: { gpa: 0 } }),
+    prisma.announcement.findMany({
+      where: {
+        audience: { in: ["Faculty", "All"] },
+        OR: [
+          { targetDepartment: null },
+          { targetDepartment: faculty.department },
+        ],
+        programLevel: levelFilter,
+      },
+      orderBy: { date: "desc" },
+      take: 5,
+      select: { id: true, title: true, priority: true, date: true },
+    }).catch(() =>
+      prisma.announcement.findMany({
+        where: {
+          audience: { in: ["Faculty", "All"] },
+          OR: [
+            { targetDepartment: null },
+            { targetDepartment: faculty.department },
+          ],
+        },
+        orderBy: { date: "desc" },
+        take: 5,
+        select: { id: true, title: true, priority: true, date: true },
+      })
+    ),
   ]);
 
   const avgRating =
@@ -106,7 +144,7 @@ export async function getFacultyDashboardData(
       ? +(feedbacks.reduce((sum, f) => sum + f.rating, 0) / feedbacks.length).toFixed(2)
       : 0;
 
-  const pendingQuizReviews = courses.reduce((sum, c) => sum + c.quizzes.length, 0);
+  const pendingQuizReviews = courses.reduce((sum, c) => sum + c._count.quizzes, 0);
 
   // Attendance overview for faculty's courses
   const attendanceMap: Record<string, number> = {};
@@ -118,33 +156,6 @@ export async function getFacultyDashboardData(
     { name: "Absent", value: attendanceMap["Absent"] ?? 0 },
     { name: "Late", value: attendanceMap["Late"] ?? 0 },
   ];
-
-  const announcements = await prisma.announcement.findMany({
-    where: {
-      audience: { in: ["Faculty", "All"] },
-      OR: [
-        { targetDepartment: null },
-        { targetDepartment: faculty.department },
-      ],
-      programLevel: levelFilter as ProgramLevel,
-    },
-    orderBy: { date: "desc" },
-    take: 5,
-    select: { id: true, title: true, priority: true, date: true },
-  }).catch(() =>
-    prisma.announcement.findMany({
-      where: {
-        audience: { in: ["Faculty", "All"] },
-        OR: [
-          { targetDepartment: null },
-          { targetDepartment: faculty.department },
-        ],
-      },
-      orderBy: { date: "desc" },
-      take: 5,
-      select: { id: true, title: true, priority: true, date: true },
-    })
-  );
 
   return {
     stats: {

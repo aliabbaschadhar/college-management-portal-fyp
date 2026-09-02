@@ -18,7 +18,16 @@ export async function GET(request: NextRequest) {
       select: {
         role: true,
         faculty: { select: { id: true } },
-        student: { select: { id: true, department: true, semester: true } },
+        student: {
+          select: {
+            id: true,
+            department: true,
+            semester: true,
+            programLevel: true,
+            discipline: true,
+            part: true,
+          },
+        },
       },
     });
 
@@ -43,7 +52,16 @@ export async function GET(request: NextRequest) {
         select: {
           role: true,
           faculty: { select: { id: true } },
-          student: { select: { id: true, department: true, semester: true } },
+          student: {
+            select: {
+              id: true,
+              department: true,
+              semester: true,
+              programLevel: true,
+              discipline: true,
+              part: true,
+            },
+          },
         },
       });
     }
@@ -63,7 +81,13 @@ export async function GET(request: NextRequest) {
       ];
     } else if (userRole === "STUDENT" && user.student) {
       await ensureStudentEnrollments(user.student.id, user.student.department, user.student.semester);
-      whereClause.semester = user.student.semester;
+      if (user.student.programLevel === "INTERMEDIATE") {
+        if (user.student.part) whereClause.part = user.student.part;
+        if (user.student.discipline) whereClause.discipline = user.student.discipline;
+      } else {
+        if (user.student.semester) whereClause.semester = user.student.semester;
+        if (user.student.department) whereClause.department = user.student.department;
+      }
       whereClause.enrollments = {
         some: { studentId: user.student.id },
       };
@@ -245,9 +269,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Automatically fetch and enroll all matching students for this course
+    // Automatically fetch and enroll all matching active students for this course
     const studentWhere: Prisma.StudentWhereInput = {
       programLevel,
+      status: { notIn: ["Graduated", "HSSC Completed", "Left", "Dropped Out", "Struck Off"] },
     };
     if (programLevel === "INTERMEDIATE") {
       studentWhere.discipline = course.discipline;

@@ -69,6 +69,12 @@ export async function GET(request: NextRequest) {
         : {}),
     };
 
+    const limitParam = searchParams.get("limit");
+    const pageParam = searchParams.get("page");
+    const limit = limitParam ? Math.min(Math.max(1, Number.parseInt(limitParam, 10)), 200) : undefined;
+    const page = pageParam ? Math.max(1, Number.parseInt(pageParam, 10)) : 1;
+    const skip = limit ? (page - 1) * limit : undefined;
+
     const students = await prisma.student.findMany({
       where: whereClause,
       include: {
@@ -76,6 +82,8 @@ export async function GET(request: NextRequest) {
         enrollments: { select: { id: true, courseId: true, blocked: true, readmitRequested: true } },
         _count: { select: { enrollments: true } },
       },
+      orderBy: { rollNo: "asc" },
+      ...(limit ? { take: limit, skip } : {}),
     });
 
     const result = students.map((s) => ({

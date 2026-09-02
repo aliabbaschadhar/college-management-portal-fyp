@@ -49,7 +49,8 @@ export function DashboardShell({ children, role, roleLabel }: DashboardShellProp
     api.get<{ student?: { status?: string } }>("/api/me")
       .then((res) => {
         if (!isMounted) return;
-        if (res.data?.student?.status === "Graduated") {
+        const studentStatus = res.data?.student?.status;
+        if (studentStatus === "Graduated" || studentStatus === "HSSC Completed") {
           setNavItems([
             { title: "Graduation Portal", href: "/dashboard/graduated", icon: LayoutDashboard },
             { title: "Alumni Directory", href: "/dashboard/alumni", icon: LayoutDashboard },

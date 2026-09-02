@@ -112,14 +112,33 @@ export async function GET(request: NextRequest) {
       ...(resolvedStudentId ? { studentId: resolvedStudentId } : {}),
     };
 
+    const limitParam = searchParams.get("limit");
+    const pageParam = searchParams.get("page");
+    const limit = limitParam ? Math.min(Math.max(1, Number.parseInt(limitParam, 10)), 200) : undefined;
+    const page = pageParam ? Math.max(1, Number.parseInt(pageParam, 10)) : 1;
+    const skip = limit ? (page - 1) * limit : undefined;
+
     const fees = await prisma.fee.findMany({
       where: whereClause,
-      include: {
+      select: {
+        id: true,
+        studentId: true,
+        type: true,
+        amount: true,
+        status: true,
+        dueDate: true,
+        semester: true,
+        paidDate: true,
         student: {
-          include: { user: { select: { name: true } } },
+          select: {
+            id: true,
+            rollNo: true,
+            user: { select: { name: true } },
+          },
         },
       },
       orderBy: { dueDate: "desc" },
+      ...(limit ? { take: limit, skip } : {}),
     });
 
     return NextResponse.json(fees);

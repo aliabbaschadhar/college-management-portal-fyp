@@ -147,9 +147,23 @@ export async function GET(request: NextRequest) {
           },
         } : {}),
       },
-      include: {
+      select: {
+        id: true,
+        studentId: true,
+        courseId: true,
+        quizMarks: true,
+        assignmentMarks: true,
+        midMarks: true,
+        finalMarks: true,
+        total: true,
+        gpa: true,
+        locked: true,
         student: {
-          include: { user: { select: { name: true } } },
+          select: {
+            id: true,
+            rollNo: true,
+            user: { select: { name: true } },
+          },
         },
         course: { select: { courseCode: true, courseName: true } },
       },

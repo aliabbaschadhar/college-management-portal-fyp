@@ -119,17 +119,11 @@ export default function ManageAdmissionsPage() {
       .catch((err) => console.error("Error loading courses in admissions:", err));
   }, []);
 
-  // Reset selections when tab changes
+  // Reset selections when tab, filter, or programLevel changes
   useEffect(() => {
     setSelectedAdmissionIds(new Set());
     setSelectedStaffIds(new Set());
-  }, [activeTab]);
-
-  // Reset selections when filter changes
-  useEffect(() => {
-    setSelectedAdmissionIds(new Set());
-    setSelectedStaffIds(new Set());
-  }, [filterStatus]);
+  }, [activeTab, filterStatus, programLevel]);
 
   const loadAdmissions = useCallback(() => {
     setLoading(true);

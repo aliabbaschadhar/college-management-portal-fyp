@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useProgramLevel } from "@/context/program-level-context";
 import { api } from "@/lib/axios";
 import {
@@ -188,13 +188,19 @@ export default function AdminDashboardHome() {
   const [loading, setLoading] = useState(true);
   const [dbName, setDbName] = useState<string | null>(null);
 
+  const activeLevelRef = useRef(programLevel);
+  activeLevelRef.current = programLevel;
+
   const fetchData = useCallback(async (isRefresh = false) => {
+    const requestedLevel = programLevel;
     if (!isRefresh) setLoading(true);
     try {
       const [r, meRes] = await Promise.all([
-        api.get<AdminDashboardApiResponse>(`/api/dashboard/admin?programLevel=${programLevel}`),
+        api.get<AdminDashboardApiResponse>(`/api/dashboard/admin?programLevel=${requestedLevel}`),
         api.get("/api/me").catch(() => null),
       ]);
+      if (activeLevelRef.current !== requestedLevel) return;
+
       const payload = r.data;
       if (meRes?.data?.name) {
         setDbName(meRes.data.name);
@@ -209,10 +215,14 @@ export default function AdminDashboardHome() {
         );
       }
     } catch {
-      setData(defaultData);
-      setAuditLogs([]);
+      if (activeLevelRef.current === requestedLevel) {
+        setData(defaultData);
+        setAuditLogs([]);
+      }
     } finally {
-      setLoading(false);
+      if (activeLevelRef.current === requestedLevel) {
+        setLoading(false);
+      }
     }
   }, [programLevel]);
 

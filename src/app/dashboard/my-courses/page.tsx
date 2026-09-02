@@ -211,11 +211,15 @@ export default function MyCoursesPage() {
 
                 {/* Metadata Row */}
                 <div className="space-y-2.5 text-xs border-t border-border/40 pt-4 mb-4">
-                  <div className="flex items-center justify-between px-1 text-muted-foreground font-medium">
-                    <span className="flex items-center gap-1.5 font-semibold text-foreground">
+                  <div
+                    onClick={() => setSelectedFacultyModal(course)}
+                    className="flex items-center justify-between px-1 text-muted-foreground font-medium hover:bg-brand-primary/5 p-1 rounded-lg cursor-pointer transition-colors group/inst"
+                    title="Click to view instructor details"
+                  >
+                    <span className="flex items-center gap-1.5 font-semibold text-foreground group-hover/inst:text-brand-primary transition-colors">
                       <GraduationCap className="h-4 w-4 text-brand-primary shrink-0" /> Instructor
                     </span>
-                    <span className="font-bold text-brand-primary">{facultyName}</span>
+                    <span className="font-bold text-brand-primary underline decoration-dotted underline-offset-2">{facultyName}</span>
                   </div>
 
                   <div className="flex items-center justify-between px-1 text-muted-foreground font-medium">

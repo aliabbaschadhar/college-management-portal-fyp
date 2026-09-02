@@ -1,14 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { getCachedUserRole } from "@/lib/auth-cache";
 
 type UserRole = "ADMIN" | "FACULTY" | "STUDENT";
-
-function normalizeRole(rawRole: unknown): UserRole | undefined {
-  if (typeof rawRole !== "string") return undefined;
-  const upper = rawRole.toUpperCase() as UserRole;
-  return upper === "ADMIN" || upper === "FACULTY" || upper === "STUDENT" ? upper : undefined;
-}
 
 /**
  * Verifies the authenticated user has the required role.
@@ -27,18 +21,12 @@ export async function requireRole(
     return NextResponse.json({ error: "Database temporarily unavailable", code: "DATABASE_ERROR" }, { status: 503 });
   }
 
-  let rawRole: string | undefined;
+  let role: UserRole | null = null;
   try {
-    const dbUser = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { role: true },
-    });
-    rawRole = dbUser?.role;
+    role = await getCachedUserRole(userId);
   } catch {
     return NextResponse.json({ error: "Database temporarily unavailable", code: "DATABASE_ERROR" }, { status: 503 });
   }
-
-  const role = normalizeRole(rawRole);
 
   if (!role || !allowedRoles.includes(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -66,18 +54,13 @@ export async function requireOwnerOrRole(
     return { error: NextResponse.json({ error: "Database temporarily unavailable", code: "DATABASE_ERROR" }, { status: 503 }) };
   }
 
-  let rawRole: string | undefined;
+  let role: UserRole = "STUDENT";
   try {
-    const dbUser = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { role: true },
-    });
-    rawRole = dbUser?.role;
+    const cachedRole = await getCachedUserRole(userId);
+    if (cachedRole) role = cachedRole;
   } catch {
     return { error: NextResponse.json({ error: "Database temporarily unavailable", code: "DATABASE_ERROR" }, { status: 503 }) };
   }
-
-  const role = normalizeRole(rawRole) ?? "STUDENT";
 
   // Owner always has access
   if (userId === ownerClerkId) {

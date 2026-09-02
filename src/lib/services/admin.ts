@@ -57,6 +57,7 @@ export async function getAdminDashboardData(programLevel?: string): Promise<Admi
       _count: { _all: true },
     }),
     prisma.announcement.findMany({
+      where: { programLevel: levelFilter },
       orderBy: { date: "desc" },
       take: 5,
       select: { id: true, title: true, priority: true, date: true },
