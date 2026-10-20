@@ -53,7 +53,19 @@ export async function POST(
       return NextResponse.json({ error: "Forbidden: Student profile not found" }, { status: 403 });
     }
 
-    let calculatedScore = body.score ?? 0;
+    // Prevent duplicate attempts by students
+    if (user.role === "STUDENT") {
+      const existingAttempt = await prisma.quizAttempt.findFirst({
+        where: { quizId, studentId: targetStudentId },
+      });
+      if (existingAttempt) {
+        return NextResponse.json({ error: "You have already submitted this quiz" }, { status: 400 });
+      }
+    }
+
+    // Only faculty and admin can manually specify a score override (e.g. for hardform papers)
+    // Students MUST have their score calculated strictly server-side from their answers
+    let calculatedScore = (user.role === "FACULTY" || user.role === "ADMIN") ? (body.score ?? 0) : 0;
     let numericAnswersArray: number[] = [];
 
     if (body.answers && quiz.questions.length > 0) {
@@ -97,6 +109,8 @@ export async function POST(
         calculatedScore = Math.round(earnedMarks);
         numericAnswersArray = numAnswers;
       }
+    } else if (user.role === "STUDENT") {
+      return NextResponse.json({ error: "Answers are required for quiz submission" }, { status: 400 });
     }
 
     const attempt = await prisma.quizAttempt.create({
@@ -126,6 +140,19 @@ export async function DELETE(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
+    // Only Admin or Faculty can delete/reset student quiz attempts
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true },
+    });
+
+    if (!user || !["ADMIN", "FACULTY"].includes(user.role)) {
+      return NextResponse.json(
+        { error: "Forbidden: Only faculty and administrators can reset quiz attempts" },
+        { status: 403 }
+      );
+    }
+
     const { id: quizId } = await params;
     const { searchParams } = request.nextUrl;
     const studentId = searchParams.get("studentId");

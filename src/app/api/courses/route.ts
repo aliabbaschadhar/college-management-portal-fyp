@@ -179,7 +179,11 @@ export async function GET(request: NextRequest) {
       _count: { enrollments: c._count.enrollments },
     }));
 
-    return NextResponse.json(result);
+    return NextResponse.json(result, {
+      headers: {
+        "Cache-Control": "private, no-cache, stale-while-revalidate=30",
+      },
+    });
   } catch (error) {
     console.error("GET /api/courses error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

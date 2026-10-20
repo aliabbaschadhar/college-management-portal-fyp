@@ -106,17 +106,7 @@ export async function POST(request: NextRequest) {
     }
 
     let calculatedMarks = body.totalMarks ?? 0;
-    let selectedQuestionsFull: Array<{
-      id: string;
-      courseId: string;
-      type: string;
-      text: string;
-      options: string[];
-      correctOption: number | null;
-      sampleAnswer: string | null;
-      marks: number;
-      quizId: string | null;
-    }> = [];
+    let selectedQuestionsFull: Awaited<ReturnType<typeof prisma.question.findMany>> = [];
 
     if (body.questionIds && body.questionIds.length > 0) {
       selectedQuestionsFull = await prisma.question.findMany({
@@ -156,7 +146,7 @@ export async function POST(request: NextRequest) {
               courseId: q.courseId,
               type: q.type,
               text: q.text,
-              options: q.options,
+              options: q.options ?? [],
               correctOption: q.correctOption,
               sampleAnswer: q.sampleAnswer,
               marks: q.marks,

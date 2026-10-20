@@ -83,7 +83,11 @@ export async function GET(request: NextRequest) {
       orderBy: { date: "desc" },
     });
 
-    return NextResponse.json(announcements);
+    return NextResponse.json(announcements, {
+      headers: {
+        "Cache-Control": "private, no-cache, stale-while-revalidate=30",
+      },
+    });
   } catch (error) {
     console.error("GET /api/announcements error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

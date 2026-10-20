@@ -77,11 +77,11 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
 
   const [isRefreshingAnnouncements, setIsRefreshingAnnouncements] = useState(false);
 
-  const fetchAnnouncements = useCallback(async () => {
+  const fetchAnnouncements = useCallback(async (isForce = false) => {
     try {
       const [annRes, meRes] = await Promise.all([
-        api.get<Announcement[]>("/api/announcements").catch(() => ({ data: [] })),
-        userId && userId !== "anonymous" ? api.get("/api/me").catch(() => null) : Promise.resolve(null),
+        api.get<Announcement[]>("/api/announcements", { skipCache: isForce }).catch(() => ({ data: [] })),
+        userId && userId !== "anonymous" ? api.get("/api/me", { skipCache: isForce }).catch(() => null) : Promise.resolve(null),
       ]);
       const annData = Array.isArray(annRes.data) ? annRes.data : [];
       setAllAnnouncements(annData);
@@ -90,7 +90,7 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
       }
 
       if (role === "student") {
-        const feesRes = await api.get<Fee[]>("/api/fees?status=Unpaid").catch(() => null);
+        const feesRes = await api.get<Fee[]>("/api/fees?status=Unpaid", { skipCache: isForce }).catch(() => null);
         setUnpaidFees(Array.isArray(feesRes?.data) ? feesRes.data : []);
       } else {
         setUnpaidFees([]);
@@ -430,7 +430,7 @@ export function DashboardHeader({ onMenuClick }: DashboardHeaderProps) {
                     size="sm"
                     onClick={async () => {
                       setIsRefreshingAnnouncements(true);
-                      await fetchAnnouncements();
+                      await fetchAnnouncements(true);
                       setIsRefreshingAnnouncements(false);
                     }}
                     disabled={isRefreshingAnnouncements}

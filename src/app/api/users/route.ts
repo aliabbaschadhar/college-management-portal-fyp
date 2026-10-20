@@ -50,12 +50,12 @@ export async function GET(request: NextRequest) {
 
     if (search) {
       whereClause.OR = [
-        { name: { contains: search, mode: "insensitive" } },
-        { email: { contains: search, mode: "insensitive" } },
-        { student: { rollNo: { contains: search, mode: "insensitive" } } },
-        { student: { department: { contains: search, mode: "insensitive" } } },
-        { faculty: { department: { contains: search, mode: "insensitive" } } },
-        { faculty: { specialization: { contains: search, mode: "insensitive" } } },
+        { name: { contains: search } },
+        { email: { contains: search } },
+        { student: { rollNo: { contains: search } } },
+        { student: { department: { contains: search } } },
+        { faculty: { department: { contains: search } } },
+        { faculty: { specialization: { contains: search } } },
       ];
     }
 
@@ -64,8 +64,8 @@ export async function GET(request: NextRequest) {
         ...(whereClause.AND as unknown[] ?? []),
         {
           OR: [
-            { student: { department: { equals: departmentFilter, mode: "insensitive" } } },
-            { faculty: { department: { equals: departmentFilter, mode: "insensitive" } } },
+            { student: { department: departmentFilter } },
+            { faculty: { department: departmentFilter } },
           ],
         },
       ];

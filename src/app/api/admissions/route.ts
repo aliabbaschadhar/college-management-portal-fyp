@@ -164,12 +164,21 @@ export async function POST(request: NextRequest) {
     const body = await parseJsonBody<AdmissionCreateBody>(request);
     validateAdmissionBody(body);
 
+    // Resolve authenticated user to ensure applicants cannot impersonate other emails
+    const authUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { email: true, role: true },
+    });
+
+    // Non-admins can only submit an application for their own verified account email
+    const effectiveEmail = (authUser?.role === "ADMIN" && body.email) ? body.email : (authUser?.email || body.email);
+
     const programLevel = body.programLevel || "BS";
 
     // --- Attempt Limiting ---
     // 1. Check if student is blocked (2+ rejections)
     const blockedAdmission = await prisma.admission.findFirst({
-      where: { email: body.email, blocked: true },
+      where: { email: effectiveEmail, blocked: true },
     });
     if (blockedAdmission) {
       return errorResponse(
@@ -181,7 +190,7 @@ export async function POST(request: NextRequest) {
 
     // 2. Prevent duplicate submissions — cannot submit if a Pending one exists
     const pendingAdmission = await prisma.admission.findFirst({
-      where: { email: body.email, status: "Pending" },
+      where: { email: effectiveEmail, status: "Pending" },
     });
     if (pendingAdmission) {
       return errorResponse(
@@ -193,7 +202,7 @@ export async function POST(request: NextRequest) {
 
     // 3. Count rejected admissions to warn / enforce limit
     const rejectedCount = await prisma.admission.count({
-      where: { email: body.email, status: "Rejected" },
+      where: { email: effectiveEmail, status: "Rejected" },
     });
     if (rejectedCount >= 2) {
       return errorResponse(
@@ -206,7 +215,7 @@ export async function POST(request: NextRequest) {
     const admission = await prisma.admission.create({
       data: {
         studentName: body.studentName,
-        email: body.email,
+        email: effectiveEmail,
         phone: body.phone,
         programLevel,
         appliedDepartment: body.appliedDepartment || body.discipline || "Intermediate",

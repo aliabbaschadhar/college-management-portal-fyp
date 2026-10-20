@@ -147,12 +147,12 @@ export function FacultyDashboardHome() {
     try {
       if (!isRefresh) setLoading(true);
       const [dashData, quizData, meRes] = await Promise.all([
-        api.get(`/api/dashboard/faculty?programLevel=${programLevel}`).then((r) => r.data),
+        api.get(`/api/dashboard/faculty?programLevel=${programLevel}`, { skipCache: isRefresh }).then((r) => r.data),
         api
-          .get("/api/quizzes")
+          .get("/api/quizzes", { skipCache: isRefresh })
           .then((r) => r.data)
           .catch(() => []),
-        api.get("/api/me").catch(() => null),
+        api.get("/api/me", { skipCache: isRefresh }).catch(() => null),
       ]);
 
       if (meRes?.data?.name) {

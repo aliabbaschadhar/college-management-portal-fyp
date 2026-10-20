@@ -33,10 +33,10 @@ export async function GET(request: NextRequest) {
 
     if (queryStr) {
       whereClause.OR = [
-        { rollNo: { contains: queryStr, mode: "insensitive" } },
-        { user: { name: { contains: queryStr, mode: "insensitive" } } },
-        { user: { email: { contains: queryStr, mode: "insensitive" } } },
-        { department: { contains: queryStr, mode: "insensitive" } },
+        { rollNo: { contains: queryStr } },
+        { user: { name: { contains: queryStr } } },
+        { user: { email: { contains: queryStr } } },
+        { department: { contains: queryStr } },
       ];
     }
 

@@ -37,17 +37,24 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({
-      id: user.id,
-      clerkId: user.clerkId,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      avatar: user.avatar,
-      student: studentData,
-      faculty: user.faculty,
-      admin: user.admin,
-    });
+    return NextResponse.json(
+      {
+        id: user.id,
+        clerkId: user.clerkId,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        avatar: user.avatar,
+        student: studentData,
+        faculty: user.faculty,
+        admin: user.admin,
+      },
+      {
+        headers: {
+          "Cache-Control": "private, no-cache, stale-while-revalidate=60",
+        },
+      }
+    );
   } catch (error) {
     return handleApiError("GET /api/me", error);
   }

@@ -63,12 +63,62 @@ function getRole(claims: unknown): Role {
   return 'student'
 }
 
+interface RateLimitRecord {
+  count: number;
+  resetAt: number;
+}
+
+const rateLimitMap = new Map<string, RateLimitRecord>();
+
+function checkRateLimit(key: string, limit: number, windowMs: number): boolean {
+  const now = Date.now();
+  const record = rateLimitMap.get(key);
+
+  if (!record || now > record.resetAt) {
+    if (rateLimitMap.size > 1000) {
+      for (const [k, v] of rateLimitMap.entries()) {
+        if (now > v.resetAt) rateLimitMap.delete(k);
+      }
+    }
+    rateLimitMap.set(key, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+
+  if (record.count >= limit) {
+    return false;
+  }
+
+  record.count++;
+  return true;
+}
+
 export default clerkMiddleware(async (auth, req) => {
+  const pathname = req.nextUrl.pathname;
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "local";
+
+  // Rate limit sensitive endpoints to defend against brute force and DoS scraping
+  if (pathname.startsWith("/api/onboarding")) {
+    if (!checkRateLimit(`onboard_${ip}`, 30, 60_000)) {
+      return NextResponse.json(
+        { error: "Too many requests. Please wait a minute before trying again." },
+        { status: 429, headers: { "Retry-After": "60" } }
+      );
+    }
+  }
+
+  if (pathname.startsWith("/api/verify")) {
+    if (!checkRateLimit(`verify_${ip}`, 80, 60_000)) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded. Please try again later." },
+        { status: 429, headers: { "Retry-After": "60" } }
+      );
+    }
+  }
+
   if (isAuthRoute(req)) return;
 
   const authObject = await auth()
   const role = getRole(authObject.sessionClaims)
-  const pathname = req.nextUrl.pathname
 
   // Redirect users trying to access unauthenticated core paths, unless it's the home page
   if (!authObject.userId && pathname.startsWith('/dashboard')) {

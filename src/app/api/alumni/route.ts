@@ -25,10 +25,10 @@ export async function GET(request: NextRequest) {
 
     if (queryStr) {
       whereClause.OR = [
-        { rollNo: { contains: queryStr, mode: "insensitive" } },
-        { user: { name: { contains: queryStr, mode: "insensitive" } } },
-        { user: { email: { contains: queryStr, mode: "insensitive" } } },
-        { department: { contains: queryStr, mode: "insensitive" } },
+        { rollNo: { contains: queryStr } },
+        { user: { name: { contains: queryStr } } },
+        { user: { email: { contains: queryStr } } },
+        { department: { contains: queryStr } },
       ];
     }
 
@@ -58,6 +58,12 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true },
+    });
+
+    const isStaff = user?.role === "ADMIN" || user?.role === "FACULTY";
     const isInter = programLevel === "INTERMEDIATE";
 
     const formatted = alumniList.map((a) => {
@@ -69,12 +75,12 @@ export async function GET(request: NextRequest) {
         id: a.id,
         rollNo: a.rollNo,
         name: a.user?.name || (isInter ? "HSSC Graduate" : "Alumni"),
-        email: a.user?.email || "",
+        email: isStaff ? (a.user?.email || "") : "",
         avatar: a.avatar || a.user?.avatar || null,
         department: a.department,
         graduationYear: endYear,
         batch: batchStr,
-        cgpa: a.cgpa,
+        cgpa: isStaff ? a.cgpa : null,
         shift: a.shift,
         status: a.status,
       };

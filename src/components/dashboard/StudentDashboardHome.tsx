@@ -146,8 +146,8 @@ export function StudentDashboardHome() {
     if (!isRefresh) setLoading(true);
     try {
       const [res, meRes] = await Promise.all([
-        api.get<StudentDashboardResponse>("/api/dashboard/student"),
-        api.get("/api/me").catch(() => null),
+        api.get<StudentDashboardResponse>("/api/dashboard/student", { skipCache: isRefresh }),
+        api.get("/api/me", { skipCache: isRefresh }).catch(() => null),
       ]);
       const data = res.data;
       if (meRes?.data?.name) {

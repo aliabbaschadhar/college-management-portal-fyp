@@ -1,12 +1,10 @@
 import { PrismaClient } from "@prisma/client";
-import { Pool } from "pg";
-import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
-const adapter = new PrismaPg(pool);
+const adapter = new PrismaMariaDb(process.env.DATABASE_URL!);
 const prisma = new PrismaClient({ adapter });
 
 interface BsCourseDef {
@@ -682,6 +680,5 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
     })
     .finally(async () => {
       await prisma.$disconnect();
-      await pool.end();
     });
 }

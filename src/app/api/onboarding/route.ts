@@ -208,6 +208,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (!dbUser) {
+      return errorResponse(
+        "INTERNAL_ERROR",
+        "Failed to initialize user account in database",
+        500,
+      );
+    }
+
     // Create or update the onboarding request record
     const onboardingRequest = await prisma.onboardingRequest.upsert({
       where: { email },

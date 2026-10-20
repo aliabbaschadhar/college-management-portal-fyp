@@ -1,14 +1,12 @@
 import { PrismaClient } from "@prisma/client";
-import { Pool } from "pg";
-import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import dotenv from "dotenv";
 import { seedHsscCourses } from "./seed-hssc";
 import { seedBsCourses } from "./seed-bs";
 
 dotenv.config();
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
-const adapter = new PrismaPg(pool);
+const adapter = new PrismaMariaDb(process.env.DATABASE_URL!);
 const prisma = new PrismaClient({ adapter });
 
 function mockClerkId(prefix: string, id: string) {
@@ -434,8 +432,34 @@ async function main() {
     select: { id: true, courseCode: true, department: true, discipline: true, part: true, subjectSet: true },
   });
 
+  // Include both generated mock students and any existing students in DB (e.g. personal test accounts)
+  const existingDbStudents = await prisma.student.findMany({
+    select: {
+      id: true,
+      department: true,
+      semester: true,
+      programLevel: true,
+      discipline: true,
+      part: true,
+      subjectSet: true,
+    },
+  });
+  const mockStudentIds = new Set(STUDENT_DATA.map((s) => s.id));
+  const studentsToEnroll = [
+    ...STUDENT_DATA,
+    ...existingDbStudents.filter((s) => !mockStudentIds.has(s.id)).map((s) => ({
+      id: s.id,
+      department: s.department,
+      semester: s.semester,
+      programLevel: s.programLevel as "BS" | "INTERMEDIATE",
+      discipline: s.discipline,
+      part: s.part,
+      subjectSet: s.subjectSet,
+    })),
+  ];
+
   const ENROLLMENT_DATA: { studentId: string; courseId: string; semester: number }[] = [];
-  for (const student of STUDENT_DATA) {
+  for (const student of studentsToEnroll) {
     if (student.programLevel === "INTERMEDIATE") {
       const matchingHssc = hsscCoursesInDb.filter(
         (c) => c.discipline === student.discipline && c.part === student.part && (c.subjectSet === student.subjectSet || c.subjectSet === "Set 1")
@@ -516,7 +540,7 @@ async function main() {
   // 8. Fees
   console.log("Seeding fees...");
   const feeBatch: { id: string; studentId: string; type: string; amount: number; status: "Paid" | "Unpaid" | "Overdue"; dueDate: Date; semester: number; paidDate: Date | null }[] = [];
-  for (const s of STUDENT_DATA) {
+  for (const s of studentsToEnroll) {
     const feeAmount = FEE_MAP[s.department] ?? 28000;
     feeBatch.push(...makeFeesForStudent(s.id, feeAmount, s.semester));
   }
@@ -526,7 +550,7 @@ async function main() {
   // 9. Grades
   console.log("Seeding grades...");
   const GPA_CYCLE = [3.9, 3.7, 3.5, 3.4, 3.2, 3.0, 3.8, 3.6, 3.3, 3.1];
-  const gradeBatch: { studentId: string; courseId: string; quizMarks: number; assignmentMarks: number; midMarks: number; finalMarks: number; total: number; gpa: number; locked: boolean }[] = [];
+  const gradeBatch: { id: string; studentId: string; courseId: string; quizMarks: number; assignmentMarks: number; midMarks: number; finalMarks: number; total: number; gpa: number; locked: boolean }[] = [];
   for (let i = 0; i < ENROLLMENT_DATA.length; i++) {
     const e = ENROLLMENT_DATA[i];
     const gpa = GPA_CYCLE[i % GPA_CYCLE.length];
@@ -535,7 +559,16 @@ async function main() {
     const mid   = Math.round(gpa * 9);
     const final = Math.round(gpa * 11);
     gradeBatch.push({
-      studentId: e.studentId, courseId: e.courseId, quizMarks: quiz, assignmentMarks: asgn, midMarks: mid, finalMarks: final, total: quiz + asgn + mid + final, gpa, locked: gpa > 3.5,
+      id: `gr_${e.studentId}_${e.courseId}`,
+      studentId: e.studentId,
+      courseId: e.courseId,
+      quizMarks: quiz,
+      assignmentMarks: asgn,
+      midMarks: mid,
+      finalMarks: final,
+      total: quiz + asgn + mid + final,
+      gpa,
+      locked: gpa > 3.5,
     });
   }
   await prisma.grade.createMany({ data: gradeBatch, skipDuplicates: true });
@@ -611,6 +644,78 @@ async function main() {
     create: { shift: "Evening", startTime: "13:30", duration: 45, slots: 6 },
   });
 
+  // 14. Sample Quiz & Questions (CS-101)
+  console.log("Seeding sample quiz and questions...");
+  const cs101RealId = dbCourseIdMap.get("c10");
+  if (cs101RealId) {
+    const quizId = "quiz_sample_cs101";
+    await prisma.quiz.upsert({
+      where: { id: quizId },
+      update: {},
+      create: {
+        id: quizId,
+        title: "Programming Fundamentals - Mid Quiz 1",
+        courseId: cs101RealId,
+        createdBy: "user_3C9cVNeByLUAptMRkUMgw8gyzdW",
+        duration: 30,
+        totalMarks: 15,
+        status: "PUBLISHED",
+        dueDate: new Date("2026-05-15T23:59:59Z"),
+      },
+    });
+
+    const sampleQuestions = [
+      {
+        id: "q_cs101_1",
+        courseId: cs101RealId,
+        quizId,
+        type: "MCQ",
+        text: "Which of the following is a valid identifier in C++?",
+        options: ["$var_name", "VAR_123", "7var_name", "7_VAR"],
+        correctOption: 1,
+        marks: 5,
+      },
+      {
+        id: "q_cs101_2",
+        courseId: cs101RealId,
+        quizId,
+        type: "MCQ",
+        text: "What will be the output of sizeof(char) in standard C++?",
+        options: ["1 byte", "2 bytes", "4 bytes", "Depends on compiler"],
+        correctOption: 0,
+        marks: 5,
+      },
+      {
+        id: "q_cs101_3",
+        courseId: cs101RealId,
+        quizId,
+        type: "MCQ",
+        text: "Which loop structure is guaranteed to execute at least once?",
+        options: ["for loop", "while loop", "do-while loop", "none of the above"],
+        correctOption: 2,
+        marks: 5,
+      },
+    ];
+
+    for (const q of sampleQuestions) {
+      await prisma.question.upsert({
+        where: { id: q.id },
+        update: {},
+        create: {
+          id: q.id,
+          courseId: q.courseId,
+          quizId: q.quizId,
+          type: q.type,
+          text: q.text,
+          options: q.options,
+          correctOption: q.correctOption,
+          marks: q.marks,
+        },
+      });
+    }
+    console.log("  ✓ Sample CS-101 quiz and questions seeded");
+  }
+
   console.log("\n✨ Idempotent database seed complete!");
 }
 
@@ -621,5 +726,4 @@ main()
   })
   .finally(async () => {
     await prisma.$disconnect();
-    await pool.end();
   });

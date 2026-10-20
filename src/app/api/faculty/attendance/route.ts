@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
       const allFaculty = await prisma.faculty.findMany({
         where: {
           ...(deptParam && deptParam !== "ALL"
-            ? { department: { equals: deptParam, mode: "insensitive" } }
+            ? { department: deptParam }
             : {}),
         },
         include: {

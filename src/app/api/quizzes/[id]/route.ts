@@ -50,6 +50,26 @@ export async function GET(
       if (!enrollment) {
         return NextResponse.json({ error: "Forbidden: Not enrolled in this course" }, { status: 403 });
       }
+
+      // Check if student has already submitted an attempt
+      const existingAttempt = await prisma.quizAttempt.findFirst({
+        where: {
+          quizId: quiz.id,
+          studentId: user.student.id,
+        },
+      });
+
+      // If student has not submitted yet, strip correctOption to prevent cheating
+      if (!existingAttempt) {
+        const sanitizedQuestions = quiz.questions.map((q) => ({
+          ...q,
+          correctOption: null,
+        }));
+        return NextResponse.json({
+          ...quiz,
+          questions: sanitizedQuestions,
+        });
+      }
     }
 
     return NextResponse.json(quiz);

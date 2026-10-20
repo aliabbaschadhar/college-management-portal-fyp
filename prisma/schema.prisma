@@ -3,18 +3,18 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
 }
 
 model User {
-  id        String   @id @default(uuid())
-  clerkId   String?  @unique
-  email     String   @unique
+  id        String     @id @default(uuid())
+  clerkId   String?    @unique
+  email     String     @unique
   name      String?
-  role      Role     @default(STUDENT)
-  avatar    String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  role      Role       @default(STUDENT)
+  avatar    String?    @db.Text
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
   admin     Admin?
   faculty   Faculty?
   student   Student?
@@ -22,40 +22,40 @@ model User {
 }
 
 model Student {
-  id             String        @id @default(uuid())
-  userId         String        @unique
-  rollNo         String        @unique
-  phone          String?
-  department     String
-  semester       Int           @default(1)
-  programLevel   ProgramLevel  @default(BS)
-  discipline     String?
-  part           Int?
-  subjectSet     String?
-  enrollmentDate DateTime      @default(now())
-  avatar         String?
-  shift          String        @default("Morning")
-  approvedBy     String?
-  cgpa           Float         @default(0.0)
-  blocked        Boolean       @default(false)
-  readmitRequested Boolean     @default(false)
-  status         String        @default("Active")
-  gradesheetUrl  String?
-  graduationDate DateTime?
-  totalMarks     Int?
-  obtainedMarks  Int?
-  part1Marks     Int?
-  percentage     Float?
-  grade          String?
-  leftReason     String?
-  leftDate       DateTime?
-  attendances    Attendance[]
-  enrollments    Enrollment[]
-  fees           Fee[]
-  feedbacks      Feedback[]
-  grades         Grade[]
-  quizAttempts   QuizAttempt[]
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String        @id @default(uuid())
+  userId           String        @unique
+  rollNo           String        @unique
+  phone            String?
+  department       String
+  semester         Int           @default(1)
+  programLevel     ProgramLevel  @default(BS)
+  discipline       String?
+  part             Int?
+  subjectSet       String?
+  enrollmentDate   DateTime      @default(now())
+  avatar           String?       @db.Text
+  shift            String        @default("Morning")
+  approvedBy       String?
+  cgpa             Float         @default(0.0)
+  blocked          Boolean       @default(false)
+  readmitRequested Boolean       @default(false)
+  status           String        @default("Active")
+  gradesheetUrl    String?       @db.Text
+  graduationDate   DateTime?
+  totalMarks       Int?
+  obtainedMarks    Int?
+  part1Marks       Int?
+  percentage       Float?
+  grade            String?
+  leftReason       String?
+  leftDate         DateTime?
+  attendances      Attendance[]
+  enrollments      Enrollment[]
+  fees             Fee[]
+  feedbacks        Feedback[]
+  grades           Grade[]
+  quizAttempts     QuizAttempt[]
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([programLevel])
   @@index([discipline])
@@ -74,7 +74,7 @@ model Faculty {
   department     String
   specialization String
   joinDate       DateTime            @default(now())
-  avatar         String?
+  avatar         String?             @db.Text
   teaches        Course[]            @relation("FacultyCourse")
   teachesMorning Course[]            @relation("FacultyCourseMorning")
   teachesEvening Course[]            @relation("FacultyCourseEvening")
@@ -108,11 +108,11 @@ model Course {
   faculty                Faculty?     @relation("FacultyCourse", fields: [assignedFaculty], references: [id])
   facultyMorning         Faculty?     @relation("FacultyCourseMorning", fields: [assignedFacultyMorning], references: [id])
   facultyEvening         Faculty?     @relation("FacultyCourseEvening", fields: [assignedFacultyEvening], references: [id])
-  enrollments     Enrollment[]
-  grades          Grade[]
-  quizzes         Quiz[]
-  timetables      Timetable[]
-  questions       Question[]
+  enrollments            Enrollment[]
+  grades                 Grade[]
+  quizzes                Quiz[]
+  timetables             Timetable[]
+  questions              Question[]
 
   @@unique([courseCode, department])
   @@index([programLevel])
@@ -181,7 +181,7 @@ model Fee {
 model Announcement {
   id               String               @id @default(uuid())
   title            String
-  content          String
+  content          String               @db.Text
   author           String
   date             DateTime             @default(now())
   audience         AnnouncementAudience
@@ -202,7 +202,7 @@ model Feedback {
   type      FeedbackType
   targetId  String
   rating    Int
-  comment   String
+  comment   String       @db.Text
   date      DateTime     @default(now())
   student   Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
@@ -249,10 +249,10 @@ model Question {
   id            String   @id @default(uuid())
   courseId      String
   type          String   @default("MCQ")
-  text          String
-  options       String[]
+  text          String   @db.Text
+  options       Json     @default("[]")
   correctOption Int?
-  sampleAnswer  String?
+  sampleAnswer  String?  @db.Text
   marks         Int      @default(1)
   quizId        String?
   quiz          Quiz?    @relation(fields: [quizId], references: [id], onDelete: SetNull)
@@ -270,7 +270,7 @@ model QuizAttempt {
   score       Int
   totalMarks  Int
   submittedAt DateTime @default(now())
-  answers     Int[]
+  answers     Json     @default("[]")
   quizTitle   String?
   courseCode  String?
   quiz        Quiz?    @relation(fields: [quizId], references: [id], onDelete: SetNull)
@@ -319,7 +319,7 @@ model Admission {
   discipline          String?
   part                Int?
   subjectSet          String?
-  selectedCourses     String[]
+  selectedCourses     Json         @default("[]")
   blocked             Boolean      @default(false)
 
   @@index([programLevel])
@@ -333,7 +333,7 @@ model AuditLog {
   action       String       // "CREATED" | "UPDATED" | "DELETED"
   entity       String       // "Admission" | "Fee" | "Course" | "Student" etc.
   entityId     String       // ID of the affected record
-  description  String       // Human-readable description
+  description  String       @db.Text // Human-readable description
   adminId      String?      // clerkId of the admin who performed the action
   adminName    String?      // Display name of the admin
   programLevel ProgramLevel @default(BS)
@@ -384,7 +384,6 @@ enum Role {
   ADMIN
 }
 
-
 enum AttendanceStatus {
   Present
   Absent
@@ -417,7 +416,6 @@ model SystemSettings {
   updatedAt DateTime @updatedAt
 }
 
-
 enum FeedbackType {
   Faculty
   Course
@@ -431,10 +429,9 @@ model FacultyAttendance {
   checkInTime  DateTime?
   checkOutTime DateTime?
   markedBy     String           @default("SELF")
-  notes        String?
+  notes        String?          @db.Text
   faculty      Faculty          @relation(fields: [facultyId], references: [id], onDelete: Cascade)
 
   @@unique([facultyId, date])
   @@index([date])
 }
-

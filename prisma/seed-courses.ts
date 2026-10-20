@@ -1,14 +1,12 @@
 import { PrismaClient } from "@prisma/client";
-import { Pool } from "pg";
-import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import dotenv from "dotenv";
 import { seedHsscCourses } from "./seed-hssc";
 import { seedBsCourses } from "./seed-bs";
 
 dotenv.config();
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
-const adapter = new PrismaPg(pool);
+const adapter = new PrismaMariaDb(process.env.DATABASE_URL!);
 const prisma = new PrismaClient({ adapter });
 
 async function seedAllCourses() {
@@ -27,5 +25,4 @@ seedAllCourses()
   })
   .finally(async () => {
     await prisma.$disconnect();
-    await pool.end();
   });

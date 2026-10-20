@@ -196,8 +196,8 @@ export default function AdminDashboardHome() {
     if (!isRefresh) setLoading(true);
     try {
       const [r, meRes] = await Promise.all([
-        api.get<AdminDashboardApiResponse>(`/api/dashboard/admin?programLevel=${requestedLevel}`),
-        api.get("/api/me").catch(() => null),
+        api.get<AdminDashboardApiResponse>(`/api/dashboard/admin?programLevel=${requestedLevel}`, { skipCache: isRefresh }),
+        api.get("/api/me", { skipCache: isRefresh }).catch(() => null),
       ]);
       if (activeLevelRef.current !== requestedLevel) return;
 
